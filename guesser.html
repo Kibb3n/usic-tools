@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guesser - μsic tools</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        @keyframes blob1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(150px, 100px) scale(1.2); }
+            66% { transform: translate(-100px, 150px) scale(0.9); }
+        }
+        @keyframes blob2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(-150px, -100px) scale(0.9); }
+            66% { transform: translate(100px, -150px) scale(1.2); }
+        }
+        .grain {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-black text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Icons ---
+        const Search = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+        );
+
+        const ArrowLeft = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+        );
+
+        const ChevronRight = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+        );
+
+        const Loader2 = ({ className }) => (
+            <svg className={className + " animate-spin"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+        );
+
+        const Plus = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+        );
+
+        const X = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        );
+
+        const Copy = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+        );
+
+        const TrendingUp = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+        );
+
+        const TrendingDown = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+            </svg>
+        );
+
+        // --- Utility functions ---
+        const jsonpRequest = (url) => {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+                window[callbackName] = (data) => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    resolve(data);
+                };
+                const script = document.createElement('script');
+                script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
+                script.onerror = () => {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    reject(new Error('JSONP request failed'));
+                };
+                document.body.appendChild(script);
+            });
+        };
+
+        const extractDominantColor = async (imageUrl) => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = 50;
+                        canvas.height = 50;
+                        ctx.drawImage(img, 0, 0, 50, 50);
+                        const data = ctx.getImageData(10, 10, 30, 30).data;
+                        
+                        let r = 0, g = 0, b = 0;
+                        for (let i = 0; i < data.length; i += 4) {
+                            r += data[i];
+                            g += data[i + 1];
+                            b += data[i + 2];
+                        }
+                        const pixels = data.length / 4;
+                        resolve(`rgb(${Math.floor(r/pixels)}, ${Math.floor(g/pixels)}, ${Math.floor(b/pixels)})`);
+                    } catch (e) {
+                        resolve('#ff0080');
+                    }
+                };
+                img.onerror = () => resolve('#ff0080');
+                img.src = imageUrl;
+            });
+        };
+
+        const getRandomColor = () => {
+            const colors = ['#ff0080', '#7928ca', '#00dfd8', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        };
+
+        // --- Background component ---
+        function AnimatedBackground({ colors }) {
+            return (
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div
+                        className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl"
+                        style={{
+                            background: `radial-gradient(circle, ${colors[0]} 0%, transparent 70%)`,
+                            animation: `blob1 12s ease-in-out infinite`,
+                            top: '50%',
+                            left: '33.333%',
+                            transform: 'translate(-50%, -50%)',
+                            transition: 'background 2s ease-in-out'
+                        }}
+                    />
+                    <div
+                        className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl"
+                        style={{
+                            background: `radial-gradient(circle, ${colors[1]} 0%, transparent 70%)`,
+                            animation: `blob2 12s ease-in-out infinite`,
+                            top: '50%',
+                            right: '33.333%',
+                            transform: 'translate(50%, -50%)',
+                            transition: 'background 2s ease-in-out'
+                        }}
+                    />
+                    <div className="absolute inset-0 grain" />
+                </div>
+            );
+        }
+
+        // --- Main Guesser Component ---
+        function GuesserMode() {
+            const MAX_GUESSES = 6;
+
+            const [gameState, setGameState] = useState({
+                stage: 'recentGames',
+                selectedArtists: [],
+                selectedAlbums: [],
+                artistAlbums: {},
+                allSongs: [],
+                targetSong: null,
+                guesses: [],
+                gameOver: false,
+                won: false
+            });
+
+            const [searchState, setSearchState] = useState({
+                artistName: '',
+                suggestions: [],
+                page: 0,
+                loading: false,
+                loadingSongs: false,
+                error: ''
+            });
+
+            const [currentGuess, setCurrentGuess] = useState('');
+            const [filteredSongs, setFilteredSongs] = useState([]);
+            const [bgColors, setBgColors] = useState([getRandomColor(), getRandomColor()]);
+            const [recentGames, setRecentGames] = useState([]);
+            const [expandedGame, setExpandedGame] = useState(null);
+            const [showAnswer, setShowAnswer] = useState(false);
+            const [copied, setCopied] = useState(false);
+
+            // Load stats from localStorage
+            const [stats, setStats] = useState(() => {
+                const saved = localStorage.getItem('guesser_stats');
+                return saved ? JSON.parse(saved) : {
+                    gamesPlayed: 0,
+                    gamesWon: 0,
+                    currentStreak: 0,
+                    maxStreak: 0,
+                    guessDistribution: [0, 0, 0, 0, 0, 0]
+                };
+            });
+
+            useEffect(() => {
+                const saved = localStorage.getItem('guesser_recent_games');
+                if (saved) {
+                    try {
+                        setRecentGames(JSON.parse(saved));
+                    } catch (e) {}
+                }
+            }, []);
+
+            useEffect(() => {
+                if (gameState.stage === 'playing' && gameState.guesses.length >= 2) {
+                    const lastTwo = gameState.guesses.slice(-2);
+                    setBgColors([lastTwo[0].albumColor || getRandomColor(), lastTwo[1].albumColor || getRandomColor()]);
+                }
+            }, [gameState.guesses, gameState.stage]);
+
+            useEffect(() => {
+                if (currentGuess.trim() && gameState.stage === 'playing') {
+                    const filtered = gameState.allSongs.filter(song => 
+                        song.name.toLowerCase().includes(currentGuess.toLowerCase()) &&
+                        !gameState.guesses.find(g => g.song.name === song.name)
+                    ).slice(0, 10);
+                    setFilteredSongs(filtered);
+                } else {
+                    setFilteredSongs([]);
+                }
+            }, [currentGuess, gameState.allSongs, gameState.guesses, gameState.stage]);
+
+            const saveStats = (newStats) => {
+                localStorage.setItem('guesser_stats', JSON.stringify(newStats));
+                setStats(newStats);
+            };
+
+            const saveRecentGame = (config) => {
+                const newGame = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    artists: config.artists,
+                    albums: config.albums,
+                    artistNames: config.artists.map(a => a.artistName).join(', ')
+                };
+
+                const updated = [newGame, ...recentGames].slice(0, 5);
+                setRecentGames(updated);
+                localStorage.setItem('guesser_recent_games', JSON.stringify(updated));
+            };
+
+            const loadRecentGame = async (game) => {
+                setGameState(s => ({
+                    ...s,
+                    selectedArtists: game.artists,
+                    selectedAlbums: game.albums
+                }));
+                await loadGameConfig(game.artists, game.albums);
+            };
+
+            const searchArtist = async () => {
+                if (!searchState.artistName.trim()) {
+                    setSearchState(s => ({ ...s, error: 'Please enter an artist name' }));
+                    return;
+                }
+
+                setSearchState(s => ({ ...s, loading: true, error: '', suggestions: [], page: 0 }));
+
+                try {
+                    const searchData = await jsonpRequest(
+                        `https://itunes.apple.com/search?term=${encodeURIComponent(searchState.artistName)}&entity=musicArtist&limit=50`
+                    );
+
+                    if (!searchData.results || searchData.results.length === 0) {
+                        setSearchState(s => ({ ...s, error: 'Artist not found. Try a different name.', loading: false }));
+                        return;
+                    }
+
+                    const artists = searchData.results
+                        .filter(item => item.wrapperType === 'artist')
+                        .reduce((acc, artist) => {
+                            if (!acc.find(a => a.artistName.toLowerCase() === artist.artistName.toLowerCase())) {
+                                acc.push(artist);
+                            }
+                            return acc;
+                        }, []);
+
+                    setSearchState(s => ({ ...s, suggestions: artists, loading: false }));
+                } catch (err) {
+                    setSearchState(s => ({ ...s, error: 'Failed to fetch artist data.', loading: false }));
+                }
+            };
+
+            const selectArtist = async (artist) => {
+                if (gameState.selectedArtists.find(a => a.artistId === artist.artistId)) {
+                    setSearchState(s => ({ ...s, error: 'Artist already selected' }));
+                    return;
+                }
+
+                setSearchState(s => ({ ...s, loadingSongs: true, error: '' }));
+
+                try {
+                    const albumsData = await jsonpRequest(
+                        `https://itunes.apple.com/lookup?id=${artist.artistId}&entity=album&limit=200`
+                    );
+
+                    if (!albumsData.results || albumsData.results.length <= 1) {
+                        setSearchState(s => ({ ...s, error: 'No albums found.', loadingSongs: false }));
+                        return;
+                    }
+
+                    const artistAlbumsData = albumsData.results
+                        .slice(1)
+                        .filter(item => item.wrapperType === 'collection');
+
+                    setGameState(s => ({
+                        ...s,
+                        artistAlbums: { ...s.artistAlbums, [artist.artistId]: artistAlbumsData },
+                        selectedArtists: [...s.selectedArtists, artist],
+                        stage: 'selectAlbums'
+                    }));
+
+                    setSearchState(s => ({ ...s, artistName: '', suggestions: [], loadingSongs: false }));
+                } catch (err) {
+                    setSearchState(s => ({ ...s, error: 'Failed to fetch albums.', loadingSongs: false }));
+                }
+            };
+
+            const toggleAlbumSelection = (album) => {
+                const isSelected = gameState.selectedAlbums.find(a => a.collectionId === album.collectionId);
+                if (isSelected) {
+                    setGameState(s => ({
+                        ...s,
+                        selectedAlbums: s.selectedAlbums.filter(a => a.collectionId !== album.collectionId)
+                    }));
+                } else {
+                    setGameState(s => ({
+                        ...s,
+                        selectedAlbums: [...s.selectedAlbums, album]
+                    }));
+                }
+            };
+
+            const removeArtist = (artistId) => {
+                setGameState(s => {
+                    const albums = s.artistAlbums[artistId] || [];
+                    const newArtistAlbums = { ...s.artistAlbums };
+                    delete newArtistAlbums[artistId];
+                    
+                    return {
+                        ...s,
+                        selectedArtists: s.selectedArtists.filter(a => a.artistId !== artistId),
+                        selectedAlbums: s.selectedAlbums.filter(album => 
+                            !albums.find(a => a.collectionId === album.collectionId)
+                        ),
+                        artistAlbums: newArtistAlbums
+                    };
+                });
+            };
+
+            const loadGameConfig = async (artists, albums) => {
+                setSearchState(s => ({ ...s, loadingSongs: true, error: '' }));
+
+                try {
+                    const songs = [];
+                    const seenSongs = new Set();
+
+                    for (const album of albums) {
+                        const songsData = await jsonpRequest(
+                            `https://itunes.apple.com/lookup?id=${album.collectionId}&entity=song&limit=200`
+                        );
+
+                        if (songsData.results && songsData.results.length > 1) {
+                            const tracks = songsData.results
+                                .slice(1)
+                                .filter(item => item.wrapperType === 'track' && item.kind === 'song');
+
+                            for (const track of tracks) {
+                                const songKey = track.trackName.toLowerCase().trim();
+                                if (!seenSongs.has(songKey)) {
+                                    seenSongs.add(songKey);
+                                    songs.push({
+                                        name: track.trackName,
+                                        duration: track.trackTimeMillis,
+                                        trackNumber: track.trackNumber,
+                                        albumName: track.collectionName,
+                                        artistName: track.artistName,
+                                        releaseDate: track.releaseDate,
+                                        artwork: track.artworkUrl100
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    if (songs.length === 0) {
+                        setSearchState(s => ({ ...s, error: 'No songs found in selected albums.', loadingSongs: false }));
+                        return;
+                    }
+
+                    const randomSong = songs[Math.floor(Math.random() * songs.length)];
+                    setGameState(s => ({
+                        ...s,
+                        allSongs: songs,
+                        targetSong: randomSong,
+                        guesses: [],
+                        stage: 'playing',
+                        gameOver: false,
+                        won: false
+                    }));
+                    
+                    setBgColors([getRandomColor(), getRandomColor()]);
+                    setShowAnswer(false);
+                    
+                    saveRecentGame({ artists, albums });
+                    setSearchState(s => ({ ...s, loadingSongs: false }));
+                } catch (err) {
+                    setSearchState(s => ({ ...s, error: 'Failed to load songs.', loadingSongs: false }));
+                }
+            };
+
+            const startGame = async () => {
+                if (gameState.selectedAlbums.length === 0) {
+                    setSearchState(s => ({ ...s, error: 'Please select at least one album.' }));
+                    return;
+                }
+
+                await loadGameConfig(gameState.selectedArtists, gameState.selectedAlbums);
+            };
+
+            const getHintLevel = () => {
+                const guessCount = gameState.guesses.length;
+                if (guessCount >= 5) return 3; // Show album name
+                if (guessCount >= 3) return 2; // Show song length
+                if (guessCount >= 2) return 1; // Show first letter
+                return 0;
+            };
+
+            const makeGuess = async (song) => {
+                if (gameState.guesses.find(g => g.song.name === song.name)) return;
+                if (gameState.gameOver) return;
+
+                const albumColor = await extractDominantColor(song.artwork);
+
+                const durationDiff = song.duration - gameState.targetSong.duration;
+                const dateDiff = new Date(song.releaseDate) - new Date(gameState.targetSong.releaseDate);
+                const trackDiff = song.trackNumber - gameState.targetSong.trackNumber;
+
+                const guess = {
+                    song: song,
+                    isCorrect: song.name === gameState.targetSong.name,
+                    durationMatch: song.duration === gameState.targetSong.duration ? 'correct' : 
+                                  Math.abs(durationDiff) < 30000 ? 'close' : 'far',
+                    durationDirection: durationDiff > 0 ? 'down' : durationDiff < 0 ? 'up' : 'exact',
+                    dateMatch: song.releaseDate === gameState.targetSong.releaseDate ? 'correct' :
+                              Math.abs(dateDiff) < 31536000000 ? 'close' : 'far',
+                    dateDirection: dateDiff > 0 ? 'down' : dateDiff < 0 ? 'up' : 'exact',
+                    trackMatch: song.trackNumber === gameState.targetSong.trackNumber ? 'correct' :
+                                Math.abs(trackDiff) <= 2 ? 'close' : 'far',
+                    trackDirection: trackDiff > 0 ? 'down' : trackDiff < 0 ? 'up' : 'exact',
+                    artistMatch: gameState.selectedArtists.length > 1 
+                        ? (song.artistName === gameState.targetSong.artistName ? 'correct' : 'far')
+                        : null,
+                    albumColor: albumColor
+                };
+
+                const newGuesses = [...gameState.guesses, guess];
+                const won = guess.isCorrect;
+                const gameOver = won || newGuesses.length >= MAX_GUESSES;
+
+                setGameState(s => ({
+                    ...s,
+                    guesses: newGuesses,
+                    gameOver: gameOver,
+                    won: won
+                }));
+
+                setCurrentGuess('');
+
+                // Update stats when game ends
+                if (gameOver) {
+                    const newStats = { ...stats };
+                    newStats.gamesPlayed++;
+                    
+                    if (won) {
+                        newStats.gamesWon++;
+                        newStats.currentStreak++;
+                        newStats.maxStreak = Math.max(newStats.maxStreak, newStats.currentStreak);
+                        newStats.guessDistribution[newGuesses.length - 1]++;
+                    } else {
+                        newStats.currentStreak = 0;
+                    }
+                    
+                    saveStats(newStats);
+                }
+            };
+
+            const playAgain = () => {
+                if (gameState.allSongs.length === 0) return;
+                const randomSong = gameState.allSongs[Math.floor(Math.random() * gameState.allSongs.length)];
+                setGameState(s => ({
+                    ...s,
+                    targetSong: randomSong,
+                    guesses: [],
+                    gameOver: false,
+                    won: false
+                }));
+                setBgColors([getRandomColor(), getRandomColor()]);
+                setShowAnswer(false);
+            };
+
+            const startOver = () => {
+                setGameState({
+                    stage: 'recentGames',
+                    selectedArtists: [],
+                    selectedAlbums: [],
+                    artistAlbums: {},
+                    allSongs: [],
+                    targetSong: null,
+                    guesses: [],
+                    gameOver: false,
+                    won: false
+                });
+                setBgColors([getRandomColor(), getRandomColor()]);
+                setShowAnswer(false);
+            };
+
+            const giveUp = () => {
+                setShowAnswer(true);
+                setGameState(s => ({ ...s, gameOver: true }));
+                
+                const newStats = { ...stats };
+                newStats.gamesPlayed++;
+                newStats.currentStreak = 0;
+                saveStats(newStats);
+            };
+
+            const formatDuration = (ms) => {
+                const seconds = Math.floor(ms / 1000);
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            const formatDate = (dateString) => {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            };
+
+            const getColorClass = (match) => {
+                if (match === 'correct') return 'bg-green-500/80';
+                if (match === 'close') return 'bg-yellow-500/80';
+                return 'bg-red-500/40';
+            };
+
+            const generateShareText = () => {
+                const guessCount = gameState.won ? gameState.guesses.length : 'X';
+                let text = `🎵 Guesser ${guessCount}/${MAX_GUESSES}\n\n`;
+                
+                gameState.guesses.forEach(guess => {
+                    const duration = guess.durationMatch === 'correct' ? '🟩' : guess.durationMatch === 'close' ? '🟨' : '⬛';
+                    const date = guess.dateMatch === 'correct' ? '🟩' : guess.dateMatch === 'close' ? '🟨' : '⬛';
+                    const track = guess.trackMatch === 'correct' ? '🟩' : guess.trackMatch === 'close' ? '🟨' : '⬛';
+                    const artist = gameState.selectedArtists.length > 1 
+                        ? (guess.artistMatch === 'correct' ? '🟩' : '⬛')
+                        : '';
+                    text += `${duration}${date}${track}${artist}\n`;
+                });
+
+                if (gameState.won) {
+                    text += `\n✅ Solved!`;
+                } else if (gameState.gameOver) {
+                    text += `\n❌ Failed`;
+                }
+
+                return text;
+            };
+
+            const copyToClipboard = () => {
+                const text = generateShareText();
+                navigator.clipboard.writeText(text).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                });
+            };
+
+            const itemsPerPage = 10;
+            const paginatedSuggestions = searchState.suggestions.slice(
+                searchState.page * itemsPerPage, 
+                (searchState.page + 1) * itemsPerPage
+            );
+
+            const hintLevel = getHintLevel();
+            const remainingGuesses = MAX_GUESSES - gameState.guesses.length;
+
+            return (
+                <div className="min-h-screen bg-black relative overflow-hidden">
+                    <AnimatedBackground colors={bgColors} />
+
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-center pt-8 px-8">
+                            <a href="µsic.html" className="text-center hover:opacity-80 transition-opacity">
+                                <h1 className="text-3xl font-bold text-white drop-shadow-lg">μsic tools</h1>
+                            </a>
+
+                            {(gameState.stage === 'playing' || gameState.gameOver) && (
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={startOver}
+                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20"
+                                    >
+                                        Start Over
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-8 max-w-4xl mx-auto">
+                            {gameState.stage === 'recentGames' && (
+                                <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10 mt-8">
+                                    <h2 className="text-3xl font-bold text-white text-center mb-6">Guesser Game</h2>
+                                    <p className="text-gray-300 text-center mb-8">Guess the song in {MAX_GUESSES} tries or less!</p>
+
+                                    {/* Stats Display */}
+                                    {stats.gamesPlayed > 0 && (
+                                        <div className="bg-white/10 rounded-xl p-6 mb-8 border border-white/20">
+                                            <h3 className="text-xl font-bold text-white mb-4 text-center">Your Stats</h3>
+                                            <div className="grid grid-cols-4 gap-4 text-center">
+                                                <div>
+                                                    <div className="text-3xl font-bold text-white">{stats.gamesPlayed}</div>
+                                                    <div className="text-sm text-gray-300">Played</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-3xl font-bold text-white">
+                                                        {stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0}%
+                                                    </div>
+                                                    <div className="text-sm text-gray-300">Win Rate</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-3xl font-bold text-white">{stats.currentStreak}</div>
+                                                    <div className="text-sm text-gray-300">Current Streak</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-3xl font-bold text-white">{stats.maxStreak}</div>
+                                                    <div className="text-sm text-gray-300">Max Streak</div>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Guess Distribution */}
+                                            <div className="mt-6">
+                                                <h4 className="text-sm font-semibold text-white mb-3">Guess Distribution</h4>
+                                                {stats.guessDistribution.map((count, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2 mb-2">
+                                                        <span className="text-white w-4">{idx + 1}</span>
+                                                        <div className="flex-1 bg-white/20 rounded h-6 overflow-hidden">
+                                                            <div 
+                                                                className="bg-green-500 h-full flex items-center justify-end pr-2"
+                                                                style={{ 
+                                                                    width: `${stats.gamesWon > 0 ? (count / stats.gamesWon) * 100 : 0}%`,
+                                                                    minWidth: count > 0 ? '20px' : '0'
+                                                                }}
+                                                            >
+                                                                {count > 0 && <span className="text-white text-xs font-bold">{count}</span>}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {recentGames.length > 0 && (
+                                        <div className="mb-8">
+                                            <h3 className="text-xl font-bold text-white mb-4">Recent Games</h3>
+                                            <div className="space-y-3">
+                                                {recentGames.map((game) => (
+                                                    <div key={game.id} className="bg-white/10 rounded-xl border border-white/20">
+                                                        <button
+                                                            onClick={() => loadRecentGame(game)}
+                                                            className="w-full p-4 text-left hover:bg-white/5 rounded-xl transition-all"
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex-1">
+                                                                    <p className="text-white font-semibold">{game.artistNames}</p>
+                                                                    <p className="text-gray-400 text-sm">{game.albums.length} albums</p>
+                                                                </div>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setExpandedGame(expandedGame === game.id ? null : game.id);
+                                                                    }}
+                                                                    className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg"
+                                                                >
+                                                                    {expandedGame === game.id ? 'Less' : 'More'}
+                                                                </button>
+                                                            </div>
+                                                        </button>
+                                                        {expandedGame === game.id && (
+                                                            <div className="px-4 pb-4 pt-2 space-y-1">
+                                                                {game.albums.map((album, idx) => (
+                                                                    <p key={idx} className="text-gray-300 text-sm">• {album.collectionName}</p>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-4">
+                                        <label className="block text-white text-lg font-medium">Artist name</label>
+                                        <div className="flex gap-4">
+                                            <input
+                                                type="text"
+                                                value={searchState.artistName}
+                                                onChange={(e) => setSearchState(s => ({ ...s, artistName: e.target.value }))}
+                                                onKeyPress={(e) => e.key === 'Enter' && searchArtist()}
+                                                placeholder="The Beatles, Kanye West..."
+                                                className="flex-1 px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                disabled={searchState.loading}
+                                            />
+                                            <button
+                                                onClick={searchArtist}
+                                                disabled={searchState.loading}
+                                                className="px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center gap-3"
+                                            >
+                                                {searchState.loading ? <Loader2 className="w-6 h-6" /> : <Search className="w-6 h-6" />}
+                                                {searchState.loading ? 'Searching...' : 'Search'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {searchState.error && (
+                                        <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-5 mt-6">
+                                            <p className="text-red-200 text-lg">{searchState.error}</p>
+                                        </div>
+                                    )}
+
+                                    {searchState.suggestions.length > 0 && (
+                                        <div className="space-y-4 mt-8">
+                                            <h3 className="text-white font-semibold text-xl">Select an artist:</h3>
+                                            <div className="space-y-3">
+                                                {paginatedSuggestions.map((artist) => (
+                                                    <button
+                                                        key={artist.artistId}
+                                                        onClick={() => selectArtist(artist)}
+                                                        className="w-full bg-white/10 hover:bg-white/20 rounded-xl p-5 text-left transition-all border border-white/20"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <div className="flex-1">
+                                                                <p className="text-white font-semibold text-xl">{artist.artistName}</p>
+                                                                {artist.primaryGenreName && (
+                                                                    <p className="text-gray-300 text-base mt-1">{artist.primaryGenreName}</p>
+                                                                )}
+                                                            </div>
+                                                            <ChevronRight className="w-7 h-7 text-gray-300" />
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {searchState.suggestions.length > itemsPerPage && (
+                                                <div className="flex justify-center gap-3 mt-6">
+                                                    <button
+                                                        onClick={() => setSearchState(s => ({ ...s, page: Math.max(0, s.page - 1) }))}
+                                                        disabled={searchState.page === 0}
+                                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg"
+                                                    >
+                                                        Previous
+                                                    </button>
+                                                    <span className="px-4 py-2 text-white">
+                                                        Page {searchState.page + 1} of {Math.ceil(searchState.suggestions.length / itemsPerPage)}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setSearchState(s => ({ ...s, page: Math.min(Math.ceil(s.suggestions.length / itemsPerPage) - 1, s.page + 1) }))}
+                                                        disabled={searchState.page >= Math.ceil(searchState.suggestions.length / itemsPerPage) - 1}
+                                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {searchState.loadingSongs && (
+                                        <div className="flex items-center justify-center gap-4 py-12">
+                                            <Loader2 className="w-10 h-10 text-white" />
+                                            <p className="text-white text-xl">Loading albums...</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {gameState.stage === 'selectAlbums' && (
+                                <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10 mt-8">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <button onClick={() => setGameState(s => ({ ...s, stage: 'recentGames' }))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                                            <ArrowLeft className="w-6 h-6 text-white" />
+                                        </button>
+                                        <div className="flex-1">
+                                            <h2 className="text-2xl font-bold text-white">Select Albums</h2>
+                                            <p className="text-gray-300 text-sm mt-1">Choose which albums to include in the game</p>
+                                        </div>
+                                    </div>
+
+                                    {searchState.error && (
+                                        <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-5 mb-6">
+                                            <p className="text-red-200 text-lg">{searchState.error}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Selected Artists */}
+                                    <div className="mb-6">
+                                        <h3 className="text-white font-semibold text-lg mb-3">Selected Artists:</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {gameState.selectedArtists.map(artist => (
+                                                <div key={artist.artistId} className="bg-white/10 rounded-lg px-4 py-2 flex items-center gap-2 border border-white/20">
+                                                    <span className="text-white">{artist.artistName}</span>
+                                                    <button onClick={() => removeArtist(artist.artistId)} className="hover:bg-white/20 rounded p-1">
+                                                        <X className="w-4 h-4 text-white" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <button
+                                                onClick={() => setGameState(s => ({ ...s, stage: 'recentGames' }))}
+                                                className="bg-white/10 hover:bg-white/20 rounded-lg px-4 py-2 flex items-center gap-2 border border-white/20 text-white"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                                Add Artist
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Albums Grid */}
+                                    {gameState.selectedArtists.map(artist => {
+                                        const albums = gameState.artistAlbums[artist.artistId] || [];
+                                        return (
+                                            <div key={artist.artistId} className="mb-6">
+                                                <h3 className="text-white font-semibold text-lg mb-3">{artist.artistName}</h3>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                    {albums.map((album) => {
+                                                        const isSelected = gameState.selectedAlbums.find(a => a.collectionId === album.collectionId);
+                                                        return (
+                                                            <button
+                                                                key={album.collectionId}
+                                                                onClick={() => toggleAlbumSelection(album)}
+                                                                className={`p-4 rounded-xl transition-all border-2 ${
+                                                                    isSelected
+                                                                        ? 'bg-white/20 border-white/50'
+                                                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                                }`}
+                                                            >
+                                                                <img src={album.artworkUrl100} alt={album.collectionName} className="w-full aspect-square rounded-lg mb-3" />
+                                                                <p className="text-white font-medium text-sm text-center line-clamp-2">{album.collectionName}</p>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {gameState.selectedAlbums.length > 0 && (
+                                        <div className="mt-6 p-4 bg-white/10 rounded-xl border border-white/20">
+                                            <h3 className="text-white font-semibold mb-2">Ready to Start?</h3>
+                                            <p className="text-gray-300 text-sm mb-4">
+                                                You have selected {gameState.selectedAlbums.length} album{gameState.selectedAlbums.length !== 1 ? 's' : ''} from {gameState.selectedArtists.length} artist{gameState.selectedArtists.length !== 1 ? 's' : ''}.
+                                            </p>
+                                            <button
+                                                onClick={startGame}
+                                                disabled={searchState.loadingSongs}
+                                                className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3"
+                                            >
+                                                {searchState.loadingSongs ? (
+                                                    <>
+                                                        <Loader2 className="w-6 h-6" />
+                                                        Loading Songs...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Start Game
+                                                        <ChevronRight className="w-6 h-6" />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {gameState.stage === 'playing' && gameState.targetSong && (
+                                <div className="space-y-6 mt-8">
+                                    <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
+                                        <h2 className="text-3xl font-bold text-white text-center mb-2">Guess the Song!</h2>
+                                        <div className="flex justify-center items-center gap-4 mb-6">
+                                            <p className="text-gray-300 text-center">
+                                                {gameState.selectedArtists.map(a => a.artistName).join(', ')} • {gameState.allSongs.length} songs
+                                            </p>
+                                            <div className="px-3 py-1 bg-white/20 rounded-lg">
+                                                <p className="text-white font-semibold">{remainingGuesses}/{MAX_GUESSES} left</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Hints */}
+                                        {!gameState.gameOver && hintLevel > 0 && (
+                                            <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-xl p-4 mb-6">
+                                                <p className="text-yellow-200 text-center">
+                                                    <span className="font-semibold">Hint:</span>{' '}
+                                                    {hintLevel >= 1 && `First letter: ${gameState.targetSong.name[0]}`}
+                                                    {hintLevel >= 2 && ` • Length: ${gameState.targetSong.name.length} characters`}
+                                                    {hintLevel >= 3 && ` • Album: ${gameState.targetSong.albumName}`}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {!gameState.gameOver ? (
+                                            <>
+                                                <div className="relative mb-8">
+                                                    <input
+                                                        type="text"
+                                                        value={currentGuess}
+                                                        onChange={(e) => setCurrentGuess(e.target.value)}
+                                                        placeholder="Type a song name..."
+                                                        className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                        autoFocus
+                                                    />
+                                                    
+                                                    {filteredSongs.length > 0 && (
+                                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl overflow-hidden z-10 shadow-xl max-h-80 overflow-y-auto">
+                                                            {filteredSongs.map((song) => (
+                                                                <button
+                                                                    key={song.name}
+                                                                    onClick={() => makeGuess(song)}
+                                                                    className="w-full px-6 py-3 text-left text-black hover:bg-white transition-colors border-b border-gray-200 last:border-b-0"
+                                                                >
+                                                                    <p className="font-medium">{song.name}</p>
+                                                                    <p className="text-sm text-gray-600">{song.albumName} - {song.artistName}</p>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    onClick={giveUp}
+                                                    className="w-full px-6 py-3 bg-red-500/20 hover:bg-red-500/30 text-white rounded-xl font-semibold border border-red-500/50"
+                                                >
+                                                    Give Up & Show Answer
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <div className="text-center space-y-4">
+                                                {gameState.won ? (
+                                                    <div className="bg-green-500/20 border border-green-500/50 rounded-xl p-6">
+                                                        <h3 className="text-3xl font-bold text-white mb-2">🎉 You Won!</h3>
+                                                        <p className="text-green-200 text-lg">
+                                                            You guessed it in {gameState.guesses.length} {gameState.guesses.length === 1 ? 'try' : 'tries'}!
+                                                        </p>
+                                                    </div>
+                                                ) : showAnswer ? (
+                                                    <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-6">
+                                                        <h3 className="text-3xl font-bold text-white mb-2">😔 Game Over</h3>
+                                                        <p className="text-red-200 text-lg">Better luck next time!</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-6">
+                                                        <h3 className="text-3xl font-bold text-white mb-2">😔 Out of Guesses</h3>
+                                                        <p className="text-red-200 text-lg">You've used all {MAX_GUESSES} guesses!</p>
+                                                    </div>
+                                                )}
+
+                                                {(gameState.gameOver && (gameState.won || showAnswer)) && (
+                                                    <div className="bg-white/10 rounded-xl p-6 border border-white/20">
+                                                        <div className="flex items-center gap-4 justify-center mb-4">
+                                                            <img src={gameState.targetSong.artwork} alt="" className="w-24 h-24 rounded-lg" />
+                                                            <div className="text-left">
+                                                                <p className="text-2xl font-bold text-white">{gameState.targetSong.name}</p>
+                                                                <p className="text-lg text-gray-300">{gameState.targetSong.albumName}</p>
+                                                                <p className="text-base text-gray-400">{gameState.targetSong.artistName}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex gap-4">
+                                                    <button
+                                                        onClick={copyToClipboard}
+                                                        className="flex-1 px-6 py-4 bg-blue-500/20 hover:bg-blue-500/30 text-white rounded-xl font-semibold border border-blue-500/50 flex items-center justify-center gap-2"
+                                                    >
+                                                        <Copy className="w-5 h-5" />
+                                                        {copied ? 'Copied!' : 'Share Result'}
+                                                    </button>
+                                                    <button
+                                                        onClick={playAgain}
+                                                        className="flex-1 px-6 py-4 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold"
+                                                    >
+                                                        Play Again
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {gameState.guesses.length > 0 && (
+                                            <div className="space-y-3 mt-8">
+                                                <h3 className="text-white font-semibold text-lg mb-4">Your Guesses:</h3>
+                                                {gameState.guesses.map((guess, idx) => (
+                                                    <div key={idx} className="bg-white/10 rounded-xl p-4 border border-white/20">
+                                                        <div className="flex items-center gap-4 mb-3">
+                                                            <img src={guess.song.artwork} alt="" className="w-16 h-16 rounded-lg" />
+                                                            <div className="flex-1">
+                                                                <p className="text-white font-semibold">{guess.song.name}</p>
+                                                                <p className="text-gray-300 text-sm">{guess.song.albumName}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className={`grid ${gameState.selectedArtists.length > 1 ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+                                                            <div className={`p-3 rounded-lg ${getColorClass(guess.durationMatch)} relative`}>
+                                                                <p className="text-white text-xs font-medium mb-1">Duration</p>
+                                                                <div className="flex items-center justify-between">
+                                                                    <p className="text-white text-sm">{formatDuration(guess.song.duration)}</p>
+                                                                    {guess.durationDirection === 'up' && <TrendingUp className="w-4 h-4 text-white" />}
+                                                                    {guess.durationDirection === 'down' && <TrendingDown className="w-4 h-4 text-white" />}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`p-3 rounded-lg ${getColorClass(guess.dateMatch)} relative`}>
+                                                                <p className="text-white text-xs font-medium mb-1">Release</p>
+                                                                <div className="flex items-center justify-between">
+                                                                    <p className="text-white text-sm">{formatDate(guess.song.releaseDate)}</p>
+                                                                    {guess.dateDirection === 'up' && <TrendingUp className="w-4 h-4 text-white" />}
+                                                                    {guess.dateDirection === 'down' && <TrendingDown className="w-4 h-4 text-white" />}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`p-3 rounded-lg ${getColorClass(guess.trackMatch)} relative`}>
+                                                                <p className="text-white text-xs font-medium mb-1">Track #</p>
+                                                                <div className="flex items-center justify-between">
+                                                                    <p className="text-white text-sm">#{guess.song.trackNumber}</p>
+                                                                    {guess.trackDirection === 'up' && <TrendingUp className="w-4 h-4 text-white" />}
+                                                                    {guess.trackDirection === 'down' && <TrendingDown className="w-4 h-4 text-white" />}
+                                                                </div>
+                                                            </div>
+                                                            {gameState.selectedArtists.length > 1 && guess.artistMatch && (
+                                                                <div className={`p-3 rounded-lg ${getColorClass(guess.artistMatch)}`}>
+                                                                    <p className="text-white text-xs font-medium mb-1">Artist</p>
+                                                                    <p className="text-white text-sm truncate">{guess.song.artistName.split(' ')[0]}</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<GuesserMode />, document.getElementById('root'));
+    </script>
+</body>
+</html>
