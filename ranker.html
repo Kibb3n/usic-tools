@@ -870,6 +870,351 @@
                 }
             };
 
+            const handleSpotifyUrl = async (url) => {
+                setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
+                
+                try {
+                    if (!url.startsWith('http')) {
+                        url = 'https://' + url;
+                    }
+
+                    // Extract Spotify ID from URL
+                    const albumMatch = url.match(/album\/([a-zA-Z0-9]+)/);
+                    const playlistMatch = url.match(/playlist\/([a-zA-Z0-9]+)/);
+                    
+                    if (!albumMatch && !playlistMatch) {
+                        setSearch(s => ({ ...s, error: 'Invalid Spotify URL. Please use an album or playlist URL.', loadingSongs: false }));
+                        return;
+                    }
+
+                    // Fetch via CORS proxy
+                    const proxies = ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+                    let html = null;
+                    
+                    for (const proxy of proxies) {
+                        try {
+                            const response = await fetch(proxy + encodeURIComponent(url));
+                            if (response.ok) {
+                                html = await response.text();
+                                if (html && html.length > 1000) break;
+                            }
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+
+                    if (!html) {
+                        throw new Error('Could not fetch Spotify page');
+                    }
+
+                    // Extract data from meta tags and embedded JSON
+                    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+                    
+                    // Try to find track list in the page
+                    let tracks = [];
+                    
+                    // Pattern 1: Look for embedded JSON data
+                    const scriptMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+                    if (scriptMatch) {
+                        try {
+                            const data = JSON.parse(scriptMatch[1]);
+                            const content = playlistMatch ? 
+                                data?.props?.pageProps?.state?.data?.playlist : 
+                                data?.props?.pageProps?.state?.data?.album;
+                            
+                            if (content?.tracks?.items) {
+                                tracks = content.tracks.items.map(item => {
+                                    const track = item.track || item;
+                                    return {
+                                        name: track.name,
+                                        artist: track.artists?.[0]?.name || 'Unknown'
+                                    };
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse Spotify data:', e);
+                        }
+                    }
+
+                    if (tracks.length === 0) {
+                        setSearch(s => ({ ...s, error: 'Could not extract track list from Spotify. Try searching on iTunes instead.', loadingSongs: false }));
+                        return;
+                    }
+
+                    const albumName = titleMatch?.[1] || 'Spotify Playlist';
+                    const artwork = imageMatch?.[1];
+
+                    // Try to find previews on iTunes
+                    const tracksWithPreviews = await Promise.all(tracks.map(async (track) => {
+                        let previewUrl = null;
+                        try {
+                            const searchQuery = `${track.name} ${track.artist}`;
+                            const itunesData = await jsonpRequest(
+                                `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=song&limit=1`
+                            );
+                            if (itunesData.results?.[0]) {
+                                previewUrl = itunesData.results[0].previewUrl;
+                            }
+                        } catch (e) {
+                            console.error('iTunes search failed:', e);
+                        }
+                        
+                        return {
+                            name: track.name,
+                            artwork: artwork,
+                            albumName: albumName,
+                            color: '#1DB954',
+                            previewUrl: previewUrl
+                        };
+                    }));
+
+                    const shuffledIndices = shuffleArray(tracksWithPreviews.map((_, idx) => idx));
+                    
+                    setState(s => ({
+                        ...s,
+                        selectedArtist: { 
+                            collectionName: albumName,
+                            artistName: tracks[0]?.artist || 'Various Artists',
+                            source: 'spotify'
+                        },
+                        songData: tracksWithPreviews,
+                        songs: tracksWithPreviews.map(t => t.name),
+                        usedAlbums: [{ name: albumName, artist: tracks[0]?.artist || 'Various Artists' }],
+                        stage: 'sorting'
+                    }));
+
+                    const totalComparisons = (tracksWithPreviews.length * (tracksWithPreviews.length - 1)) / 2;
+                    setSorting({
+                        sortedIndices: shuffledIndices,
+                        i: 0,
+                        j: 0,
+                        comparisons: 0,
+                        autoSkipped: 0,
+                        preferences: {},
+                        history: [],
+                        skippedPairs: new Set(),
+                        winCounts: {},
+                        lossCounts: {},
+                        lastEstimateUpdate: 0,
+                        estimatedRemaining: totalComparisons,
+                        notificationShownFor: new Set(),
+                        pinnedTop: new Set(),
+                        pinnedBottom: new Set()
+                    });
+
+                    setSearch(s => ({ ...s, loadingSongs: false }));
+                } catch (err) {
+                    console.error('Spotify error:', err);
+                    setSearch(s => ({ ...s, error: 'Unable to load from Spotify. Try using iTunes search instead.', loadingSongs: false }));
+                }
+            };
+
+            const handleAppleMusicUrl = async (url) => {
+                setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
+                
+                try {
+                    if (!url.startsWith('http')) {
+                        url = 'https://' + url;
+                    }
+
+                    // Extract Apple Music ID from URL
+                    const idMatch = url.match(/\/album\/[^\/]+\/(\d+)/);
+                    const playlistMatch = url.match(/\/playlist\/[^\/]+\/pl\.[a-zA-Z0-9-]+/);
+                    
+                    if (!idMatch && !playlistMatch) {
+                        setSearch(s => ({ ...s, error: 'Invalid Apple Music URL. Please use an album URL.', loadingSongs: false }));
+                        return;
+                    }
+
+                    if (idMatch) {
+                        // Album - we can use iTunes API directly
+                        const albumId = idMatch[1];
+                        const songsData = await jsonpRequest(
+                            `https://itunes.apple.com/lookup?id=${albumId}&entity=song&limit=200`
+                        );
+
+                        if (!songsData.results || songsData.results.length <= 1) {
+                            setSearch(s => ({ ...s, error: 'No songs found.', loadingSongs: false }));
+                            return;
+                        }
+
+                        const albumInfo = songsData.results[0];
+                        const tracks = songsData.results
+                            .slice(1)
+                            .filter(item => item.wrapperType === 'track' && item.kind === 'song');
+
+                        const uniqueTracks = await processTracksToUniqueSongs(tracks);
+                        const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+
+                        setState(s => ({
+                            ...s,
+                            selectedArtist: {
+                                collectionName: albumInfo.collectionName,
+                                artistName: albumInfo.artistName,
+                                source: 'apple'
+                            },
+                            songData: uniqueTracks,
+                            songs: uniqueTracks.map(t => t.name),
+                            usedAlbums: [{name: albumInfo.collectionName, artist: albumInfo.artistName}],
+                            stage: 'sorting'
+                        }));
+
+                        const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+                        setSorting({
+                            sortedIndices: shuffledIndices,
+                            i: 0,
+                            j: 0,
+                            comparisons: 0,
+                            autoSkipped: 0,
+                            preferences: {},
+                            history: [],
+                            skippedPairs: new Set(),
+                            winCounts: {},
+                            lossCounts: {},
+                            lastEstimateUpdate: 0,
+                            estimatedRemaining: totalComparisons,
+                            notificationShownFor: new Set(),
+                            pinnedTop: new Set(),
+                            pinnedBottom: new Set()
+                        });
+
+                        setSearch(s => ({ ...s, loadingSongs: false }));
+                    } else {
+                        // Playlist - would need scraping
+                        setSearch(s => ({ ...s, error: 'Apple Music playlists are not yet supported. Try using an album URL instead.', loadingSongs: false }));
+                    }
+                } catch (err) {
+                    console.error('Apple Music error:', err);
+                    setSearch(s => ({ ...s, error: 'Unable to load from Apple Music. Try using iTunes search instead.', loadingSongs: false }));
+                }
+            };
+
+            const handleDeezerUrl = async (url) => {
+                setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
+                
+                try {
+                    if (!url.startsWith('http')) {
+                        url = 'https://' + url;
+                    }
+
+                    // Fetch via CORS proxy
+                    const proxies = ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+                    let html = null;
+                    
+                    for (const proxy of proxies) {
+                        try {
+                            const response = await fetch(proxy + encodeURIComponent(url));
+                            if (response.ok) {
+                                html = await response.text();
+                                if (html && html.length > 1000) break;
+                            }
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+
+                    if (!html) {
+                        throw new Error('Could not fetch Deezer page');
+                    }
+
+                    // Extract data
+                    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+                    
+                    // Try to find embedded data
+                    const dataMatch = html.match(/window\.__DZR_APP_STATE__\s*=\s*({.*?});/s);
+                    if (!dataMatch) {
+                        setSearch(s => ({ ...s, error: 'Could not extract track data from Deezer. Try using iTunes search instead.', loadingSongs: false }));
+                        return;
+                    }
+
+                    let tracks = [];
+                    try {
+                        const data = JSON.parse(dataMatch[1]);
+                        const content = data?.DATA?.SONGS?.data || data?.DATA?.TRACKS?.data || [];
+                        
+                        tracks = content.map(track => ({
+                            name: track.SNG_TITLE || track.title,
+                            artist: track.ART_NAME || track.artist?.name || 'Unknown'
+                        }));
+                    } catch (e) {
+                        console.error('Failed to parse Deezer data:', e);
+                    }
+
+                    if (tracks.length === 0) {
+                        setSearch(s => ({ ...s, error: 'Could not extract tracks. Try using iTunes search instead.', loadingSongs: false }));
+                        return;
+                    }
+
+                    const albumName = titleMatch?.[1] || 'Deezer Playlist';
+                    const artwork = imageMatch?.[1];
+
+                    // Try to find previews on iTunes
+                    const tracksWithPreviews = await Promise.all(tracks.map(async (track) => {
+                        let previewUrl = null;
+                        try {
+                            const searchQuery = `${track.name} ${track.artist}`;
+                            const itunesData = await jsonpRequest(
+                                `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=song&limit=1`
+                            );
+                            if (itunesData.results?.[0]) {
+                                previewUrl = itunesData.results[0].previewUrl;
+                            }
+                        } catch (e) {
+                            console.error('iTunes search failed:', e);
+                        }
+                        
+                        return {
+                            name: track.name,
+                            artwork: artwork,
+                            albumName: albumName,
+                            color: '#FF0092',
+                            previewUrl: previewUrl
+                        };
+                    }));
+
+                    const shuffledIndices = shuffleArray(tracksWithPreviews.map((_, idx) => idx));
+                    
+                    setState(s => ({
+                        ...s,
+                        selectedArtist: { 
+                            collectionName: albumName,
+                            artistName: tracks[0]?.artist || 'Various Artists',
+                            source: 'deezer'
+                        },
+                        songData: tracksWithPreviews,
+                        songs: tracksWithPreviews.map(t => t.name),
+                        usedAlbums: [{ name: albumName, artist: tracks[0]?.artist || 'Various Artists' }],
+                        stage: 'sorting'
+                    }));
+
+                    const totalComparisons = (tracksWithPreviews.length * (tracksWithPreviews.length - 1)) / 2;
+                    setSorting({
+                        sortedIndices: shuffledIndices,
+                        i: 0,
+                        j: 0,
+                        comparisons: 0,
+                        autoSkipped: 0,
+                        preferences: {},
+                        history: [],
+                        skippedPairs: new Set(),
+                        winCounts: {},
+                        lossCounts: {},
+                        lastEstimateUpdate: 0,
+                        estimatedRemaining: totalComparisons,
+                        notificationShownFor: new Set(),
+                        pinnedTop: new Set(),
+                        pinnedBottom: new Set()
+                    });
+
+                    setSearch(s => ({ ...s, loadingSongs: false }));
+                } catch (err) {
+                    console.error('Deezer error:', err);
+                    setSearch(s => ({ ...s, error: 'Unable to load from Deezer. Try using iTunes search instead.', loadingSongs: false }));
+                }
+            };
+
             const searchArtistOrAlbum = async () => {
                 const searchValue = state.mode === 'artist' ? search.artistName.trim() : search.albumName.trim();
                 
@@ -882,12 +1227,20 @@
                     return;
                 }
 
-                // Check for Bandcamp URLs
-                if (isBandcampUrl(searchValue)) {
-                    if (state.mode === 'artist') {
-                        await handleBandcampArtist(searchValue);
-                    } else {
-                        await handleBandcampAlbum(searchValue);
+                // Check for streaming service URLs
+                if (isStreamingUrl(searchValue)) {
+                    if (isBandcampUrl(searchValue)) {
+                        if (state.mode === 'artist') {
+                            await handleBandcampArtist(searchValue);
+                        } else {
+                            await handleBandcampAlbum(searchValue);
+                        }
+                    } else if (isSpotifyUrl(searchValue)) {
+                        await handleSpotifyUrl(searchValue);
+                    } else if (isAppleMusicUrl(searchValue)) {
+                        await handleAppleMusicUrl(searchValue);
+                    } else if (isDeezerUrl(searchValue)) {
+                        await handleDeezerUrl(searchValue);
                     }
                     return;
                 }
@@ -2237,6 +2590,15 @@
                                                             )}
                                                         </button>
                                                     )}
+                                                    {!state.songData[sorting.sortedIndices[sorting.j]]?.previewUrl && (
+                                                        <button
+                                                            disabled
+                                                            className="px-4 py-2 bg-white/10 text-gray-500 rounded-lg flex items-center gap-2 cursor-not-allowed opacity-50"
+                                                        >
+                                                            <Play className="w-5 h-5" />
+                                                            No Preview
+                                                        </button>
+                                                    )}
                                                     <ChevronRight className="w-7 h-7 text-white/70 group-hover:text-white" />
                                                 </div>
                                             </button>
@@ -2278,6 +2640,15 @@
                                                                     Preview
                                                                 </>
                                                             )}
+                                                        </button>
+                                                    )}
+                                                    {!state.songData[sorting.sortedIndices[sorting.j + 1]]?.previewUrl && (
+                                                        <button
+                                                            disabled
+                                                            className="px-4 py-2 bg-white/10 text-gray-500 rounded-lg flex items-center gap-2 cursor-not-allowed opacity-50"
+                                                        >
+                                                            <Play className="w-5 h-5" />
+                                                            No Preview
                                                         </button>
                                                     )}
                                                     <ChevronRight className="w-7 h-7 text-white/70 group-hover:text-white" />
