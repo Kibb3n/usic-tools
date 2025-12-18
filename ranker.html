@@ -655,6 +655,12 @@
                 }
 
                 const audio = new Audio(song.previewUrl);
+                
+                // For Bandcamp, start 30 seconds in
+                if (state.selectedArtist?.source === 'bandcamp') {
+                    audio.currentTime = 30;
+                }
+                
                 audio.play();
                 audio.onended = () => setPlayingAudio({ index: null, audio: null });
                 setPlayingAudio({ index: songIndex, audio });
@@ -1937,6 +1943,11 @@
 
             const loadFromAutoSave = (autosave) => {
                 try {
+                    // Validate that we have the minimum required data
+                    if (!autosave.state || !autosave.sorting || !autosave.state.songs || autosave.state.songs.length === 0) {
+                        throw new Error('Invalid autosave data');
+                    }
+                    
                     const selectedAlbumsSet = new Set(autosave.state.selectedAlbums || []);
                     const excludedSongsSet = new Set(autosave.state.excludedSongs || []);
                     const skippedPairsSet = new Set(autosave.sorting.skippedPairs || []);
@@ -1944,21 +1955,38 @@
                     const pinnedTopSet = new Set(autosave.sorting.pinnedTop || []);
                     const pinnedBottomSet = new Set(autosave.sorting.pinnedBottom || []);
                     
-                    setState({
+                    // Restore state - ensure stage is set correctly
+                    const restoredState = {
                         ...autosave.state,
                         selectedAlbums: selectedAlbumsSet,
-                        excludedSongs: excludedSongsSet
-                    });
+                        excludedSongs: excludedSongsSet,
+                        stage: autosave.state.stage || 'sorting' // Default to sorting if not set
+                    };
                     
-                    setSorting({
-                        ...autosave.sorting,
+                    setState(restoredState);
+                    
+                    // Restore sorting state
+                    const restoredSorting = {
+                        sortedIndices: autosave.sorting.sortedIndices || [],
+                        i: autosave.sorting.i || 0,
+                        j: autosave.sorting.j || 0,
+                        comparisons: autosave.sorting.comparisons || 0,
+                        autoSkipped: autosave.sorting.autoSkipped || 0,
+                        preferences: autosave.sorting.preferences || {},
                         history: [],
                         skippedPairs: skippedPairsSet,
+                        winCounts: autosave.sorting.winCounts || {},
+                        lossCounts: autosave.sorting.lossCounts || {},
+                        lastEstimateUpdate: autosave.sorting.lastEstimateUpdate || 0,
+                        estimatedRemaining: autosave.sorting.estimatedRemaining || 0,
                         notificationShownFor: notificationShownForSet,
                         pinnedTop: pinnedTopSet,
                         pinnedBottom: pinnedBottomSet
-                    });
+                    };
                     
+                    setSorting(restoredSorting);
+                    
+                    // Update search state if available
                     if (autosave.search) {
                         setSearch(s => ({
                             ...s,
@@ -1974,6 +2002,7 @@
                     }
                 } catch (err) {
                     console.error('Failed to load autosave:', err);
+                    setSearch(s => ({ ...s, error: 'Failed to load save. The file may be corrupted.' }));
                 }
             };
 
