@@ -20,6 +20,14 @@
             33% { transform: translate(-150px, -100px) scale(0.9); }
             66% { transform: translate(100px, -150px) scale(1.2); }
         }
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(100%); opacity: 0; }
+        }
         .grain {
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
             pointer-events: none;
@@ -30,13 +38,65 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
+        .notification-enter {
+            animation: slideIn 0.3s ease-out;
+        }
+        .notification-exit {
+            animation: slideOut 0.3s ease-out;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // Local storage utilities
+        const AUTOSAVE_KEY = 'ranker_autosaves';
+        const MAX_AUTOSAVES = 3;
+
+        const loadAutoSaves = () => {
+            try {
+                const saved = localStorage.getItem(AUTOSAVE_KEY);
+                return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+                return [];
+            }
+        };
+
+        const isBandcampUrl = (url) => {
+            return url.includes('bandcamp.com');
+        };
+
+        const saveAutoSave = (data) => {
+            try {
+                const autosaves = loadAutoSaves();
+                const newSave = {
+                    ...data,
+                    timestamp: Date.now(),
+                    id: Date.now()
+                };
+                
+                // Add to beginning and keep only last 3
+                autosaves.unshift(newSave);
+                const trimmed = autosaves.slice(0, MAX_AUTOSAVES);
+                
+                localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(trimmed));
+            } catch (e) {
+                console.error('Failed to autosave:', e);
+            }
+        };
+
+        const deleteAutoSave = (id) => {
+            try {
+                const autosaves = loadAutoSaves();
+                const filtered = autosaves.filter(save => save.id !== id);
+                localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(filtered));
+            } catch (e) {
+                console.error('Failed to delete autosave:', e);
+            }
+        };
 
         // Icons
         const Music = ({ className }) => (
@@ -113,6 +173,54 @@
             </svg>
         );
 
+        const X = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        );
+
+        const AlertCircle = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const TrendingUp = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+        );
+
+        const TrendingDown = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+            </svg>
+        );
+
+        const Trash = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        );
+
+        const ArrowUp = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
+        );
+
+        const ArrowDown = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+        );
+
+        const Clock = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
         // Utility functions
         const jsonpRequest = (url) => {
             return new Promise((resolve, reject) => {
@@ -168,15 +276,13 @@
         };
 
         const processTracksToUniqueSongs = async (tracks) => {
-            const seenSongs = new Set();
-            const uniqueTracks = [];
+            const seenSongs = new Map();
             
             for (const track of tracks) {
                 const songKey = track.trackName.toLowerCase().trim();
                 if (!seenSongs.has(songKey)) {
-                    seenSongs.add(songKey);
                     const color = await extractDominantColor(track.artworkUrl100);
-                    uniqueTracks.push({
+                    seenSongs.set(songKey, {
                         name: track.trackName,
                         artwork: track.artworkUrl100,
                         albumName: track.collectionName,
@@ -185,7 +291,16 @@
                     });
                 }
             }
-            return uniqueTracks;
+            return Array.from(seenSongs.values());
+        };
+
+        const shuffleArray = (array) => {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
         };
 
         // Background component
@@ -219,6 +334,194 @@
             );
         }
 
+        // Notification Component
+        function Notification({ message, type, songIdx, onClose, onMoveTop, onMoveBottom }) {
+            useEffect(() => {
+                const timer = setTimeout(onClose, 10000);
+                return () => clearTimeout(timer);
+            }, [onClose]);
+
+            const Icon = type === 'trending-up' ? TrendingUp : TrendingDown;
+            const bgColor = type === 'trending-up' ? 'bg-green-500/20 border-green-500/50' : 'bg-red-500/20 border-red-500/50';
+
+            return (
+                <div className={`notification-enter fixed bottom-6 right-6 ${bgColor} backdrop-blur-xl rounded-xl p-4 border shadow-2xl max-w-sm z-50`}>
+                    <div className="flex items-start gap-3 mb-3">
+                        <Icon className="w-6 h-6 text-white flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                            <p className="text-white text-sm leading-relaxed">{message}</p>
+                        </div>
+                        <button onClick={onClose} className="text-white/70 hover:text-white">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                    <div className="flex gap-2 ml-9">
+                        {type === 'trending-up' && onMoveTop && (
+                            <button
+                                onClick={() => {
+                                    onMoveTop();
+                                    onClose();
+                                }}
+                                className="flex-1 px-3 py-2 bg-green-500/30 hover:bg-green-500/50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                            >
+                                <ArrowUp className="w-4 h-4" />
+                                Move to Top
+                            </button>
+                        )}
+                        {type === 'trending-down' && onMoveBottom && (
+                            <button
+                                onClick={() => {
+                                    onMoveBottom();
+                                    onClose();
+                                }}
+                                className="flex-1 px-3 py-2 bg-red-500/30 hover:bg-red-500/50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1"
+                            >
+                                <ArrowDown className="w-4 h-4" />
+                                Move to Bottom
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Modal Component
+        function Modal({ isOpen, onClose, onSubmit, title, fields, message }) {
+            const [values, setValues] = useState({});
+
+            useEffect(() => {
+                if (isOpen) {
+                    const initial = {};
+                    fields?.forEach(field => initial[field.name] = field.defaultValue || '');
+                    setValues(initial);
+                }
+            }, [isOpen, fields]);
+
+            if (!isOpen) return null;
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSubmit(values);
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-md w-full border border-white/20 shadow-2xl">
+                        <h3 className="text-2xl font-bold text-white mb-4">{title}</h3>
+                        {message && <p className="text-gray-300 mb-6">{message}</p>}
+                        {fields ? (
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                {fields.map(field => (
+                                    <div key={field.name}>
+                                        <label className="block text-white text-sm font-medium mb-2">
+                                            {field.label}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={values[field.name] || ''}
+                                            onChange={(e) => setValues(v => ({ ...v, [field.name]: e.target.value }))}
+                                            placeholder={field.placeholder}
+                                            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                            required={field.required}
+                                        />
+                                    </div>
+                                ))}
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-6 py-3 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold"
+                                    >
+                                        Confirm
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        onSubmit();
+                                        onClose();
+                                    }}
+                                    className="flex-1 px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold"
+                                >
+                                    Confirm
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Context Menu Component
+        function ContextMenu({ x, y, onBest, onWorst, onExclude, onClose, canMoveBest, canMoveWorst }) {
+            const menuRef = useRef(null);
+
+            useEffect(() => {
+                const handleClick = (e) => {
+                    if (menuRef.current && !menuRef.current.contains(e.target)) {
+                        onClose();
+                    }
+                };
+                document.addEventListener('mousedown', handleClick);
+                return () => document.removeEventListener('mousedown', handleClick);
+            }, [onClose]);
+
+            return (
+                <div
+                    ref={menuRef}
+                    className="fixed bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 shadow-2xl py-2 z-50"
+                    style={{ left: x, top: y }}
+                >
+                    {canMoveBest && (
+                        <button
+                            onClick={onBest}
+                            className="w-full px-6 py-3 text-left text-white hover:bg-white/10 flex items-center gap-2"
+                        >
+                            <TrendingUp className="w-4 h-4" />
+                            Mark as Best
+                        </button>
+                    )}
+                    {canMoveWorst && (
+                        <button
+                            onClick={onWorst}
+                            className="w-full px-6 py-3 text-left text-white hover:bg-white/10 flex items-center gap-2"
+                        >
+                            <TrendingDown className="w-4 h-4" />
+                            Mark as Worst
+                        </button>
+                    )}
+                    <button
+                        onClick={onExclude}
+                        className="w-full px-6 py-3 text-left text-red-300 hover:bg-white/10 flex items-center gap-2"
+                    >
+                        <Trash className="w-4 h-4" />
+                        Exclude Song
+                    </button>
+                </div>
+            );
+        }
+
         // Main Ranker Component
         function RankerMode() {
             const [state, setState] = useState({
@@ -229,7 +532,8 @@
                 songData: [],
                 albums: [],
                 selectedAlbums: new Set(),
-                usedAlbums: []
+                usedAlbums: [],
+                excludedSongs: new Set()
             });
 
             const [search, setSearch] = useState({
@@ -249,66 +553,342 @@
                 i: 0,
                 j: 0,
                 comparisons: 0,
-                skippedComparisons: 0,
+                autoSkipped: 0,
                 preferences: {},
-                history: []
+                history: [],
+                skippedPairs: new Set(),
+                winCounts: {},
+                lossCounts: {},
+                lastEstimateUpdate: 0,
+                estimatedRemaining: 0,
+                notificationShownFor: new Set(),
+                pinnedTop: new Set(),
+                pinnedBottom: new Set()
             });
 
             const [bgColors, setBgColors] = useState(['#ff0080', '#7928ca']);
             const [playingAudio, setPlayingAudio] = useState({ index: null, audio: null });
+            const [notification, setNotification] = useState(null);
+            const [contextMenu, setContextMenu] = useState(null);
+            const [modalOpen, setModalOpen] = useState(false);
+            const [modalConfig, setModalConfig] = useState(null);
+            const [autoSaves, setAutoSaves] = useState([]);
+            const [showProgress, setShowProgress] = useState(false);
+            const fileInputRef = useRef(null);
+            const autoSaveTimerRef = useRef(null);
 
-            // Update background colors when sorting
+            // Load autosaves on mount
+            useEffect(() => {
+                setAutoSaves(loadAutoSaves());
+            }, []);
+
+            // Auto-save every 30 seconds during sorting
+            useEffect(() => {
+                if (state.stage === 'sorting' && state.songs.length > 0) {
+                    if (autoSaveTimerRef.current) {
+                        clearInterval(autoSaveTimerRef.current);
+                    }
+                    
+                    autoSaveTimerRef.current = setInterval(() => {
+                        const dataToSave = {
+                            state: {
+                                ...state,
+                                selectedAlbums: Array.from(state.selectedAlbums),
+                                excludedSongs: Array.from(state.excludedSongs)
+                            },
+                            sorting: {
+                                ...sorting,
+                                history: [],
+                                skippedPairs: Array.from(sorting.skippedPairs),
+                                notificationShownFor: Array.from(sorting.notificationShownFor),
+                                pinnedTop: Array.from(sorting.pinnedTop),
+                                pinnedBottom: Array.from(sorting.pinnedBottom)
+                            },
+                            search: {
+                                artistName: search.artistName,
+                                albumName: search.albumName,
+                                albumArtist: search.albumArtist,
+                                albumYear: search.albumYear
+                            }
+                        };
+                        saveAutoSave(dataToSave);
+                        setAutoSaves(loadAutoSaves());
+                    }, 30000); // 30 seconds
+                    
+                    return () => {
+                        if (autoSaveTimerRef.current) {
+                            clearInterval(autoSaveTimerRef.current);
+                        }
+                    };
+                }
+            }, [state, sorting, search]);
+
             useEffect(() => {
                 if (state.stage === 'sorting' && sorting.j < sorting.sortedIndices.length - 1) {
                     const color1 = state.songData[sorting.sortedIndices[sorting.j]]?.color || '#ff0080';
                     const color2 = state.songData[sorting.sortedIndices[sorting.j + 1]]?.color || '#7928ca';
                     setBgColors([color1, color2]);
                 }
-            }, [sorting.j, state.stage]);
+            }, [sorting.j, state.stage, sorting.sortedIndices, state.songData]);
 
-            // Clean up audio on unmount
             useEffect(() => {
                 return () => {
                     if (playingAudio.audio) {
                         playingAudio.audio.pause();
-                        playingAudio.audio = null;
                     }
                 };
-            }, []);
+            }, [playingAudio.audio]);
 
             const toggleAudio = (songIndex) => {
                 const song = state.songData[sorting.sortedIndices[songIndex]];
                 
-                if (!song?.previewUrl) {
-                    return;
-                }
+                if (!song?.previewUrl) return;
 
-                // If this song is playing, pause it
                 if (playingAudio.index === songIndex && playingAudio.audio) {
                     playingAudio.audio.pause();
                     setPlayingAudio({ index: null, audio: null });
                     return;
                 }
 
-                // Stop any currently playing audio
                 if (playingAudio.audio) {
                     playingAudio.audio.pause();
                 }
 
-                // Play new audio
                 const audio = new Audio(song.previewUrl);
                 audio.play();
                 audio.onended = () => setPlayingAudio({ index: null, audio: null });
                 setPlayingAudio({ index: songIndex, audio });
             };
 
+            const handleBandcampArtist = async (url) => {
+                setSearch(s => ({ ...s, loading: true, error: '' }));
+                
+                try {
+                    // Use a CORS proxy
+                    const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                    const response = await fetch(proxyUrl + encodeURIComponent(url));
+                    const html = await response.text();
+                    
+                    // Extract artist name
+                    const artistMatch = html.match(/<meta property="og:site_name" content="([^"]+)"/);
+                    const artistName = artistMatch ? artistMatch[1] : 'Unknown Artist';
+                    
+                    // Try to find album links
+                    const albumLinks = html.match(/href="([^"]*\/album\/[^"]+)"/g);
+                    if (!albumLinks || albumLinks.length === 0) {
+                        setSearch(s => ({ ...s, error: 'No albums found for this artist.', loading: false }));
+                        return;
+                    }
+                    
+                    const uniqueAlbums = new Set();
+                    albumLinks.forEach(link => {
+                        const match = link.match(/href="([^"]+)"/);
+                        if (match) {
+                            const fullUrl = match[1].startsWith('http') ? match[1] : `${url.split('/').slice(0, 3).join('/')}${match[1]}`;
+                            uniqueAlbums.add(fullUrl);
+                        }
+                    });
+                    
+                    // Fetch each album's data
+                    const albums = [];
+                    for (let albumUrl of Array.from(uniqueAlbums).slice(0, 20)) {
+                        try {
+                            const albumResponse = await fetch(proxyUrl + encodeURIComponent(albumUrl));
+                            const albumHtml = await albumResponse.text();
+                            const albumTitleMatch = albumHtml.match(/<meta property="og:title" content="([^"]+)"/);
+                            const albumImageMatch = albumHtml.match(/<meta property="og:image" content="([^"]+)"/);
+                            
+                            if (albumTitleMatch) {
+                                albums.push({
+                                    collectionName: albumTitleMatch[1],
+                                    artistName: artistName,
+                                    artworkUrl100: albumImageMatch ? albumImageMatch[1] : null,
+                                    collectionId: albumUrl,
+                                    bandcampUrl: albumUrl,
+                                    type: 'album',
+                                    source: 'bandcamp'
+                                });
+                            }
+                        } catch (e) {
+                            console.error('Failed to fetch album:', e);
+                        }
+                    }
+                    
+                    if (albums.length === 0) {
+                        setSearch(s => ({ ...s, error: 'No albums found.', loading: false }));
+                        return;
+                    }
+                    
+                    setState(s => ({ ...s, selectedArtist: { artistName, bandcampUrl: url }, albums, stage: 'selectAlbums' }));
+                    setSearch(s => ({ ...s, loading: false }));
+                } catch (err) {
+                    setSearch(s => ({ ...s, error: 'Failed to load artist. Please make sure the URL is correct and try again.', loading: false }));
+                }
+            };
+
+            const handleBandcampAlbum = async (url) => {
+                setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
+                
+                try {
+                    // Ensure URL has https://
+                    if (!url.startsWith('http')) {
+                        url = 'https://' + url;
+                    }
+                    
+                    // Try multiple CORS proxies
+                    const proxies = [
+                        'https://corsproxy.io/?',
+                        'https://api.allorigins.win/raw?url=',
+                        'https://proxy.cors.sh/'
+                    ];
+                    
+                    let html = null;
+                    let lastError = null;
+                    
+                    for (const proxy of proxies) {
+                        try {
+                            const proxyUrl = proxy + encodeURIComponent(url);
+                            const response = await fetch(proxyUrl, {
+                                headers: proxy === 'https://proxy.cors.sh/' ? {
+                                    'x-cors-api-key': 'temp_public'
+                                } : {}
+                            });
+                            
+                            if (response.ok) {
+                                html = await response.text();
+                                if (html && html.length > 1000) {
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            lastError = e;
+                            continue;
+                        }
+                    }
+                    
+                    if (!html) {
+                        throw new Error(lastError?.message || 'Could not fetch page');
+                    }
+                    
+                    // Extract album data
+                    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+                    const artistMatch = html.match(/<meta property="og:site_name" content="([^"]+)"/);
+                    const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+                    
+                    // Try multiple patterns for TralbumData
+                    let tralbumData = null;
+                    
+                    // Pattern 1: var TralbumData = {...};
+                    let tralbumMatch = html.match(/var TralbumData\s*=\s*(\{[^;]+\});/);
+                    if (!tralbumMatch) {
+                        tralbumMatch = html.match(/data-tralbum="([^"]+)"/);
+                        if (tralbumMatch) {
+                            try {
+                                const decoded = tralbumMatch[1]
+                                    .replace(/&quot;/g, '"')
+                                    .replace(/&amp;/g, '&')
+                                    .replace(/&#39;/g, "'");
+                                tralbumData = JSON.parse(decoded);
+                            } catch (e) {
+                                console.error('Parse error:', e);
+                            }
+                        }
+                    } else {
+                        try {
+                            // Clean up the JSON string
+                            let jsonStr = tralbumMatch[1];
+                            // Remove any trailing commas before closing braces
+                            jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+                            tralbumData = JSON.parse(jsonStr);
+                        } catch (e) {
+                            console.error('Parse error:', e);
+                        }
+                    }
+                    
+                    if (!tralbumData?.trackinfo) {
+                        setSearch(s => ({ ...s, error: 'Could not find track data. This URL may not be a valid album page.', loadingSongs: false }));
+                        return;
+                    }
+                    
+                    const tracks = tralbumData.trackinfo.filter(t => t && t.title);
+                    
+                    if (tracks.length === 0) {
+                        setSearch(s => ({ ...s, error: 'No tracks found on this album.', loadingSongs: false }));
+                        return;
+                    }
+                    
+                    const uniqueTracks = tracks.map((track) => ({
+                        name: track.title,
+                        artwork: imageMatch ? imageMatch[1] : null,
+                        albumName: titleMatch ? titleMatch[1] : 'Unknown Album',
+                        color: '#ff0080',
+                        previewUrl: track.file?.['mp3-128'] || null
+                    }));
+                    
+                    const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+                    
+                    setState(s => ({
+                        ...s,
+                        selectedArtist: { 
+                            collectionName: titleMatch ? titleMatch[1] : 'Unknown Album',
+                            artistName: artistMatch ? artistMatch[1] : 'Unknown Artist',
+                            bandcampUrl: url,
+                            source: 'bandcamp'
+                        },
+                        songData: uniqueTracks,
+                        songs: uniqueTracks.map(t => t.name),
+                        usedAlbums: [{
+                            name: titleMatch ? titleMatch[1] : 'Unknown Album',
+                            artist: artistMatch ? artistMatch[1] : 'Unknown Artist'
+                        }],
+                        stage: 'sorting'
+                    }));
+
+                    const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+                    setSorting({
+                        sortedIndices: shuffledIndices,
+                        i: 0,
+                        j: 0,
+                        comparisons: 0,
+                        autoSkipped: 0,
+                        preferences: {},
+                        history: [],
+                        skippedPairs: new Set(),
+                        winCounts: {},
+                        lossCounts: {},
+                        lastEstimateUpdate: 0,
+                        estimatedRemaining: totalComparisons,
+                        notificationShownFor: new Set(),
+                        pinnedTop: new Set(),
+                        pinnedBottom: new Set()
+                    });
+
+                    setSearch(s => ({ ...s, loadingSongs: false }));
+                } catch (err) {
+                    console.error('Bandcamp error:', err);
+                    setSearch(s => ({ ...s, error: 'Unable to load from this URL. CORS restrictions may be blocking access. Try using iTunes search instead.', loadingSongs: false }));
+                }
+            };
+
             const searchArtistOrAlbum = async () => {
-                if (state.mode === 'artist' && !search.artistName.trim()) {
+                const searchValue = state.mode === 'artist' ? search.artistName.trim() : search.albumName.trim();
+                
+                if (state.mode === 'artist' && !searchValue) {
                     setSearch(s => ({ ...s, error: 'Please enter an artist name' }));
                     return;
                 }
-                if (state.mode === 'album' && !search.albumName.trim()) {
+                if (state.mode === 'album' && !searchValue) {
                     setSearch(s => ({ ...s, error: 'Please enter an album name' }));
+                    return;
+                }
+
+                // Check for Bandcamp URLs
+                if (isBandcampUrl(searchValue)) {
+                    if (state.mode === 'artist') {
+                        await handleBandcampArtist(searchValue);
+                    } else {
+                        await handleBandcampAlbum(searchValue);
+                    }
                     return;
                 }
 
@@ -336,19 +916,52 @@
 
                         setSearch(s => ({ ...s, suggestions: artists.map(a => ({ ...a, type: 'artist' })), loading: false }));
                     } else {
-                        let searchTerm = search.albumName;
-                        if (search.albumArtist.trim()) searchTerm += ` ${search.albumArtist}`;
+                        // Enhanced search for albums - search by artist ID if artist is specified
+                        let allResults = [];
                         
-                        const searchData = await jsonpRequest(
-                            `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=album&limit=200`
+                        // First try: Search album directly
+                        const searchData1 = await jsonpRequest(
+                            `https://itunes.apple.com/search?term=${encodeURIComponent(search.albumName)}&entity=album&limit=200`
                         );
+                        if (searchData1.results) {
+                            allResults.push(...searchData1.results);
+                        }
+                        
+                        // Second try: If artist is specified, search artist first then get their albums
+                        if (search.albumArtist.trim()) {
+                            const artistSearch = await jsonpRequest(
+                                `https://itunes.apple.com/search?term=${encodeURIComponent(search.albumArtist)}&entity=musicArtist&limit=10`
+                            );
+                            
+                            if (artistSearch.results && artistSearch.results.length > 0) {
+                                // Get the first matching artist
+                                const artist = artistSearch.results.find(a => a.wrapperType === 'artist');
+                                if (artist) {
+                                    // Look up all albums by this artist
+                                    const albumsData = await jsonpRequest(
+                                        `https://itunes.apple.com/lookup?id=${artist.artistId}&entity=album&limit=200`
+                                    );
+                                    if (albumsData.results) {
+                                        allResults.push(...albumsData.results.slice(1)); // Skip first result (artist info)
+                                    }
+                                }
+                            }
+                            
+                            // Also try combined search
+                            const searchData2 = await jsonpRequest(
+                                `https://itunes.apple.com/search?term=${encodeURIComponent(search.albumName + ' ' + search.albumArtist)}&entity=album&limit=200`
+                            );
+                            if (searchData2.results) {
+                                allResults.push(...searchData2.results);
+                            }
+                        }
 
-                        if (!searchData.results || searchData.results.length === 0) {
-                            setSearch(s => ({ ...s, error: 'Album not found.', loading: false }));
+                        if (allResults.length === 0) {
+                            setSearch(s => ({ ...s, error: 'Album not found. Try different search terms or check the artist name.', loading: false }));
                             return;
                         }
 
-                        let filteredAlbums = searchData.results.filter(item => item.wrapperType === 'collection');
+                        let filteredAlbums = allResults.filter(item => item.wrapperType === 'collection');
 
                         // Filter by artist if specified
                         if (search.albumArtist.trim()) {
@@ -358,23 +971,45 @@
                             );
                         }
 
-                        // Filter by album name match quality
+                        // Advanced matching
                         const albumLower = search.albumName.toLowerCase().trim();
+                        const normalizeText = (text) => text.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+                        const normalizedQuery = normalizeText(search.albumName);
+                        
                         filteredAlbums = filteredAlbums
                             .map(album => {
                                 const albumNameLower = album.collectionName.toLowerCase();
-                                // Exact match gets highest priority
-                                if (albumNameLower === albumLower) return { ...album, matchScore: 3 };
-                                // Starts with query gets second priority
-                                if (albumNameLower.startsWith(albumLower)) return { ...album, matchScore: 2 };
-                                // Contains query gets third priority
-                                if (albumNameLower.includes(albumLower)) return { ...album, matchScore: 1 };
+                                const normalizedAlbumName = normalizeText(album.collectionName);
+                                
+                                // Exact match
+                                if (albumNameLower === albumLower || normalizedAlbumName === normalizedQuery) {
+                                    return { ...album, matchScore: 5 };
+                                }
+                                // Starts with
+                                if (albumNameLower.startsWith(albumLower) || normalizedAlbumName.startsWith(normalizedQuery)) {
+                                    return { ...album, matchScore: 4 };
+                                }
+                                // All words match
+                                const queryWords = normalizedQuery.split(/\s+/);
+                                const allWordsMatch = queryWords.every(word => normalizedAlbumName.includes(word));
+                                if (allWordsMatch) {
+                                    return { ...album, matchScore: 3 };
+                                }
+                                // Contains query
+                                if (albumNameLower.includes(albumLower) || normalizedAlbumName.includes(normalizedQuery)) {
+                                    return { ...album, matchScore: 2 };
+                                }
+                                // Fuzzy - half the words
+                                const matchingWords = queryWords.filter(word => normalizedAlbumName.includes(word));
+                                if (matchingWords.length >= Math.ceil(queryWords.length / 2)) {
+                                    return { ...album, matchScore: 1 };
+                                }
                                 return { ...album, matchScore: 0 };
                             })
                             .filter(album => album.matchScore > 0)
                             .sort((a, b) => b.matchScore - a.matchScore);
 
-                        // Filter by year if specified
+                        // Filter by year
                         if (search.albumYear.trim()) {
                             const year = parseInt(search.albumYear);
                             if (!isNaN(year)) {
@@ -387,11 +1022,11 @@
                             }
                         }
 
-                        // Remove duplicates based on collection name and artist
+                        // Remove duplicates
                         const uniqueAlbums = [];
                         const seenAlbums = new Set();
                         for (const album of filteredAlbums) {
-                            const key = `${album.collectionName.toLowerCase()}-${album.artistName.toLowerCase()}`;
+                            const key = `${album.collectionName.toLowerCase()}-${album.artistName.toLowerCase()}-${album.collectionId}`;
                             if (!seenAlbums.has(key)) {
                                 seenAlbums.add(key);
                                 uniqueAlbums.push(album);
@@ -399,7 +1034,7 @@
                         }
 
                         if (uniqueAlbums.length === 0) {
-                            setSearch(s => ({ ...s, error: 'No albums found matching your criteria. Try removing some filters.', loading: false }));
+                            setSearch(s => ({ ...s, error: 'No albums found matching your criteria. Try removing filters or using different search terms.', loading: false }));
                             return;
                         }
 
@@ -452,6 +1087,7 @@
                         .filter(item => item.wrapperType === 'track' && item.kind === 'song');
 
                     const uniqueTracks = await processTracksToUniqueSongs(tracks);
+                    const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
 
                     setState(s => ({
                         ...s,
@@ -462,14 +1098,23 @@
                         stage: 'sorting'
                     }));
 
+                    const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
                     setSorting({
-                        sortedIndices: uniqueTracks.map((_, idx) => idx),
+                        sortedIndices: shuffledIndices,
                         i: 0,
                         j: 0,
                         comparisons: 0,
-                        skippedComparisons: 0,
+                        autoSkipped: 0,
                         preferences: {},
-                        history: []
+                        history: [],
+                        skippedPairs: new Set(),
+                        winCounts: {},
+                        lossCounts: {},
+                        lastEstimateUpdate: 0,
+                        estimatedRemaining: totalComparisons,
+                        notificationShownFor: new Set(),
+                        pinnedTop: new Set(),
+                        pinnedBottom: new Set()
                     });
 
                     setSearch(s => ({ ...s, loadingSongs: false }));
@@ -491,28 +1136,59 @@
                     const albumsList = [];
 
                     for (const albumId of state.selectedAlbums) {
-                        const songsData = await jsonpRequest(
-                            `https://itunes.apple.com/lookup?id=${albumId}&entity=song&limit=200`
-                        );
-
-                        if (songsData.results && songsData.results.length > 1) {
-                            const albumInfo = state.albums.find(a => a.collectionId === albumId);
-                            if (albumInfo) {
+                        const album = state.albums.find(a => a.collectionId === albumId);
+                        
+                        if (album?.source === 'bandcamp') {
+                            // Handle Bandcamp album
+                            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                            const response = await fetch(proxyUrl + encodeURIComponent(album.bandcampUrl));
+                            const html = await response.text();
+                            const tralbumMatch = html.match(/var TralbumData = ({[\s\S]*?});/);
+                            
+                            if (tralbumMatch) {
+                                const tralbumData = JSON.parse(tralbumMatch[1]);
+                                const tracks = tralbumData.trackinfo || [];
+                                
                                 albumsList.push({
-                                    name: albumInfo.collectionName,
-                                    artist: albumInfo.artistName
+                                    name: album.collectionName,
+                                    artist: album.artistName
+                                });
+                                
+                                tracks.forEach(track => {
+                                    allTracks.push({
+                                        trackName: track.title,
+                                        artworkUrl100: album.artworkUrl100,
+                                        collectionName: album.collectionName,
+                                        previewUrl: track.file?.['mp3-128'] || null
+                                    });
                                 });
                             }
+                        } else {
+                            // Handle iTunes album
+                            const songsData = await jsonpRequest(
+                                `https://itunes.apple.com/lookup?id=${albumId}&entity=song&limit=200`
+                            );
 
-                            const tracks = songsData.results
-                                .slice(1)
-                                .filter(item => item.wrapperType === 'track' && item.kind === 'song');
+                            if (songsData.results && songsData.results.length > 1) {
+                                const albumInfo = state.albums.find(a => a.collectionId === albumId);
+                                if (albumInfo) {
+                                    albumsList.push({
+                                        name: albumInfo.collectionName,
+                                        artist: albumInfo.artistName
+                                    });
+                                }
 
-                            allTracks.push(...tracks);
+                                const tracks = songsData.results
+                                    .slice(1)
+                                    .filter(item => item.wrapperType === 'track' && item.kind === 'song');
+
+                                allTracks.push(...tracks);
+                            }
                         }
                     }
 
                     const uniqueTracks = await processTracksToUniqueSongs(allTracks);
+                    const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
 
                     setState(s => ({
                         ...s,
@@ -522,14 +1198,23 @@
                         stage: 'sorting'
                     }));
 
+                    const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
                     setSorting({
-                        sortedIndices: uniqueTracks.map((_, idx) => idx),
+                        sortedIndices: shuffledIndices,
                         i: 0,
                         j: 0,
                         comparisons: 0,
-                        skippedComparisons: 0,
+                        autoSkipped: 0,
                         preferences: {},
-                        history: []
+                        history: [],
+                        skippedPairs: new Set(),
+                        winCounts: {},
+                        lossCounts: {},
+                        lastEstimateUpdate: 0,
+                        estimatedRemaining: totalComparisons,
+                        notificationShownFor: new Set(),
+                        pinnedTop: new Set(),
+                        pinnedBottom: new Set()
                     });
 
                     setSearch(s => ({ ...s, loadingSongs: false }));
@@ -538,7 +1223,75 @@
                 }
             };
 
-            const makeSmartAssumption = (idx1, idx2) => {
+            const getCurrentPosition = (songIdx) => {
+                return sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx)).indexOf(songIdx);
+            };
+
+            const canMoveToBest = (songIdx) => {
+                const position = getCurrentPosition(songIdx);
+                const activeSongs = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+                const topSection = activeSongs.slice(0, Math.ceil(activeSongs.length * 0.1)); // Top 10%
+                return !topSection.includes(songIdx);
+            };
+
+            const canMoveToWorst = (songIdx) => {
+                const position = getCurrentPosition(songIdx);
+                const activeSongs = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+                const bottomSection = activeSongs.slice(-Math.ceil(activeSongs.length * 0.1)); // Bottom 10%
+                return !bottomSection.includes(songIdx);
+            };
+
+            const checkForNotification = (idx, type) => {
+                const count = type === 'win' ? (sorting.winCounts[idx] || 0) : (sorting.lossCounts[idx] || 0);
+                const notificationKey = `${idx}-${type}`;
+                
+                if (count === 10 && !sorting.notificationShownFor.has(notificationKey) && !notification) {
+                    const currentPos = getCurrentPosition(idx);
+                    const songName = state.songs[idx];
+                    const totalActive = state.songs.length - state.excludedSongs.size;
+                    
+                    if (type === 'win' && currentPos < totalActive * 0.2) {
+                        return;
+                    }
+                    if (type === 'loss' && currentPos > totalActive * 0.8) {
+                        return;
+                    }
+                    
+                    setSorting(s => ({
+                        ...s,
+                        notificationShownFor: new Set([...s.notificationShownFor, notificationKey])
+                    }));
+                    
+                    if (type === 'win') {
+                        setNotification({
+                            message: `"${songName}" is performing really well!`,
+                            type: 'trending-up',
+                            songIdx: idx
+                        });
+                    } else {
+                        setNotification({
+                            message: `"${songName}" seems to be struggling.`,
+                            type: 'trending-down',
+                            songIdx: idx
+                        });
+                    }
+                }
+            };
+
+            const makeSmartAssumption = useCallback((idx1, idx2) => {
+                const pairKey1 = `${idx1}-${idx2}`;
+                const pairKey2 = `${idx2}-${idx1}`;
+                
+                if (sorting.skippedPairs.has(pairKey1) || sorting.skippedPairs.has(pairKey2)) {
+                    return null;
+                }
+
+                // Check if either song is pinned
+                if (sorting.pinnedTop.has(idx1) && !sorting.pinnedTop.has(idx2)) return 'song1';
+                if (sorting.pinnedTop.has(idx2) && !sorting.pinnedTop.has(idx1)) return 'song2';
+                if (sorting.pinnedBottom.has(idx1) && !sorting.pinnedBottom.has(idx2)) return 'song2';
+                if (sorting.pinnedBottom.has(idx2) && !sorting.pinnedBottom.has(idx1)) return 'song1';
+
                 for (let middle in sorting.preferences) {
                     const middleIdx = parseInt(middle);
                     if (sorting.preferences[idx1]?.[middleIdx] === 'win' && sorting.preferences[middleIdx]?.[idx2] === 'win') {
@@ -551,17 +1304,39 @@
                 if (sorting.preferences[idx1]?.[idx2] === 'win') return 'song1';
                 if (sorting.preferences[idx2]?.[idx1] === 'win') return 'song2';
                 return null;
-            };
+            }, [sorting.preferences, sorting.skippedPairs, sorting.pinnedTop, sorting.pinnedBottom]);
 
-            const moveToNextComparison = (indices, newI, newJ, newPrefs) => {
+            const updateEstimate = useCallback(() => {
+                const activeSongs = state.songs.length - state.excludedSongs.size;
+                const totalPossible = (activeSongs * (activeSongs - 1)) / 2;
+                const made = sorting.comparisons;
+                const skipped = sorting.autoSkipped;
+                
+                const remaining = Math.max(0, totalPossible - made - skipped);
+                const estimatedSkipRate = made > 0 ? skipped / made : 0.3;
+                const estimatedRemaining = Math.ceil(remaining * (1 - estimatedSkipRate));
+                
+                setSorting(s => ({ ...s, estimatedRemaining, lastEstimateUpdate: made }));
+            }, [state.songs.length, state.excludedSongs.size, sorting.comparisons, sorting.autoSkipped]);
+
+            const moveToNextComparison = useCallback((indices, newI, newJ, newPrefs, newWinCounts, newLossCounts) => {
                 let nextJ = newJ + 1;
                 let nextI = newI;
+                let autoSkipCount = 0;
                 
                 while (true) {
                     if (nextJ < state.songs.length - 1 - nextI) {
-                        const assumption = makeSmartAssumption(indices[nextJ], indices[nextJ + 1]);
+                        const idx1 = indices[nextJ];
+                        const idx2 = indices[nextJ + 1];
+                        
+                        if (state.excludedSongs.has(idx1) || state.excludedSongs.has(idx2)) {
+                            nextJ++;
+                            continue;
+                        }
+                        
+                        const assumption = makeSmartAssumption(idx1, idx2);
                         if (assumption) {
-                            setSorting(s => ({ ...s, skippedComparisons: s.skippedComparisons + 1 }));
+                            autoSkipCount++;
                             if (assumption === 'song2') {
                                 [indices[nextJ], indices[nextJ + 1]] = [indices[nextJ + 1], indices[nextJ]];
                             }
@@ -572,7 +1347,10 @@
                                 i: nextI,
                                 j: nextJ,
                                 sortedIndices: indices,
-                                preferences: newPrefs
+                                preferences: newPrefs,
+                                winCounts: newWinCounts,
+                                lossCounts: newLossCounts,
+                                autoSkipped: s.autoSkipped + autoSkipCount
                             }));
                             return;
                         }
@@ -584,17 +1362,19 @@
                             setSorting(s => ({
                                 ...s,
                                 sortedIndices: indices,
-                                preferences: newPrefs
+                                preferences: newPrefs,
+                                winCounts: newWinCounts,
+                                lossCounts: newLossCounts,
+                                autoSkipped: s.autoSkipped + autoSkipCount
                             }));
                             setState(s => ({ ...s, stage: 'results' }));
                             return;
                         }
                     }
                 }
-            };
+            }, [state.songs.length, state.excludedSongs, makeSmartAssumption]);
 
-            const handlePreference = (preferred) => {
-                // Stop any playing audio
+            const handlePreference = useCallback((preferred) => {
                 if (playingAudio.audio) {
                     playingAudio.audio.pause();
                     setPlayingAudio({ index: null, audio: null });
@@ -603,22 +1383,34 @@
                 const idx1 = sorting.sortedIndices[sorting.j];
                 const idx2 = sorting.sortedIndices[sorting.j + 1];
                 
-                // Save to history before making changes
                 const historyEntry = {
                     sortedIndices: [...sorting.sortedIndices],
                     i: sorting.i,
                     j: sorting.j,
                     comparisons: sorting.comparisons,
-                    preferences: JSON.parse(JSON.stringify(sorting.preferences))
+                    preferences: JSON.parse(JSON.stringify(sorting.preferences)),
+                    winCounts: { ...sorting.winCounts },
+                    lossCounts: { ...sorting.lossCounts }
                 };
 
                 const newPreferences = { ...sorting.preferences };
+                const newWinCounts = { ...sorting.winCounts };
+                const newLossCounts = { ...sorting.lossCounts };
+                
                 if (preferred === 'song1') {
                     newPreferences[idx1] = { ...(newPreferences[idx1] || {}), [idx2]: 'win' };
                     newPreferences[idx2] = { ...(newPreferences[idx2] || {}), [idx1]: 'loss' };
-                } else if (preferred === 'song2') {
+                    newWinCounts[idx1] = (newWinCounts[idx1] || 0) + 1;
+                    newLossCounts[idx2] = (newLossCounts[idx2] || 0) + 1;
+                    checkForNotification(idx1, 'win');
+                    checkForNotification(idx2, 'loss');
+                } else {
                     newPreferences[idx2] = { ...(newPreferences[idx2] || {}), [idx1]: 'win' };
                     newPreferences[idx1] = { ...(newPreferences[idx1] || {}), [idx2]: 'loss' };
+                    newWinCounts[idx2] = (newWinCounts[idx2] || 0) + 1;
+                    newLossCounts[idx1] = (newLossCounts[idx1] || 0) + 1;
+                    checkForNotification(idx2, 'win');
+                    checkForNotification(idx1, 'loss');
                 }
                 
                 const newIndices = [...sorting.sortedIndices];
@@ -626,17 +1418,22 @@
                     [newIndices[sorting.j], newIndices[sorting.j + 1]] = [newIndices[sorting.j + 1], newIndices[sorting.j]];
                 }
 
+                const newComparisons = sorting.comparisons + 1;
+                
                 setSorting(s => ({
                     ...s,
-                    comparisons: s.comparisons + 1,
+                    comparisons: newComparisons,
                     history: [...s.history, historyEntry]
                 }));
 
-                moveToNextComparison(newIndices, sorting.i, sorting.j, newPreferences);
-            };
+                if (newComparisons - sorting.lastEstimateUpdate >= 15) {
+                    setTimeout(updateEstimate, 0);
+                }
+
+                moveToNextComparison(newIndices, sorting.i, sorting.j, newPreferences, newWinCounts, newLossCounts);
+            }, [sorting, playingAudio.audio, moveToNextComparison, updateEstimate]);
 
             const handleUndo = () => {
-                // Stop any playing audio
                 if (playingAudio.audio) {
                     playingAudio.audio.pause();
                     setPlayingAudio({ index: null, audio: null });
@@ -652,16 +1449,26 @@
                     j: lastState.j,
                     comparisons: lastState.comparisons,
                     preferences: lastState.preferences,
+                    winCounts: lastState.winCounts,
+                    lossCounts: lastState.lossCounts,
                     history: sorting.history.slice(0, -1)
                 });
             };
 
             const handleUnsure = () => {
-                // Stop any playing audio
                 if (playingAudio.audio) {
                     playingAudio.audio.pause();
                     setPlayingAudio({ index: null, audio: null });
                 }
+
+                const idx1 = sorting.sortedIndices[sorting.j];
+                const idx2 = sorting.sortedIndices[sorting.j + 1];
+                const pairKey = `${idx1}-${idx2}`;
+                const reversePairKey = `${idx2}-${idx1}`;
+                
+                const newSkippedPairs = new Set(sorting.skippedPairs);
+                newSkippedPairs.add(pairKey);
+                newSkippedPairs.add(reversePairKey);
 
                 setSorting(s => {
                     let newJ = s.j + 1;
@@ -675,19 +1482,167 @@
                         }
                     }
                     
-                    return { ...s, i: newI, j: newJ };
+                    return { ...s, i: newI, j: newJ, skippedPairs: newSkippedPairs };
                 });
+            };
+
+            const excludeSong = (songIdx) => {
+                setModalConfig({
+                    title: 'Exclude Song',
+                    message: `Are you sure you want to exclude "${state.songs[songIdx]}" from your ranking?`,
+                    onSubmit: () => {
+                        setState(s => {
+                            const newExcluded = new Set(s.excludedSongs);
+                            newExcluded.add(songIdx);
+                            return { ...s, excludedSongs: newExcluded };
+                        });
+
+                        if (sorting.sortedIndices[sorting.j] === songIdx || sorting.sortedIndices[sorting.j + 1] === songIdx) {
+                            setSorting(s => {
+                                let newJ = s.j + 1;
+                                let newI = s.i;
+                                
+                                if (newJ >= state.songs.length - 1 - s.i) {
+                                    newI = s.i + 1;
+                                    newJ = 0;
+                                    if (newI >= state.songs.length - 1) {
+                                        setState(st => ({ ...st, stage: 'results' }));
+                                    }
+                                }
+                                
+                                return { ...s, i: newI, j: newJ };
+                            });
+                        }
+                    }
+                });
+                setModalOpen(true);
+            };
+
+            const handleRightClick = (e, songIndex) => {
+                e.preventDefault();
+                
+                const songIdx = sorting.sortedIndices[songIndex];
+                const canBest = canMoveToBest(songIdx);
+                const canWorst = canMoveToWorst(songIdx);
+                
+                setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    songIndex,
+                    canMoveBest: canBest,
+                    canMoveWorst: canWorst
+                });
+            };
+
+            const markAsBest = (songIdx) => {
+                // Pin to top section
+                setSorting(s => ({
+                    ...s,
+                    pinnedTop: new Set([...s.pinnedTop, songIdx])
+                }));
+                
+                // Move to top but keep within pinned group
+                const pinnedTopSongs = sorting.sortedIndices.filter(idx => 
+                    sorting.pinnedTop.has(idx) || idx === songIdx
+                );
+                const otherSongs = sorting.sortedIndices.filter(idx => 
+                    !sorting.pinnedTop.has(idx) && idx !== songIdx
+                );
+                
+                const newIndices = [...pinnedTopSongs, ...otherSongs];
+                setSorting(s => ({ ...s, sortedIndices: newIndices }));
+                setContextMenu(null);
+            };
+
+            const markAsWorst = (songIdx) => {
+                // Pin to bottom section
+                setSorting(s => ({
+                    ...s,
+                    pinnedBottom: new Set([...s.pinnedBottom, songIdx])
+                }));
+                
+                // Move to bottom but keep within pinned group
+                const pinnedBottomSongs = sorting.sortedIndices.filter(idx => 
+                    sorting.pinnedBottom.has(idx) || idx === songIdx
+                );
+                const otherSongs = sorting.sortedIndices.filter(idx => 
+                    !sorting.pinnedBottom.has(idx) && idx !== songIdx
+                );
+                
+                const newIndices = [...otherSongs, ...pinnedBottomSongs];
+                setSorting(s => ({ ...s, sortedIndices: newIndices }));
+                setContextMenu(null);
+            };
+
+            const moveToTop = (songIdx) => {
+                markAsBest(songIdx);
+            };
+
+            const moveToBottom = (songIdx) => {
+                markAsWorst(songIdx);
+            };
+
+            const loadFromAutoSave = (autosave) => {
+                try {
+                    const selectedAlbumsSet = new Set(autosave.state.selectedAlbums || []);
+                    const excludedSongsSet = new Set(autosave.state.excludedSongs || []);
+                    const skippedPairsSet = new Set(autosave.sorting.skippedPairs || []);
+                    const notificationShownForSet = new Set(autosave.sorting.notificationShownFor || []);
+                    const pinnedTopSet = new Set(autosave.sorting.pinnedTop || []);
+                    const pinnedBottomSet = new Set(autosave.sorting.pinnedBottom || []);
+                    
+                    setState({
+                        ...autosave.state,
+                        selectedAlbums: selectedAlbumsSet,
+                        excludedSongs: excludedSongsSet
+                    });
+                    
+                    setSorting({
+                        ...autosave.sorting,
+                        history: [],
+                        skippedPairs: skippedPairsSet,
+                        notificationShownFor: notificationShownForSet,
+                        pinnedTop: pinnedTopSet,
+                        pinnedBottom: pinnedBottomSet
+                    });
+                    
+                    if (autosave.search) {
+                        setSearch(s => ({
+                            ...s,
+                            artistName: autosave.search.artistName || '',
+                            albumName: autosave.search.albumName || '',
+                            albumArtist: autosave.search.albumArtist || '',
+                            albumYear: autosave.search.albumYear || '',
+                            suggestions: [],
+                            loading: false,
+                            loadingSongs: false,
+                            error: ''
+                        }));
+                    }
+                } catch (err) {
+                    console.error('Failed to load autosave:', err);
+                }
+            };
+
+            const removeAutoSave = (id) => {
+                deleteAutoSave(id);
+                setAutoSaves(loadAutoSaves());
             };
 
             const saveData = () => {
                 const dataToSave = {
                     state: {
                         ...state,
-                        selectedAlbums: Array.from(state.selectedAlbums) // Convert Set to Array
+                        selectedAlbums: Array.from(state.selectedAlbums),
+                        excludedSongs: Array.from(state.excludedSongs)
                     },
                     sorting: {
                         ...sorting,
-                        history: [] // Don't save history to keep file size down
+                        history: [],
+                        skippedPairs: Array.from(sorting.skippedPairs),
+                        notificationShownFor: Array.from(sorting.notificationShownFor),
+                        pinnedTop: Array.from(sorting.pinnedTop),
+                        pinnedBottom: Array.from(sorting.pinnedBottom)
                     },
                     search: {
                         artistName: search.artistName,
@@ -717,22 +1672,30 @@
                     try {
                         const data = JSON.parse(e.target.result);
                         
-                        // Validate the data structure
                         if (!data.state || !data.sorting) {
                             throw new Error('Invalid save file format');
                         }
                         
-                        // Reconstruct the selectedAlbums Set from array
                         const selectedAlbumsSet = new Set(data.state.selectedAlbums || []);
+                        const excludedSongsSet = new Set(data.state.excludedSongs || []);
+                        const skippedPairsSet = new Set(data.sorting.skippedPairs || []);
+                        const notificationShownForSet = new Set(data.sorting.notificationShownFor || []);
+                        const pinnedTopSet = new Set(data.sorting.pinnedTop || []);
+                        const pinnedBottomSet = new Set(data.sorting.pinnedBottom || []);
                         
                         setState({
                             ...data.state,
-                            selectedAlbums: selectedAlbumsSet
+                            selectedAlbums: selectedAlbumsSet,
+                            excludedSongs: excludedSongsSet
                         });
                         
                         setSorting({
                             ...data.sorting,
-                            history: [] // Reset history on load
+                            history: [],
+                            skippedPairs: skippedPairsSet,
+                            notificationShownFor: notificationShownForSet,
+                            pinnedTop: pinnedTopSet,
+                            pinnedBottom: pinnedBottomSet
                         });
                         
                         if (data.search) {
@@ -749,7 +1712,6 @@
                             }));
                         }
                         
-                        // Reset the file input
                         event.target.value = '';
                         
                     } catch (err) {
@@ -758,7 +1720,6 @@
                             ...s, 
                             error: 'Failed to load save file. Please make sure it\'s a valid Ranker save file.' 
                         }));
-                        // Reset the file input
                         event.target.value = '';
                     }
                 };
@@ -766,93 +1727,94 @@
                     setSearch(s => ({ ...s, error: 'Failed to read file.' }));
                     event.target.value = '';
                 };
-                reader.readAsText(file);};
-
-            const exportToPDF = () => {
-                const fileName = prompt("Enter a filename for your export:");
-                if (!fileName) return;
-
-                const userName = prompt("Enter your name:");
-                if (!userName) return;
-
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                
-                // Title
-                doc.setFillColor(255, 0, 128);
-                doc.rect(0, 0, 210, 30, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(24);
-                doc.text(`${userName}'s Song Rankings`, 105, 15, { align: 'center' });
-                doc.setFontSize(12);
-                doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 23, { align: 'center' });
-                
-                doc.setTextColor(0, 0, 0);
-                let yPos = 40;
-
-                // Albums used section
-                if (state.usedAlbums.length > 0) {
-                    doc.setFontSize(14);
-                    doc.setFont(undefined, 'bold');
-                    doc.text('Albums:', 20, yPos);
-                    yPos += 7;
-                    doc.setFontSize(10);
-                    doc.setFont(undefined, 'normal');
-                    state.usedAlbums.forEach(album => {
-                        if (yPos > 270) {
-                            doc.addPage();
-                            yPos = 20;
-                        }
-                        doc.text(`• ${album.name}`, 25, yPos);
-                        yPos += 5;
-                    });
-                    yPos += 5;
-                }
-                
-                // Rankings table
-                doc.setFontSize(14);
-                doc.setFont(undefined, 'bold');
-                doc.text('Rankings:', 20, yPos);
-                yPos += 8;
-
-                // Table header
-                doc.setFillColor(200, 200, 200);
-                doc.rect(20, yPos - 5, 170, 8, 'F');
-                doc.setFontSize(10);
-                doc.text('Rank', 25, yPos);
-                doc.text('Song Title', 50, yPos);
-                yPos += 10;
-
-                // Table rows
-                doc.setFont(undefined, 'normal');
-                sorting.sortedIndices.forEach((songIdx, rank) => {
-                    if (yPos > 270) {
-                        doc.addPage();
-                        yPos = 20;
-                    }
-                    
-                    // Alternating row colors
-                    if (rank % 2 === 0) {
-                        doc.setFillColor(245, 245, 245);
-                        doc.rect(20, yPos - 5, 170, 8, 'F');
-                    }
-                    
-                    doc.setFontSize(10);
-                    doc.text(`${rank + 1}`, 25, yPos);
-                    
-                    const songName = state.songs[songIdx];
-                    const maxWidth = 130;
-                    const lines = doc.splitTextToSize(songName, maxWidth);
-                    doc.text(lines, 50, yPos);
-                    
-                    yPos += Math.max(8, lines.length * 5);
-                });
-                
-                doc.save(`${fileName}.pdf`);
+                reader.readAsText(file);
             };
 
-            const totalComparisons = state.songs.length > 0 ? (state.songs.length * (state.songs.length - 1)) / 2 : 0;
-            const progress = totalComparisons > 0 ? (sorting.comparisons / totalComparisons) * 100 : 0;
+            const exportToPDF = () => {
+                setModalConfig({
+                    title: 'Export to PDF',
+                    fields: [
+                        { name: 'fileName', label: 'File name', placeholder: 'my-ranking', required: true },
+                        { name: 'userName', label: 'Your name', placeholder: 'Your Name', required: true }
+                    ],
+                    onSubmit: (values) => {
+                        const { jsPDF } = window.jspdf;
+                        const doc = new jsPDF();
+                        
+                        doc.setFillColor(255, 0, 128);
+                        doc.rect(0, 0, 210, 30, 'F');
+                        doc.setTextColor(255, 255, 255);
+                        doc.setFontSize(24);
+                        doc.text(`${values.userName}'s Song Rankings`, 105, 15, { align: 'center' });
+                        doc.setFontSize(12);
+                        doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 23, { align: 'center' });
+                        
+                        doc.setTextColor(0, 0, 0);
+                        let yPos = 40;
+
+                        if (state.usedAlbums.length > 0) {
+                            doc.setFontSize(14);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('Albums:', 20, yPos);
+                            yPos += 7;
+                            doc.setFontSize(10);
+                            doc.setFont(undefined, 'normal');
+                            state.usedAlbums.forEach(album => {
+                                if (yPos > 270) {
+                                    doc.addPage();
+                                    yPos = 20;
+                                }
+                                doc.text(`• ${album.name}`, 25, yPos);
+                                yPos += 5;
+                            });
+                            yPos += 5;
+                        }
+                        
+                        doc.setFontSize(14);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('Rankings:', 20, yPos);
+                        yPos += 8;
+
+                        doc.setFillColor(200, 200, 200);
+                        doc.rect(20, yPos - 5, 170, 8, 'F');
+                        doc.setFontSize(10);
+                        doc.text('Rank', 25, yPos);
+                        doc.text('Song Title', 50, yPos);
+                        yPos += 10;
+
+                        doc.setFont(undefined, 'normal');
+                        const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+                        filteredIndices.forEach((songIdx, rank) => {
+                            if (yPos > 270) {
+                                doc.addPage();
+                                yPos = 20;
+                            }
+                            
+                            if (rank % 2 === 0) {
+                                doc.setFillColor(245, 245, 245);
+                                doc.rect(20, yPos - 5, 170, 8, 'F');
+                            }
+                            
+                            doc.setFontSize(10);
+                            doc.text(`${rank + 1}`, 25, yPos);
+                            
+                            const songName = state.songs[songIdx];
+                            const maxWidth = 130;
+                            const lines = doc.splitTextToSize(songName, maxWidth);
+                            doc.text(lines, 50, yPos);
+                            
+                            yPos += Math.max(8, lines.length * 5);
+                        });
+                        
+                        doc.save(`${values.fileName}.pdf`);
+                    }
+                });
+                setModalOpen(true);
+            };
+
+            const activeSongCount = state.songs.length - state.excludedSongs.size;
+            const totalComparisons = activeSongCount > 0 ? (activeSongCount * (activeSongCount - 1)) / 2 : 0;
+            const progress = totalComparisons > 0 ? ((sorting.comparisons + sorting.autoSkipped) / totalComparisons) * 100 : 0;
             const itemsPerPage = 10;
             const paginatedSuggestions = search.suggestions.slice(search.page * itemsPerPage, (search.page + 1) * itemsPerPage);
 
@@ -866,8 +1828,21 @@
                                 <h1 className="text-3xl font-bold text-white drop-shadow-lg">μsic tools</h1>
                             </a>
                             
-                            {state.stage === 'sorting' && (
-                                <div className="flex gap-3">
+                            <div className="flex gap-3">
+                                {(state.stage === 'selectMode' || state.stage === 'sorting') && (
+                                    <label className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer">
+                                        <Download className="w-5 h-5" />
+                                        Load Save
+                                        <input 
+                                            ref={state.stage === 'selectMode' ? fileInputRef : null}
+                                            type="file" 
+                                            accept=".json" 
+                                            onChange={loadData} 
+                                            className="hidden" 
+                                        />
+                                    </label>
+                                )}
+                                {state.stage === 'sorting' && (
                                     <button
                                         onClick={saveData}
                                         className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2"
@@ -875,52 +1850,98 @@
                                         <Save className="w-5 h-5" />
                                         Save Progress
                                     </button>
-                                    <label className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer">
-                                        <Download className="w-5 h-5" />
-                                        Load Save
-                                        <input type="file" accept=".json" onChange={loadData} className="hidden" />
-                                    </label>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
                         <div className="p-8 max-w-4xl mx-auto">
                             {state.stage === 'selectMode' && (
-                                <div className="grid md:grid-cols-2 gap-6 mt-20">
-                                    <button
-                                        onClick={() => setState(s => ({ ...s, mode: 'artist', stage: 'search' }))}
-                                        className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
-                                    >
-                                        <div className="flex flex-col items-center gap-6">
-                                            <Music className="w-24 h-24 text-white group-hover:scale-110 transition-transform" />
-                                            <h2 className="text-3xl font-bold text-white">Rank Artist</h2>
-                                            <p className="text-gray-300 text-lg text-center">
-                                                Compare all songs from your favorite artist
-                                            </p>
-                                            <ChevronRight className="w-8 h-8 text-white/70 group-hover:text-white" />
-                                        </div>
-                                    </button>
+                                <>
+                                    <div className="grid md:grid-cols-2 gap-6 mb-8">
+                                        <button
+                                            onClick={() => setState(s => ({ ...s, mode: 'artist', stage: 'search' }))}
+                                            className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
+                                        >
+                                            <div className="flex flex-col items-center gap-6">
+                                                <Music className="w-24 h-24 text-white group-hover:scale-110 transition-transform" />
+                                                <h2 className="text-3xl font-bold text-white">Rank Artist</h2>
+                                                <p className="text-gray-300 text-lg text-center">
+                                                    Compare all songs from your favorite artist
+                                                </p>
+                                                <ChevronRight className="w-8 h-8 text-white/70 group-hover:text-white" />
+                                            </div>
+                                        </button>
 
-                                    <button
-                                        onClick={() => setState(s => ({ ...s, mode: 'album', stage: 'search' }))}
-                                        className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
-                                    >
-                                        <div className="flex flex-col items-center gap-6">
-                                            <Album className="w-24 h-24 text-white group-hover:scale-110 transition-transform" />
-                                            <h2 className="text-3xl font-bold text-white">Rank Album</h2>
-                                            <p className="text-gray-300 text-lg text-center">
-                                                Compare all tracks from a specific album
-                                            </p>
-                                            <ChevronRight className="w-8 h-8 text-white/70 group-hover:text-white" />
+                                        <button
+                                            onClick={() => setState(s => ({ ...s, mode: 'album', stage: 'search' }))}
+                                            className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
+                                        >
+                                            <div className="flex flex-col items-center gap-6">
+                                                <Album className="w-24 h-24 text-white group-hover:scale-110 transition-transform" />
+                                                <h2 className="text-3xl font-bold text-white">Rank Album</h2>
+                                                <p className="text-gray-300 text-lg text-center">
+                                                    Compare all tracks from a specific album
+                                                </p>
+                                                <ChevronRight className="w-8 h-8 text-white/70 group-hover:text-white" />
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    {autoSaves.length > 0 && (
+                                        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10">
+                                            <h3 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
+                                                <Clock className="w-6 h-6" />
+                                                Continue Recent Rankings
+                                            </h3>
+                                            <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-4 py-3 mb-4">
+                                                <p className="text-yellow-200 text-sm flex items-start gap-2">
+                                                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                                    <span>Auto-save is not 100% reliable. Always export important rankings to ensure you don't lose your progress!</span>
+                                                </p>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {autoSaves.map(autosave => (
+                                                    <div key={autosave.id} className="bg-white/10 rounded-xl p-4 flex items-center gap-4 border border-white/20">
+                                                        <div className="flex-1">
+                                                            <p className="text-white font-semibold">
+                                                                {autosave.state.selectedArtist?.artistName || autosave.state.selectedArtist?.collectionName || 'Unknown'}
+                                                            </p>
+                                                            <p className="text-gray-300 text-sm mt-1">
+                                                                {autosave.sorting.comparisons} comparisons • {autosave.state.songs?.length || 0} songs
+                                                            </p>
+                                                            <p className="text-gray-400 text-xs mt-1">
+                                                                {new Date(autosave.timestamp).toLocaleString()}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => loadFromAutoSave(autosave)}
+                                                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium"
+                                                            >
+                                                                Continue
+                                                            </button>
+                                                            <button
+                                                                onClick={() => removeAutoSave(autosave.id)}
+                                                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
+                                                            >
+                                                                <X className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </button>
-                                </div>
+                                    )}
+                                </>
                             )}
 
                             {state.stage === 'search' && (
                                 <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10 mt-8">
                                     <div className="flex items-center gap-3 mb-6">
-                                        <button onClick={() => setState(s => ({ ...s, stage: 'selectMode' }))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                                        <button onClick={() => {
+                                            setState(s => ({ ...s, stage: 'selectMode' }));
+                                            setSearch({ artistName: '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, loading: false, loadingSongs: false, error: '' });
+                                        }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
                                             <ArrowLeft className="w-6 h-6 text-white" />
                                         </button>
                                         <h2 className="text-2xl font-bold text-white">
@@ -959,12 +1980,12 @@
                                                     type="text"
                                                     value={search.albumName}
                                                     onChange={(e) => setSearch(s => ({ ...s, albumName: e.target.value }))}
-                                                    placeholder="Abbey Road..."
+                                                    placeholder="Revolver..."
                                                     className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-white text-lg font-medium mb-3">Artist (optional)</label>
+                                                <label className="block text-white text-lg font-medium mb-3">Artist (optional but recommended)</label>
                                                 <input
                                                     type="text"
                                                     value={search.albumArtist}
@@ -979,7 +2000,7 @@
                                                     type="text"
                                                     value={search.albumYear}
                                                     onChange={(e) => setSearch(s => ({ ...s, albumYear: e.target.value }))}
-                                                    placeholder="1969..."
+                                                    placeholder="1966..."
                                                     className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                 />
                                             </div>
@@ -1154,20 +2175,20 @@
                                                 Ranking {state.selectedArtist?.artistName || state.selectedArtist?.collectionName}
                                             </span>
                                             <span className="text-gray-300">
-                                                {sorting.comparisons} comparisons • {sorting.skippedComparisons} skipped
+                                                {sorting.comparisons} / {sorting.estimatedRemaining} comparisons (estimate)
                                             </span>
                                         </div>
-                                        <div className="w-full bg-white/20 rounded-full h-3">
+                                        <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
                                             <div
-                                                className="h-3 rounded-full transition-all duration-300"
+                                                className="h-3 rounded-full transition-all duration-500 ease-out"
                                                 style={{ 
-                                                    width: `${progress}%`,
+                                                    width: `${Math.min(100, progress)}%`,
                                                     background: `linear-gradient(to right, ${bgColors[0]}, ${bgColors[1]})`
                                                 }}
                                             />
                                         </div>
                                         <p className="text-gray-300 text-sm mt-2">
-                                            {state.songs.length} songs total
+                                            {activeSongCount} songs • {sorting.autoSkipped} auto-skipped
                                         </p>
                                     </div>
 
@@ -1179,7 +2200,8 @@
                                         <div className="grid md:grid-cols-2 gap-6 mb-6">
                                             <button
                                                 onClick={() => handlePreference('song1')}
-                                                className="group bg-white/10 hover:bg-white/20 rounded-2xl p-10 transition-all duration-300 transform hover:scale-105 shadow-xl border border-white/20"
+                                                onContextMenu={(e) => handleRightClick(e, sorting.j)}
+                                                className="w-full bg-white/10 hover:bg-white/20 rounded-2xl p-10 transition-all duration-300 transform hover:scale-105 shadow-xl border border-white/20"
                                             >
                                                 <div className="flex flex-col items-center gap-5">
                                                     {state.songData[sorting.sortedIndices[sorting.j]]?.artwork ? (
@@ -1221,7 +2243,8 @@
 
                                             <button
                                                 onClick={() => handlePreference('song2')}
-                                                className="group bg-white/10 hover:bg-white/20 rounded-2xl p-10 transition-all duration-300 transform hover:scale-105 shadow-xl border border-white/20"
+                                                onContextMenu={(e) => handleRightClick(e, sorting.j + 1)}
+                                                className="w-full bg-white/10 hover:bg-white/20 rounded-2xl p-10 transition-all duration-300 transform hover:scale-105 shadow-xl border border-white/20"
                                             >
                                                 <div className="flex flex-col items-center gap-5">
                                                     {state.songData[sorting.sortedIndices[sorting.j + 1]]?.artwork ? (
@@ -1279,6 +2302,46 @@
                                                 Skip
                                             </button>
                                         </div>
+
+                                        <button
+                                            onClick={() => setShowProgress(true)}
+                                            className="w-full mt-4 px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-semibold flex items-center justify-center gap-2 border border-white/20"
+                                        >
+                                            View Current Rankings
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {showProgress && state.stage === 'sorting' && (
+                                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                    <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-2xl w-full border border-white/20 shadow-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h3 className="text-2xl font-bold text-white">Current Rankings (In Progress)</h3>
+                                            <button onClick={() => setShowProgress(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                                                <X className="w-6 h-6 text-white" />
+                                            </button>
+                                        </div>
+                                        <p className="text-gray-300 mb-4">This is a snapshot of your current ranking. Keep comparing to finalize!</p>
+                                        <div className="space-y-2 overflow-y-auto pr-2 flex-1">
+                                            {sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx)).map((songIdx, rank) => (
+                                                <div
+                                                    key={rank}
+                                                    className="bg-white/10 rounded-lg p-4 flex items-center gap-4 border border-white/10"
+                                                >
+                                                    <div className="text-xl font-bold text-white w-12">#{rank + 1}</div>
+                                                    <div className="flex-1">
+                                                        <p className="text-white font-medium">{state.songs[songIdx]}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={() => setShowProgress(false)}
+                                            className="mt-6 w-full px-6 py-3 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold"
+                                        >
+                                            Continue Ranking
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -1288,11 +2351,11 @@
                                     <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
                                         <h2 className="text-4xl font-bold text-white text-center mb-3">Your Ranking</h2>
                                         <p className="text-gray-300 text-center mb-8 text-lg">
-                                            {state.selectedArtist?.artistName || state.selectedArtist?.collectionName} • {state.songs.length} songs
+                                            {state.selectedArtist?.artistName || state.selectedArtist?.collectionName} • {activeSongCount} songs
                                         </p>
 
                                         <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 mb-6">
-                                            {sorting.sortedIndices.map((songIdx, rank) => (
+                                            {sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx)).map((songIdx, rank) => (
                                                 <div
                                                     key={rank}
                                                     className="bg-white/10 rounded-xl p-5 flex items-center gap-5 hover:bg-white/20 transition-colors border border-white/10"
@@ -1308,7 +2371,8 @@
                                         <button
                                             onClick={exportToPDF}
                                             className="w-full px-6 py-4 bg-white text-black hover:bg-gray-200 rounded-xl font-semibold flex items-center justify-center gap-2"
-                                        ><Download className="w-5 h-5" />
+                                        >
+                                            <Download className="w-5 h-5" />
                                             Export as PDF
                                         </button>
                                     </div>
@@ -1316,6 +2380,45 @@
                             )}
                         </div>
                     </div>
+
+                    {notification && (
+                        <Notification
+                            message={notification.message}
+                            type={notification.type}
+                            songIdx={notification.songIdx}
+                            onClose={() => setNotification(null)}
+                            onMoveTop={notification.type === 'trending-up' ? () => moveToTop(notification.songIdx) : null}
+                            onMoveBottom={notification.type === 'trending-down' ? () => moveToBottom(notification.songIdx) : null}
+                        />
+                    )}
+
+                    {contextMenu && (
+                        <ContextMenu
+                            x={contextMenu.x}
+                            y={contextMenu.y}
+                            onBest={() => markAsBest(sorting.sortedIndices[contextMenu.songIndex])}
+                            onWorst={() => markAsWorst(sorting.sortedIndices[contextMenu.songIndex])}
+                            onExclude={() => {
+                                const songIdx = sorting.sortedIndices[contextMenu.songIndex];
+                                setContextMenu(null);
+                                excludeSong(songIdx);
+                            }}
+                            onClose={() => setContextMenu(null)}
+                            canMoveBest={contextMenu.canMoveBest}
+                            canMoveWorst={contextMenu.canMoveWorst}
+                        />
+                    )}
+
+                    {modalOpen && modalConfig && (
+                        <Modal
+                            isOpen={modalOpen}
+                            onClose={() => setModalOpen(false)}
+                            onSubmit={modalConfig.onSubmit}
+                            title={modalConfig.title}
+                            fields={modalConfig.fields}
+                            message={modalConfig.message}
+                        />
+                    )}
                 </div>
             );
         }
