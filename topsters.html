@@ -37,7 +37,7 @@
             transform: scale(1.05);
         }
         .classic-slot {
-            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
             transition: all 0.2s;
         }
         .classic-slot.hidden-guides {
@@ -98,8 +98,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+        // Icons
         const Search = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -143,6 +144,18 @@
             </svg>
         );
 
+        const Image = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        );
+
+        const Layers = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
+            </svg>
+        );
+
         const Upload = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -166,47 +179,6 @@
                     reject(new Error('JSONP request failed'));
                 };
                 document.body.appendChild(script);
-            });
-        };
-
-        const extractColorsFromImage = async (imageUrl) => {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = 'Anonymous';
-                img.onload = () => {
-                    try {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        ctx.drawImage(img, 0, 0);
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const data = imageData.data;
-                        const colorMap = {};
-                        for (let i = 0; i < data.length; i += 4) {
-                            const r = Math.floor(data[i] / 30) * 30;
-                            const g = Math.floor(data[i + 1] / 30) * 30;
-                            const b = Math.floor(data[i + 2] / 30) * 30;
-                            const brightness = (r + g + b) / 3;
-                            if (brightness > 30 && brightness < 230) {
-                                const key = `${r},${g},${b}`;
-                                colorMap[key] = (colorMap[key] || 0) + 1;
-                            }
-                        }
-                        const sortedColors = Object.entries(colorMap)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 3)
-                            .map(([color]) => {
-                                const [r, g, b] = color.split(',').map(Number);
-                                return `rgb(${r}, ${g}, ${b})`;
-                            });
-                        resolve(sortedColors.length > 0 ? sortedColors : ['#ff0080', '#7928ca']);
-                    } catch (e) {
-                        resolve(['#ff0080', '#7928ca']);
-                    }
-                };
-                img.onerror = () => resolve(['#ff0080', '#7928ca']);
-                img.src = imageUrl;
             });
         };
 
@@ -268,6 +240,12 @@
             const [uploadedImages, setUploadedImages] = useState([]);
             const [searchPage, setSearchPage] = useState(0);
             const [showImageModal, setShowImageModal] = useState(false);
+            const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+            const [artistSearchQuery, setArtistSearchQuery] = useState('');
+            const [artistSuggestions, setArtistSuggestions] = useState([]);
+            const [selectedArtistForAlbums, setSelectedArtistForAlbums] = useState(null);
+            const [artistAlbums, setArtistAlbums] = useState([]);
+            const [loadingArtist, setLoadingArtist] = useState(false);
             const [pendingImage, setPendingImage] = useState(null);
             const [customTitle, setCustomTitle] = useState('');
             const [customArtist, setCustomArtist] = useState('');
@@ -276,6 +254,8 @@
             const [renameIndex, setRenameIndex] = useState(null);
             const [renameTitle, setRenameTitle] = useState('');
             const [renameArtist, setRenameArtist] = useState('');
+            const [leftPanelTab, setLeftPanelTab] = useState('search');
+            const [showNumbers, setShowNumbers] = useState(true);
             
             const gridRef = useRef(null);
             const fileInputRef = useRef(null);
@@ -283,16 +263,16 @@
 
             const itemsPerPage = 20;
             const totalPages = Math.ceil(searchResults.length / itemsPerPage);
-            const paginatedResults = searchResults.slice(
-                searchPage * itemsPerPage,
-                (searchPage + 1) * itemsPerPage
+            const paginatedResults = useMemo(() => 
+                searchResults.slice(searchPage * itemsPerPage, (searchPage + 1) * itemsPerPage),
+                [searchResults, searchPage]
             );
 
             // Initialize grids
             useEffect(() => {
                 if (layout === 'standard') {
-                    const newGrid = Array(gridHeight * gridWidth).fill(null);
                     setGrid(prevGrid => {
+                        const newGrid = Array(gridHeight * gridWidth).fill(null);
                         for (let i = 0; i < Math.min(prevGrid.length, newGrid.length); i++) {
                             newGrid[i] = prevGrid[i];
                         }
@@ -306,7 +286,6 @@
                         return newGrid;
                     });
                 } else if (layout === 'classic') {
-                    // Ensure classic always has exactly 42 slots
                     setGrid(prevGrid => {
                         const newGrid = Array(42).fill(null);
                         for (let i = 0; i < Math.min(prevGrid.length, 42); i++) {
@@ -317,61 +296,36 @@
                 }
             }, [gridWidth, gridHeight, layout]);
 
-            // Update background colors based on albums
-            useEffect(() => {
-                const filledAlbums = layout === 'aboutYou' 
-                    ? aboutYouGrid.filter(cell => cell?.album).map(cell => cell.album)
-                    : grid.filter(album => album);
-                
-                if (filledAlbums.length >= 2) {
-                    const lastTwo = filledAlbums.slice(-2);
-                    Promise.all([
-                        extractColorsFromImage(lastTwo[0].image),
-                        extractColorsFromImage(lastTwo[1].image)
-                    ]).then(([colors1, colors2]) => {
-                        setBgColors([colors1[0], colors2[0]]);
-                    });
-                }
-            }, [grid, aboutYouGrid, layout]);
-
-            const saveToHistory = () => {
+            const saveToHistory = useCallback(() => {
                 setHistory(prev => [...prev.slice(-9), { grid: [...grid], aboutYouGrid: [...aboutYouGrid] }]);
-            };
+            }, [grid, aboutYouGrid]);
 
-            const undo = () => {
+            const undo = useCallback(() => {
                 if (history.length === 0) return;
                 const prev = history[history.length - 1];
                 setGrid(prev.grid);
                 setAboutYouGrid(prev.aboutYouGrid);
                 setHistory(h => h.slice(0, -1));
-            };
+            }, [history]);
 
-            const normalizeString = (str) => {
+            const normalizeString = useCallback((str) => {
                 return str.toLowerCase().replace(/[^a-z0-9]/g, '');
-            };
+            }, []);
 
-
-
-
-
-
-
-
-            const searchAlbums = async () => {
+            const searchAlbums = useCallback(async () => {
                 if (!searchQuery.trim()) return;
 
                 setLoading(true);
                 setSearchResults([]);
                 setSearchPage(0);
 
-                // Create promises for all searches to run in parallel
-                
-                // 1. iTunes Search - Most reliable for music
-                const itunesPromise = jsonpRequest(
-                    `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&limit=40`
-                ).then(data => {
-                    if (data.results && data.results.length > 0) {
-                        return data.results
+                try {
+                    // iTunes Search
+                    const itunesData = await jsonpRequest(
+                        `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&limit=40`
+                    );
+                    const itunesResults = itunesData.results && itunesData.results.length > 0
+                        ? itunesData.results
                             .filter(item => item.wrapperType === 'collection')
                             .map(album => ({
                                 id: `itunes-${album.collectionId}`,
@@ -380,18 +334,13 @@
                                 image: album.artworkUrl100.replace('100x100', '600x600'),
                                 year: album.releaseDate ? new Date(album.releaseDate).getFullYear() : '',
                                 source: 'iTunes'
-                            }));
-                    }
-                    return [];
-                }).catch(error => {
-                    console.error('iTunes Search error:', error);
-                    return [];
-                });
+                            }))
+                        : [];
 
-                // 2. Last.fm API - Will work on Neocities!
-                const lastfmPromise = (async () => {
+                    // Last.fm Search
+                    let lastfmResults = [];
                     try {
-                        const lastfmUrl = `https://ws.audioscrobbler.com/2.0/?method=album.search&album=${encodeURIComponent(searchQuery)}&api_key=33866e12a02528e0bb9211bd2f351c28&format=json&limit=30`;
+                        const lastfmUrl = `https://ws.audioscrobbler.com/2.0/?method=album.search&album=${encodeURIComponent(searchQuery)}&api_key=33866e12a02528e0bb9211bd2f351c28&format=json&limit=40`;
                         const lastfmResponse = await fetch(lastfmUrl);
                         const lastfmData = await lastfmResponse.json();
 
@@ -400,10 +349,9 @@
                                 ? lastfmData.results.albummatches.album 
                                 : [lastfmData.results.albummatches.album];
                             
-                            return albums
+                            lastfmResults = albums
                                 .filter(album => album.image && album.image.length > 0)
                                 .map(album => {
-                                    // Get the largest image available
                                     const image = album.image.find(img => img.size === 'extralarge') || 
                                                 album.image.find(img => img.size === 'large') ||
                                                 album.image.find(img => img.size === 'medium');
@@ -423,132 +371,59 @@
                                     album.image.length > 20 && 
                                     !album.image.includes('2a96cbd8b46e442fc41c2b86b821562f') &&
                                     !album.image.includes('c6f59c1e5e7240a4c0d427abd71f3dbb')
-                                ); // Filter out Last.fm placeholder images
+                                );
                         }
-                        return [];
                     } catch (error) {
                         console.error('Last.fm search error:', error);
-                        return [];
                     }
-                })();
 
-                // 3. MusicBrainz Cover Art Archive - Should work on Neocities
-                const musicBrainzPromise = (async () => {
-                    try {
-                        const mbUrl = `https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(searchQuery)}&limit=15&fmt=json`;
-                        const mbResponse = await fetch(mbUrl, {
-                            headers: {
-                                'User-Agent': 'TopstersClone/1.0 (https://neocities.org)'
+                    const allResults = [...itunesResults, ...lastfmResults];
+                    
+                    const seen = new Map();
+                    const uniqueResults = allResults.filter(album => {
+                        const titleKey = normalizeString(album.title);
+                        const artistKey = normalizeString(album.artist);
+                        
+                        for (const [key] of seen.entries()) {
+                            const [seenTitle, seenArtist] = key.split('|||');
+                            if (seenTitle === titleKey && seenArtist === artistKey) {
+                                return false;
                             }
-                        });
-                        const mbData = await mbResponse.json();
-
-                        if (mbData['release-groups']) {
-                            const results = await Promise.all(
-                                mbData['release-groups']
-                                    .filter(rg => rg['primary-type'] === 'Album')
-                                    .slice(0, 10)
-                                    .map(async (rg) => {
-                                        try {
-                                            // Try to get cover art
-                                            const coverUrl = `https://coverartarchive.org/release-group/${rg.id}`;
-                                            const coverResponse = await fetch(coverUrl);
-                                            if (coverResponse.ok) {
-                                                const coverData = await coverResponse.json();
-                                                const image = coverData.images?.[0]?.thumbnails?.large || 
-                                                            coverData.images?.[0]?.image;
-                                                
-                                                if (image) {
-                                                    return {
-                                                        id: `mb-${rg.id}`,
-                                                        title: rg.title,
-                                                        artist: rg['artist-credit']?.[0]?.name || 'Unknown Artist',
-                                                        image: image,
-                                                        year: rg['first-release-date'] ? rg['first-release-date'].substring(0, 4) : '',
-                                                        source: 'MusicBrainz'
-                                                    };
-                                                }
-                                            }
-                                        } catch (e) {
-                                            return null;
-                                        }
-                                        return null;
-                                    })
-                            );
-                            return results.filter(r => r !== null);
                         }
-                        return [];
-                    } catch (error) {
-                        console.error('MusicBrainz search error:', error);
-                        return [];
-                    }
-                })();
-
-                // Wait for all searches to complete with timeout
-                const timeoutPromise = new Promise((resolve) => 
-                    setTimeout(() => resolve([[], [], []]), 8000)
-                );
-                
-                const [itunesResults, lastfmResults, musicBrainzResults] = await Promise.race([
-                    Promise.all([itunesPromise, lastfmPromise, musicBrainzPromise]),
-                    timeoutPromise
-                ]);
-                
-                // Combine and deduplicate results with less harsh matching
-                const allResults = [...itunesResults, ...lastfmResults, ...musicBrainzResults];
-                
-                // More lenient duplicate detection - only match if title is very similar
-                const seen = new Map();
-                const uniqueResults = allResults.filter(album => {
-                    const titleKey = normalizeString(album.title);
-                    const artistKey = normalizeString(album.artist);
+                        
+                        seen.set(`${titleKey}|||${artistKey}`, album);
+                        return true;
+                    });
                     
-                    // Check if we have a very similar entry
-                    for (const [key, value] of seen.entries()) {
-                        const [seenTitle, seenArtist] = key.split('|||');
-                        // Only consider duplicate if both title AND artist match closely
-                        if (seenTitle === titleKey && seenArtist === artistKey) {
-                            return false;
-                        }
-                    }
-                    
-                    seen.set(`${titleKey}|||${artistKey}`, album);
-                    return true;
-                });
+                    setSearchResults(uniqueResults);
+                } catch (error) {
+                    console.error('Search error:', error);
+                }
                 
-                setSearchResults(uniqueResults);
                 setLoading(false);
-            };
-            
-            
-            
-            
-            
-            
-            
-            
-            const handleDragStart = (e, album, fromIndex) => {
+            }, [searchQuery, normalizeString]);
+
+            const handleDragStart = useCallback((e, album, fromIndex) => {
                 setDraggedItem(album);
                 setDraggedFrom(fromIndex);
                 e.dataTransfer.effectAllowed = 'move';
                 e.currentTarget.classList.add('dragging');
-            };
+            }, []);
 
-            const handleDragEnd = (e) => {
+            const handleDragEnd = useCallback((e) => {
                 e.currentTarget.classList.remove('dragging');
                 setDragOverIndex(null);
                 if (scrollIntervalRef.current) {
                     clearInterval(scrollIntervalRef.current);
                     scrollIntervalRef.current = null;
                 }
-            };
+            }, []);
 
-            const handleDragOver = (e, index) => {
+            const handleDragOver = useCallback((e, index) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 setDragOverIndex(index);
 
-                // Auto-scroll when dragging near edges
                 const y = e.clientY;
                 const scrollThreshold = 100;
                 const scrollSpeed = 10;
@@ -567,17 +442,17 @@
                         window.scrollBy(0, scrollSpeed);
                     }, 16);
                 }
-            };
+            }, []);
 
-            const handleDragLeave = () => {
+            const handleDragLeave = useCallback(() => {
                 setDragOverIndex(null);
                 if (scrollIntervalRef.current) {
                     clearInterval(scrollIntervalRef.current);
                     scrollIntervalRef.current = null;
                 }
-            };
+            }, []);
 
-            const handleDrop = (e, toIndex) => {
+            const handleDrop = useCallback((e, toIndex) => {
                 e.preventDefault();
                 setDragOverIndex(null);
                 
@@ -602,9 +477,9 @@
                     setDraggedItem(null);
                     setDraggedFrom(null);
                 }
-            };
+            }, [draggedItem, draggedFrom, layout, aboutYouGrid, grid, saveToHistory]);
 
-            const removeFromGrid = (index) => {
+            const removeFromGrid = useCallback((index) => {
                 saveToHistory();
                 if (layout === 'aboutYou') {
                     const newGrid = [...aboutYouGrid];
@@ -615,16 +490,16 @@
                     newGrid[index] = null;
                     setGrid(newGrid);
                 }
-            };
+            }, [layout, aboutYouGrid, grid, saveToHistory]);
 
-            const updateLabel = (index, newLabel) => {
+            const updateLabel = useCallback((index, newLabel) => {
                 const newGrid = [...aboutYouGrid];
                 newGrid[index] = { ...newGrid[index], label: newLabel };
                 setAboutYouGrid(newGrid);
-            };
+            }, [aboutYouGrid]);
 
-            const openRenameModal = (index) => {
-                if (layout === 'aboutYou') return; // Don't allow renaming in About You mode
+            const openRenameModal = useCallback((index) => {
+                if (layout === 'aboutYou' || index === null || index === undefined) return;
                 
                 const album = grid[index];
                 if (album) {
@@ -633,9 +508,9 @@
                     setRenameArtist(album.artist);
                     setRenameModalOpen(true);
                 }
-            };
+            }, [layout, grid]);
 
-            const confirmRename = () => {
+            const confirmRename = useCallback(() => {
                 if (renameIndex !== null) {
                     saveToHistory();
                     const newGrid = [...grid];
@@ -650,52 +525,93 @@
                 setRenameIndex(null);
                 setRenameTitle('');
                 setRenameArtist('');
-            };
+            }, [renameIndex, renameTitle, renameArtist, grid, saveToHistory]);
 
-            const switchLayout = (newLayout) => {
-                setLayout(newLayout);
-                if (newLayout === 'aboutYou') {
+            const switchLayout = useCallback((newLayout) => {
+                if (newLayout === 'aboutYou' && (layout === 'standard' || layout === 'classic')) {
+                    const filledAlbums = grid.filter(a => a);
+                    const newAboutYouGrid = aboutYouLabels.map((label, i) => ({
+                        album: filledAlbums[i] || null,
+                        label
+                    }));
+                    setAboutYouGrid(newAboutYouGrid);
+                    setLayout(newLayout);
                     setGridWidth(6);
                     setGridHeight(4);
+                } else if (layout === 'aboutYou' && (newLayout === 'standard' || newLayout === 'classic')) {
+                    const filledAlbums = aboutYouGrid.filter(cell => cell?.album).map(cell => cell.album);
+                    const targetSize = newLayout === 'classic' ? 42 : (gridWidth * gridHeight);
+                    const newGrid = Array(targetSize).fill(null);
+                    filledAlbums.forEach((album, i) => {
+                        if (i < targetSize) {
+                            newGrid[i] = album;
+                        }
+                    });
+                    setGrid(newGrid);
+                    setLayout(newLayout);
+                } else if (layout === 'standard' && newLayout === 'classic') {
+                    const newGrid = Array(42).fill(null);
+                    grid.forEach((album, i) => {
+                        if (i < 42) {
+                            newGrid[i] = album;
+                        }
+                    });
+                    setGrid(newGrid);
+                    setLayout(newLayout);
+                } else if (layout === 'classic' && newLayout === 'standard') {
+                    const newGrid = Array(gridWidth * gridHeight).fill(null);
+                    grid.forEach((album, i) => {
+                        if (i < newGrid.length) {
+                            newGrid[i] = album;
+                        }
+                    });
+                    setGrid(newGrid);
+                    setLayout(newLayout);
+                } else {
+                    setLayout(newLayout);
+                    if (newLayout === 'aboutYou') {
+                        setGridWidth(6);
+                        setGridHeight(4);
+                    }
                 }
-            };
+            }, [layout, grid, aboutYouGrid, gridWidth, gridHeight]);
 
-            const exportAsImage = async () => {
+            const exportAsImage = useCallback(async () => {
                 if (!gridRef.current) return;
 
                 try {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
                     const canvas = await html2canvas(gridRef.current, {
                         backgroundColor: bgColor,
                         scale: 2,
                         logging: false,
                         useCORS: true,
-                        allowTaint: true
+                        allowTaint: true,
+                        foreignObjectRendering: false,
+                        imageTimeout: 0
                     });
                     
-                    const link = document.createElement('a');
-                    link.download = `topsters-${Date.now()}.png`;
-                    link.href = canvas.toDataURL();
-                    link.click();
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.download = `topsters-${Date.now()}.png`;
+                            link.href = url;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                        }
+                    }, 'image/png');
                 } catch (error) {
                     console.error('Export error:', error);
-                    alert('Failed to export image. Try again or check your browser settings.');
+                    alert('Failed to export image. Try disabling browser extensions or try a different browser.');
                 }
-            };
+            }, [bgColor]);
 
-            const exportData = () => {
-                const data = {
-                    layout,
-                    gridWidth,
-                    gridHeight,
-                    title,
-                    titleColor,
-                    bgColor,
-                    showTitles,
-                    showGuidelines,
-                    grid,
-                    aboutYouGrid
-                };
-                
+            const exportData = useCallback(() => {
+                const data = { layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, showGuidelines, grid, aboutYouGrid };
                 const dataStr = JSON.stringify(data, null, 2);
                 const dataBlob = new Blob([dataStr], { type: 'application/json' });
                 const url = URL.createObjectURL(dataBlob);
@@ -704,9 +620,9 @@
                 link.download = `topsters-data-${Date.now()}.json`;
                 link.click();
                 URL.revokeObjectURL(url);
-            };
+            }, [layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, showGuidelines, grid, aboutYouGrid]);
 
-            const importData = (event) => {
+            const importData = useCallback((event) => {
                 const file = event.target.files[0];
                 if (!file) return;
 
@@ -733,9 +649,9 @@
                     }
                 };
                 reader.readAsText(file);
-            };
+            }, []);
 
-            const clearGrid = () => {
+            const clearGrid = useCallback(() => {
                 setShowConfirm(false);
                 saveToHistory();
                 if (layout === 'aboutYou') {
@@ -745,9 +661,9 @@
                 } else {
                     setGrid(Array(gridHeight * gridWidth).fill(null));
                 }
-            };
+            }, [layout, gridHeight, gridWidth, saveToHistory]);
 
-            const handleImageUpload = (e) => {
+            const handleImageUpload = useCallback((e) => {
                 const files = Array.from(e.target.files);
                 if (files.length > 0 && files[0].type.startsWith('image/')) {
                     const file = files[0];
@@ -761,9 +677,9 @@
                     reader.readAsDataURL(file);
                 }
                 e.target.value = '';
-            };
+            }, []);
 
-            const confirmImageUpload = () => {
+            const confirmImageUpload = useCallback(() => {
                 if (pendingImage) {
                     const newImage = {
                         id: `uploaded-${Date.now()}-${Math.random()}`,
@@ -778,21 +694,114 @@
                 setPendingImage(null);
                 setCustomTitle('');
                 setCustomArtist('');
-            };
+            }, [pendingImage, customTitle, customArtist]);
 
-            const hasAlbums = layout === 'aboutYou' 
-                ? aboutYouGrid.some(cell => cell?.album)
-                : grid.some(album => album);
+            const handlePasteImage = useCallback(async () => {
+                try {
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const item of clipboardItems) {
+                        if (item.types.includes('image/png') || item.types.includes('image/jpeg')) {
+                            const blob = await item.getType(item.types.find(t => t.startsWith('image/')));
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                setPendingImage(e.target.result);
+                                setCustomTitle('Pasted Image');
+                                setCustomArtist('');
+                                setShowImageModal(true);
+                            };
+                            reader.readAsDataURL(blob);
+                            return;
+                        }
+                    }
+                    alert('No image found in clipboard');
+                } catch (err) {
+                    console.error('Failed to read clipboard:', err);
+                    alert('Failed to paste from clipboard. Make sure you have copied an image.');
+                }
+            }, []);
 
-            const filledAlbums = layout === 'aboutYou'
-                ? aboutYouGrid.filter(cell => cell?.album).map(cell => cell.album)
-                : grid.filter(album => album);
+            const searchArtistForAlbums = useCallback(async () => {
+                if (!artistSearchQuery.trim()) return;
+                
+                setLoadingArtist(true);
+                setArtistSuggestions([]);
+                
+                try {
+                    const data = await jsonpRequest(
+                        `https://itunes.apple.com/search?term=${encodeURIComponent(artistSearchQuery)}&entity=musicArtist&limit=20`
+                    );
+                    
+                    if (data.results && data.results.length > 0) {
+                        const artists = data.results
+                            .filter(item => item.wrapperType === 'artist')
+                            .reduce((acc, artist) => {
+                                if (!acc.find(a => a.artistName.toLowerCase() === artist.artistName.toLowerCase())) {
+                                    acc.push(artist);
+                                }
+                                return acc;
+                            }, []);
+                        setArtistSuggestions(artists);
+                    }
+                } catch (err) {
+                    console.error('Artist search error:', err);
+                }
+                
+                setLoadingArtist(false);
+            }, [artistSearchQuery]);
+
+            const selectArtistAndLoadAlbums = useCallback(async (artist) => {
+                setLoadingArtist(true);
+                setSelectedArtistForAlbums(artist);
+                setArtistAlbums([]);
+                
+                try {
+                    const data = await jsonpRequest(
+                        `https://itunes.apple.com/lookup?id=${artist.artistId}&entity=album&limit=200`
+                    );
+                    
+                    if (data.results && data.results.length > 1) {
+                        const albums = data.results
+                            .slice(1)
+                            .filter(item => item.wrapperType === 'collection')
+                            .map(album => ({
+                                id: `itunes-${album.collectionId}`,
+                                title: album.collectionName,
+                                artist: album.artistName,
+                                image: album.artworkUrl100.replace('100x100', '600x600'),
+                                year: album.releaseDate ? new Date(album.releaseDate).getFullYear() : '',
+                                source: 'iTunes'
+                            }));
+                        setArtistAlbums(albums);
+                    }
+                } catch (err) {
+                    console.error('Album loading error:', err);
+                }
+                
+                setLoadingArtist(false);
+            }, []);
+
+            const deleteUploadedImage = useCallback((imageId) => {
+                setUploadedImages(prev => prev.filter(img => img.id !== imageId));
+            }, []);
+
+            const hasAlbums = useMemo(() => 
+                layout === 'aboutYou' 
+                    ? aboutYouGrid.some(cell => cell?.album)
+                    : grid.some(album => album),
+                [layout, aboutYouGrid, grid]
+            );
+
+            const filledAlbums = useMemo(() =>
+                layout === 'aboutYou'
+                    ? aboutYouGrid.filter(cell => cell?.album).map(cell => cell.album)
+                    : grid.filter(album => album),
+                [layout, aboutYouGrid, grid]
+            );
 
             return (
                 <div className="min-h-screen bg-black relative overflow-hidden">
                     {!performanceMode && <AnimatedBackground colors={bgColors} />}
 
-                    {/* Rename Modal */}
                     {renameModalOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                             <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
@@ -843,7 +852,6 @@
                         </div>
                     )}
 
-                    {/* Confirmation Modal */}
                     {showConfirm && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                             <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
@@ -867,7 +875,6 @@
                         </div>
                     )}
 
-                    {/* Image Upload Modal */}
                     {showImageModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                             <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
@@ -947,11 +954,11 @@
                                     onClick={exportData}
                                     className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors"
                                 >
-                                    <Download className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Data</span>
+                                    <Upload className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Export</span>
                                 </button>
                                 <label className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer transition-colors">
-                                    <Download className="w-4 h-4 transform rotate-180" />
+                                    <Download className="w-4 h-4" />
                                     <span className="hidden sm:inline">Import</span>
                                     <input type="file" accept=".json" onChange={importData} className="hidden" />
                                 </label>
@@ -967,177 +974,343 @@
 
                         <div className="p-4 md:p-8 max-w-7xl mx-auto">
                             <div className="grid lg:grid-cols-[320px_1fr] gap-4 md:gap-6">
-                                {/* Left Panel */}
+                                {/* Left Panel with Tabs */}
                                 <div className="space-y-4">
-                                    {/* Search Bar - Moved Here */}
-                                    <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
-                                        <h3 className="text-lg md:text-xl font-bold text-white mb-4">Search Albums</h3>
-                                        <div className="space-y-3">
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={searchQuery}
-                                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                                    onKeyPress={(e) => e.key === 'Enter' && searchAlbums()}
-                                                    placeholder="Search for albums..."
-                                                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                />
+                                    {/* Tab Buttons */}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setLeftPanelTab('search')}
+                                            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                                                leftPanelTab === 'search' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                            }`}
+                                        >
+                                            <Search className="w-4 h-4 inline mr-2" />
+                                            Search
+                                        </button>
+                                        <button
+                                            onClick={() => setLeftPanelTab('layout')}
+                                            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                                                leftPanelTab === 'layout' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                            }`}
+                                        >
+                                            <Layers className="w-4 h-4 inline mr-2" />
+                                            Layout
+                                        </button>
+                                        <button
+                                            onClick={() => setLeftPanelTab('settings')}
+                                            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                                                leftPanelTab === 'settings' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                            }`}
+                                        >
+                                            <Settings className="w-4 h-4 inline mr-2" />
+                                            Settings
+                                        </button>
+                                    </div>
+
+                                    {/* Search Panel */}
+                                    {leftPanelTab === 'search' && (
+                                        <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
+                                            <h3 className="text-lg md:text-xl font-bold text-white mb-4">Search Albums</h3>
+                                            <div className="space-y-3">
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={searchQuery}
+                                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                                        onKeyPress={(e) => e.key === 'Enter' && searchAlbums()}
+                                                        placeholder="Search for albums..."
+                                                        className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                    />
+                                                    <button
+                                                        onClick={searchAlbums}
+                                                        disabled={loading}
+                                                        className="px-4 py-2 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors flex items-center gap-2"
+                                                    >
+                                                        {loading ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                                    </button>
+                                                </div>
+
                                                 <button
-                                                    onClick={searchAlbums}
-                                                    disabled={loading}
-                                                    className="px-4 py-2 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors flex items-center gap-2"
+                                                    onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+                                                    className="w-full px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg border border-purple-500/50 flex items-center justify-center gap-2 transition-colors"
                                                 >
-                                                    {loading ? (
-                                                        <Loader2 className="w-5 h-5" />
-                                                    ) : (
-                                                        <Search className="w-5 h-5" />
-                                                    )}
+                                                    <Image className="w-5 h-5" />
+                                                    Advanced Search
                                                 </button>
-                                            </div>
 
-                                            <button
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="w-full px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-white rounded-lg border border-blue-500/50 flex items-center justify-center gap-2 transition-colors"
-                                            >
-                                                <Upload className="w-5 h-5" />
-                                                Upload Custom Image
-                                            </button>
-                                            <input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                className="hidden"
-                                            />
+                                                {showAdvancedSearch && (
+                                                    <div className="space-y-4 p-4 bg-white/5 rounded-lg border border-white/10">
+                                                        <div>
+                                                            <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
+                                                                <Upload className="w-4 h-4" />
+                                                                Upload Custom Image
+                                                            </h4>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => fileInputRef.current?.click()}
+                                                                    className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
+                                                                >
+                                                                    Choose File
+                                                                </button>
+                                                                <button
+                                                                    onClick={handlePasteImage}
+                                                                    className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
+                                                                >
+                                                                    Paste
+                                                                </button>
+                                                            </div>
+                                                        </div>
 
-                                            <div className="max-h-[500px] overflow-y-auto space-y-2">
-                                                {/* Uploaded Images */}
-                                                {uploadedImages.length > 0 && (
-                                                    <>
-                                                        <p className="text-sm font-semibold text-white/70 mt-2">Uploaded Images</p>
-                                                        {uploadedImages.map((album) => (
-                                                            <div
-                                                                key={album.id}
-                                                                draggable
-                                                                onDragStart={(e) => handleDragStart(e, album, null)}
-                                                                onDragEnd={handleDragEnd}
-                                                                className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
-                                                            >
-                                                                <img
-                                                                    src={album.image}
-                                                                    alt={album.title}
-                                                                    className="w-12 h-12 rounded object-cover"
-                                                                />
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-white text-sm font-medium truncate">{album.title}</p>
-                                                                    <p className="text-gray-400 text-xs truncate">{album.artist}</p>
+                                                        {uploadedImages.length > 0 && (
+                                                            <div>
+                                                                <h4 className="text-white font-semibold mb-2 text-sm">Recent Uploads</h4>
+                                                                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                                                    {uploadedImages.slice(-5).reverse().map((album) => (
+                                                                        <div
+                                                                            key={album.id}
+                                                                            className="bg-white/10 rounded-lg p-2 flex items-center gap-3 border border-white/10 group"
+                                                                        >
+                                                                            <img
+                                                                                src={album.image}
+                                                                                alt={album.title}
+                                                                                className="w-12 h-12 rounded object-cover cursor-grab"
+                                                                                draggable
+                                                                                onDragStart={(e) => handleDragStart(e, album, null)}
+                                                                                onDragEnd={handleDragEnd}
+                                                                            />
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <p className="text-white text-sm font-medium truncate">{album.title}</p>
+                                                                                <p className="text-gray-400 text-xs truncate">{album.artist}</p>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => deleteUploadedImage(album.id)}
+                                                                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all"
+                                                                            >
+                                                                                <Trash className="w-4 h-4 text-red-400" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                        {searchResults.length > 0 && <hr className="border-white/10 my-2" />}
+                                                        )}
+
+                                                        <hr className="border-white/10" />
+
+                                                        <div>
+                                                            <h4 className="text-white font-semibold mb-2 flex items-center gap-2 text-sm">
+                                                                <Search className="w-4 h-4" />
+                                                                Search by Artist
+                                                            </h4>
+                                                            {!selectedArtistForAlbums ? (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={artistSearchQuery}
+                                                                            onChange={(e) => setArtistSearchQuery(e.target.value)}
+                                                                            onKeyPress={(e) => e.key === 'Enter' && searchArtistForAlbums()}
+                                                                            placeholder="Search for an artist..."
+                                                                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                                        />
+                                                                        <button
+                                                                            onClick={searchArtistForAlbums}
+                                                                            disabled={loadingArtist}
+                                                                            className="px-3 py-2 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-lg font-semibold"
+                                                                        >
+                                                                            {loadingArtist ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                                                        </button>
+                                                                    </div>
+                                                                    {artistSuggestions.length > 0 && (
+                                                                        <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                                                                            {artistSuggestions.map((artist) => (
+                                                                                <button
+                                                                                    key={artist.artistId}
+                                                                                    onClick={() => selectArtistAndLoadAlbums(artist)}
+                                                                                    className="w-full text-left px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors"
+                                                                                >
+                                                                                    {artist.artistName}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-white text-sm font-medium">{selectedArtistForAlbums.artistName}</span>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setSelectedArtistForAlbums(null);
+                                                                                setArtistAlbums([]);
+                                                                                setArtistSuggestions([]);
+                                                                            }}
+                                                                            className="text-gray-400 hover:text-white text-xs"
+                                                                        >
+                                                                            Change
+                                                                        </button>
+                                                                    </div>
+                                                                    {loadingArtist ? (
+                                                                        <div className="flex items-center justify-center py-4">
+                                                                            <Loader2 className="w-6 h-6 text-white" />
+                                                                        </div>
+                                                                    ) : artistAlbums.length > 0 ? (
+                                                                        <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
+                                                                            {artistAlbums.map((album) => (
+                                                                                <div
+                                                                                    key={album.id}
+                                                                                    draggable
+                                                                                    onDragStart={(e) => handleDragStart(e, album, null)}
+                                                                                    onDragEnd={handleDragEnd}
+                                                                                    className="album-cover bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
+                                                                                >
+                                                                                    <img
+                                                                                        src={album.image}
+                                                                                        alt={album.title}
+                                                                                        className="w-full aspect-square rounded object-cover mb-1"
+                                                                                    />
+                                                                                    <p className="text-white text-xs font-medium truncate">{album.title}</p>
+                                                                                    <p className="text-gray-400 text-[10px] truncate">{album.year}</p>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="text-gray-400 text-sm text-center py-4">No albums found</p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+
+                                                <div className="max-h-[500px] overflow-y-auto space-y-2">
+                                                    {searchResults.length === 0 && !loading && (
+                                                        <p className="text-gray-400 text-sm text-center py-8">
+                                                            {searchQuery ? 'No results found' : 'Search to add albums'}
+                                                        </p>
+                                                    )}
+                                                    {paginatedResults.map((album) => (
+                                                        <div
+                                                            key={album.id}
+                                                            draggable
+                                                            onDragStart={(e) => handleDragStart(e, album, null)}
+                                                            onDragEnd={handleDragEnd}
+                                                            className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
+                                                        >
+                                                            <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover" loading="lazy" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-white text-sm font-medium truncate">{album.title}</p>
+                                                                <p className="text-gray-400 text-xs truncate">{album.artist} {album.year && `(${album.year})`}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {searchResults.length > itemsPerPage && (
+                                                    <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                                                        <button
+                                                            onClick={() => setSearchPage(p => Math.max(0, p - 1))}
+                                                            disabled={searchPage === 0}
+                                                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm rounded transition-colors"
+                                                        >
+                                                            Previous
+                                                        </button>
+                                                        <span className="text-white/70 text-sm">Page {searchPage + 1} of {totalPages}</span>
+                                                        <button
+                                                            onClick={() => setSearchPage(p => Math.min(totalPages - 1, p + 1))}
+                                                            disabled={searchPage >= totalPages - 1}
+                                                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm rounded transition-colors"
+                                                        >
+                                                            Next
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Layout Panel */}
+                                    {leftPanelTab === 'layout' && (
+                                        <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
+                                            <h3 className="text-lg md:text-xl font-bold text-white mb-4">Layout</h3>
+                                            <div className="space-y-2">
+                                                <button
+                                                    onClick={() => switchLayout('standard')}
+                                                    className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                                                        layout === 'standard' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                    }`}
+                                                >
+                                                    Standard Grid
+                                                </button>
+                                                <button
+                                                    onClick={() => switchLayout('classic')}
+                                                    className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                                                        layout === 'classic' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                    }`}
+                                                >
+                                                    Classic Collage
+                                                </button>
+                                                <button
+                                                    onClick={() => switchLayout('aboutYou')}
+                                                    className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                                                        layout === 'aboutYou' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                    }`}
+                                                >
+                                                    About You: Music
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Settings Panel */}
+                                    {leftPanelTab === 'settings' && (
+                                        <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
+                                            <h3 className="text-lg md:text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                                <Settings className="w-5 h-5" />
+                                                Settings
+                                            </h3>
+                                            
+                                            <div className="space-y-4">
+                                                {layout === 'standard' && (
+                                                    <>
+                                                        <div>
+                                                            <label className="block text-white text-sm font-medium mb-2">Title</label>
+                                                            <input
+                                                                type="text"
+                                                                value={title}
+                                                                onChange={(e) => setTitle(e.target.value)}
+                                                                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-white text-sm font-medium mb-2">Width</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="10"
+                                                                    value={gridWidth}
+                                                                    onChange={(e) => setGridWidth(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+                                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-white text-sm font-medium mb-2">Height</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="10"
+                                                                    value={gridHeight}
+                                                                    onChange={(e) => setGridHeight(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+                                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </>
                                                 )}
 
-                                                {/* Search Results */}
-                                                {searchResults.length === 0 && !loading && uploadedImages.length === 0 && (
-                                                    <p className="text-gray-400 text-sm text-center py-8">
-                                                        {searchQuery ? 'No results found' : 'Search or upload to add albums'}
-                                                    </p>
-                                                )}
-                                                {paginatedResults.map((album) => (
-                                                    <div
-                                                        key={album.id}
-                                                        draggable
-                                                        onDragStart={(e) => handleDragStart(e, album, null)}
-                                                        onDragEnd={handleDragEnd}
-                                                        className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
-                                                    >
-                                                        <img
-                                                            src={album.image}
-                                                            alt={album.title}
-                                                            className="w-12 h-12 rounded object-cover"
-                                                            loading="lazy"
-                                                        />
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-white text-sm font-medium truncate">{album.title}</p>
-                                                            <p className="text-gray-400 text-xs truncate">{album.artist} {album.year && `(${album.year})`}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {/* Pagination */}
-                                            {searchResults.length > itemsPerPage && (
-                                                <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                                                    <button
-                                                        onClick={() => setSearchPage(p => Math.max(0, p - 1))}
-                                                        disabled={searchPage === 0}
-                                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm rounded transition-colors"
-                                                    >
-                                                        Previous
-                                                    </button>
-                                                    <span className="text-white/70 text-sm">
-                                                        Page {searchPage + 1} of {totalPages}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => setSearchPage(p => Math.min(totalPages - 1, p + 1))}
-                                                        disabled={searchPage >= totalPages - 1}
-                                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm rounded transition-colors"
-                                                    >
-                                                        Next
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Layout Selector */}
-                                    <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
-                                        <h3 className="text-lg md:text-xl font-bold text-white mb-4">Layout</h3>
-                                        <div className="space-y-2">
-                                            <button
-                                                onClick={() => switchLayout('standard')}
-                                                className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
-                                                    layout === 'standard'
-                                                        ? 'bg-white text-black'
-                                                        : 'bg-white/10 text-white hover:bg-white/20'
-                                                }`}
-                                            >
-                                                Standard Grid
-                                            </button>
-                                            <button
-                                                onClick={() => switchLayout('classic')}
-                                                className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
-                                                    layout === 'classic'
-                                                        ? 'bg-white text-black'
-                                                        : 'bg-white/10 text-white hover:bg-white/20'
-                                                }`}
-                                            >
-                                                Classic Collage
-                                            </button>
-                                            <button
-                                                onClick={() => switchLayout('aboutYou')}
-                                                className={`w-full px-4 py-3 rounded-lg font-medium transition-all ${
-                                                    layout === 'aboutYou'
-                                                        ? 'bg-white text-black'
-                                                        : 'bg-white/10 text-white hover:bg-white/20'
-                                                }`}
-                                            >
-                                                About You: Music
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Settings */}
-                                    <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
-                                        <h3 className="text-lg md:text-xl font-bold text-white mb-4 flex items-center gap-2">
-                                            <Settings className="w-5 h-5" />
-                                            Settings
-                                        </h3>
-                                        
-                                        <div className="space-y-4">
-                                            {layout === 'standard' && (
-                                                <>
+                                                {layout === 'classic' && (
                                                     <div>
                                                         <label className="block text-white text-sm font-medium mb-2">Title</label>
                                                         <input
@@ -1147,147 +1320,108 @@
                                                             className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                         />
                                                     </div>
+                                                )}
 
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div>
-                                                            <label className="block text-white text-sm font-medium mb-2">Width</label>
-                                                            <input
-                                                                type="number"
-                                                                min="1"
-                                                                max="10"
-                                                                value={gridWidth}
-                                                                onChange={(e) => setGridWidth(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                                                                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-white text-sm font-medium mb-2">Height</label>
-                                                            <input
-                                                                type="number"
-                                                                min="1"
-                                                                max="10"
-                                                                value={gridHeight}
-                                                                onChange={(e) => setGridHeight(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                                                                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                            />
-                                                        </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-white text-sm font-medium mb-2">Title Color</label>
+                                                        <input
+                                                            type="color"
+                                                            value={titleColor}
+                                                            onChange={(e) => setTitleColor(e.target.value)}
+                                                            className="w-full h-10 bg-white/10 border border-white/20 rounded-lg cursor-pointer"
+                                                        />
                                                     </div>
-                                                </>
-                                            )}
-
-                                            {layout === 'classic' && (
-                                                <div>
-                                                    <label className="block text-white text-sm font-medium mb-2">Title</label>
-                                                    <input
-                                                        type="text"
-                                                        value={title}
-                                                        onChange={(e) => setTitle(e.target.value)}
-                                                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                    />
+                                                    <div>
+                                                        <label className="block text-white text-sm font-medium mb-2">BG Color</label>
+                                                        <input
+                                                            type="color"
+                                                            value={bgColor}
+                                                            onChange={(e) => setBgColor(e.target.value)}
+                                                            className="w-full h-10 bg-white/10 border border-white/20 rounded-lg cursor-pointer"
+                                                        />
+                                                    </div>
                                                 </div>
-                                            )}
 
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-white text-sm font-medium mb-2">Title Color</label>
-                                                    <input
-                                                        type="color"
-                                                        value={titleColor}
-                                                        onChange={(e) => setTitleColor(e.target.value)}
-                                                        className="w-full h-10 bg-white/10 border border-white/20 rounded-lg cursor-pointer"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-white text-sm font-medium mb-2">BG Color</label>
-                                                    <input
-                                                        type="color"
-                                                        value={bgColor}
-                                                        onChange={(e) => setBgColor(e.target.value)}
-                                                        className="w-full h-10 bg-white/10 border border-white/20 rounded-lg cursor-pointer"
-                                                    />
-                                                </div>
-                                            </div>
+                                                {layout === 'standard' && (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="showTitles"
+                                                            checked={showTitles}
+                                                            onChange={(e) => setShowTitles(e.target.checked)}
+                                                            className="w-4 h-4 rounded"
+                                                        />
+                                                        <label htmlFor="showTitles" className="text-white text-sm">Show album list</label>
+                                                    </div>
+                                                )}
 
-                                            {layout === 'standard' && (
+                                                {(layout === 'standard' || layout === 'classic') && (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="showGuidelines"
+                                                            checked={showGuidelines}
+                                                            onChange={(e) => setShowGuidelines(e.target.checked)}
+                                                            className="w-4 h-4 rounded"
+                                                        />
+                                                        <label htmlFor="showGuidelines" className="text-white text-sm">
+                                                            {layout === 'classic' ? 'Show grid lines' : 'Show grid guides'}
+                                                        </label>
+                                                    </div>
+                                                )}
+
+                                                {layout === 'classic' && (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="showTitlesClassic"
+                                                            checked={showTitles}
+                                                            onChange={(e) => setShowTitles(e.target.checked)}
+                                                            className="w-4 h-4 rounded"
+                                                        />
+                                                        <label htmlFor="showTitlesClassic" className="text-white text-sm">Show album list</label>
+                                                    </div>
+                                                )}
+
                                                 <div className="flex items-center gap-2">
                                                     <input
                                                         type="checkbox"
-                                                        id="showTitles"
-                                                        checked={showTitles}
-                                                        onChange={(e) => setShowTitles(e.target.checked)}
+                                                        id="performanceMode"
+                                                        checked={performanceMode}
+                                                        onChange={(e) => setPerformanceMode(e.target.checked)}
                                                         className="w-4 h-4 rounded"
                                                     />
-                                                    <label htmlFor="showTitles" className="text-white text-sm">Show album list</label>
+                                                    <label htmlFor="performanceMode" className="text-white text-sm">Performance mode</label>
                                                 </div>
-                                            )}
 
-                                            {(layout === 'standard' || layout === 'classic') && (
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="showGuidelines"
-                                                        checked={showGuidelines}
-                                                        onChange={(e) => setShowGuidelines(e.target.checked)}
-                                                        className="w-4 h-4 rounded"
-                                                    />
-                                                    <label htmlFor="showGuidelines" className="text-white text-sm">
-                                                        {layout === 'classic' ? 'Show grid lines' : 'Show grid guides'}
-                                                    </label>
-                                                </div>
-                                            )}
-
-                                            {layout === 'classic' && (
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="showTitlesClassic"
-                                                        checked={showTitles}
-                                                        onChange={(e) => setShowTitles(e.target.checked)}
-                                                        className="w-4 h-4 rounded"
-                                                    />
-                                                    <label htmlFor="showTitlesClassic" className="text-white text-sm">Show album list</label>
-                                                </div>
-                                            )}
-
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id="performanceMode"
-                                                    checked={performanceMode}
-                                                    onChange={(e) => setPerformanceMode(e.target.checked)}
-                                                    className="w-4 h-4 rounded"
-                                                />
-                                                <label htmlFor="performanceMode" className="text-white text-sm">Performance mode</label>
+                                                {(layout === 'standard' || layout === 'classic') && (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="showNumbers"
+                                                            checked={showNumbers}
+                                                            onChange={(e) => setShowNumbers(e.target.checked)}
+                                                            className="w-4 h-4 rounded"
+                                                        />
+                                                        <label htmlFor="showNumbers" className="text-white text-sm">Show numbers</label>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
 
                                 {/* Right Panel - Grid */}
                                 <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
-                                    <div
-                                        ref={gridRef}
-                                        style={{ backgroundColor: bgColor }}
-                                        className="p-6 md:p-8 rounded-xl"
-                                    >
+                                    <div ref={gridRef} style={{ backgroundColor: bgColor }} className="p-6 md:p-8 rounded-xl min-h-[400px]">
                                         {layout === 'standard' && (
-                                            <h2
-                                                style={{ color: titleColor }}
-                                                className="text-2xl md:text-3xl font-bold text-center mb-6"
-                                            >
-                                                {title}
-                                            </h2>
-                                        )}
-
-                                        <div className="flex gap-6">
-                                            {layout === 'standard' && (
-                                                <>
-                                                    <div
-                                                        className="grid gap-2 flex-1"
-                                                        style={{
-                                                            gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-                                                        }}
-                                                    >
+                                            <>
+                                                <h2 style={{ color: titleColor }} className="text-2xl md:text-3xl font-bold text-center mb-6">
+                                                    {title}
+                                                </h2>
+                                                <div className="flex gap-6">
+                                                    <div className="grid gap-2 flex-1" style={{ gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))` }}>
                                                         {grid.map((album, index) => (
                                                             <div
                                                                 key={index}
@@ -1295,13 +1429,9 @@
                                                                 onDragLeave={handleDragLeave}
                                                                 onDrop={(e) => handleDrop(e, index)}
                                                                 className={`aspect-square relative group transition-all ${
-                                                                    showGuidelines ? 'grid-slot' : ''
+                                                                    showGuidelines ? 'grid-slot' : 'grid-slot hidden-guides'
                                                                 } ${dragOverIndex === index ? 'drag-over' : ''}`}
-                                                                style={{
-                                                                    minWidth: '60px',
-                                                                    minHeight: '60px',
-                                                                    borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.2)' : undefined
-                                                                }}
+                                                                style={{ minWidth: '60px', minHeight: '60px' }}
                                                             >
                                                                 {album ? (
                                                                     <>
@@ -1317,481 +1447,82 @@
                                                                             }}
                                                                             className="album-cover w-full h-full object-cover rounded"
                                                                         />
-                                                                        {/* Edit/Delete Overlay */}
                                                                         <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                            <button
-                                                                                onClick={() => openRenameModal(index)}
-                                                                                className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded"
-                                                                                title="Edit Info"
-                                                                            >
+                                                                            <button onClick={() => openRenameModal(index)} className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded">
                                                                                 <Pencil className="w-3 h-3" />
                                                                             </button>
-                                                                            <button
-                                                                                onClick={() => removeFromGrid(index)}
-                                                                                className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded"
-                                                                                title="Remove"
-                                                                            >
+                                                                            <button onClick={() => removeFromGrid(index)} className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded">
                                                                                 <Trash className="w-3 h-3" />
                                                                             </button>
                                                                         </div>
-                                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
-                                                                            <p className="font-medium truncate">{album.title}</p>
-                                                                            <p className="text-gray-300 truncate">{album.artist}</p>
-                                                                        </div>
+                                                                        {showNumbers && (
+                                                                            <div className="absolute bottom-1 left-1 bg-black/70 text-white px-2 py-0.5 rounded text-xs font-bold">
+                                                                                {index + 1}
+                                                                            </div>
+                                                                        )}
                                                                     </>
                                                                 ) : (
-                                                                    <div className="empty-state">
-                                                                        {!hasAlbums && index === 0 ? 'Drag albums here' : index + 1}
-                                                                    </div>
+                                                                    <div className="empty-state">{!hasAlbums && index === 0 ? 'Drag albums here' : (showNumbers ? index + 1 : '')}</div>
                                                                 )}
                                                             </div>
                                                         ))}
                                                     </div>
-
                                                     {showTitles && (
                                                         <div className="w-64 hidden lg:block">
                                                             <div className="space-y-2">
                                                                 {grid.map((album, index) => (
                                                                     album && (
-                                                                        <div
-                                                                            key={index}
-                                                                            style={{ color: titleColor }}
-                                                                            className="text-sm cursor-pointer hover:opacity-70 transition-opacity"
-                                                                            onClick={() => openRenameModal(index)}
-                                                                            title="Click to rename"
-                                                                        >
-                                                                            <span className="font-bold">{index + 1}.</span> {album.title} <span className="text-gray-400">— {album.artist}</span>
+                                                                        <div key={index} style={{ color: titleColor }} className="text-sm cursor-pointer hover:opacity-70 transition-opacity" onClick={() => openRenameModal(index)}>
+                                                                            {showNumbers && <span className="font-bold">{index + 1}.</span>} {album.title} <span className="text-gray-400">— {album.artist}</span>
                                                                         </div>
                                                                     )
                                                                 ))}
                                                             </div>
                                                         </div>
                                                     )}
-                                                </>
-                                            )}
-
-                                            {layout === 'classic' && (
-                                                <div className="w-full flex gap-6">
-                                                    <div className="flex-1">
-                                                        {title && (
-                                                            <h2
-                                                                style={{ color: titleColor }}
-                                                                className="text-2xl md:text-3xl font-bold text-center mb-4"
-                                                            >
-                                                                {title}
-                                                            </h2>
-                                                        )}
-                                                        
-                                                        {/* Row 1: 5 albums (indices 0-4) */}
-                                                        <div className="grid grid-cols-5 gap-0 mb-0">
-                                                            {grid.slice(0, 5).map((album, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    onDragOver={(e) => handleDragOver(e, i)}
-                                                                    onDragLeave={handleDragLeave}
-                                                                    onDrop={(e) => handleDrop(e, i)}
-                                                                    className={`aspect-square relative group transition-all ${
-                                                                        showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'
-                                                                    } ${dragOverIndex === i ? 'drag-over' : ''}`}
-                                                                    style={{
-                                                                        borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.2)' : undefined
-                                                                    }}
-                                                                >
-                                                                    {album ? (
-                                                                        <>
-                                                                            <img
-                                                                                src={album.image}
-                                                                                alt={album.title}
-                                                                                draggable
-                                                                                onDragStart={(e) => handleDragStart(e, album, i)}
-                                                                                onDragEnd={handleDragEnd}
-                                                                                onContextMenu={(e) => {
-                                                                                    e.preventDefault();
-                                                                                    openRenameModal(i);
-                                                                                }}
-                                                                                className="album-cover w-full h-full object-cover rounded"
-                                                                            />
-                                                                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                <button
-                                                                                    onClick={() => openRenameModal(i)}
-                                                                                    className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded"
-                                                                                >
-                                                                                    <Pencil className="w-3 h-3" />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => removeFromGrid(i)}
-                                                                                    className="bg-red-500 hover:bg-red-600 text-white p-1 rounded"
-                                                                                >
-                                                                                    <Trash className="w-3 h-3" />
-                                                                                </button>
-                                                                            </div>
-                                                                        </>
-                                                                    ) : (
-                                                                        <div className="empty-state">
-                                                                            {!hasAlbums && i === 0 ? 'Drag albums here' : i + 1}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-
-                                                        {/* Row 2: 5 albums (indices 5-9) */}
-                                                        <div className="grid grid-cols-5 gap-0 mb-0">
-                                                            {grid.slice(5, 10).map((album, i) => {
-                                                                const idx = i + 5;
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onDragOver={(e) => handleDragOver(e, idx)}
-                                                                        onDragLeave={handleDragLeave}
-                                                                        onDrop={(e) => handleDrop(e, idx)}
-                                                                        className={`aspect-square relative group transition-all ${
-                                                                            showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'
-                                                                        } ${dragOverIndex === idx ? 'drag-over' : ''}`}
-                                                                        style={{
-                                                                            borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.1)' : undefined
-                                                                        }}
-                                                                    >
-                                                                        {album ? (
-                                                                            <>
-                                                                                <img
-                                                                                    src={album.image}
-                                                                                    alt={album.title}
-                                                                                    draggable
-                                                                                    onDragStart={(e) => handleDragStart(e, album, idx)}
-                                                                                    onDragEnd={handleDragEnd}
-                                                                                    onContextMenu={(e) => {
-                                                                                        e.preventDefault();
-                                                                                        openRenameModal(idx);
-                                                                                    }}
-                                                                                    className="album-cover w-full h-full object-cover"
-                                                                                />
-                                                                                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                    <button
-                                                                                        onClick={() => openRenameModal(idx)}
-                                                                                        className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded"
-                                                                                    >
-                                                                                        <Pencil className="w-3 h-3" />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => removeFromGrid(idx)}
-                                                                                        className="bg-red-500 hover:bg-red-600 text-white p-1 rounded"
-                                                                                    >
-                                                                                        <Trash className="w-3 h-3" />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </>
-                                                                        ) : showGuidelines ? (
-                                                                            <div className="w-full h-full flex items-center justify-center text-white/10 text-xs">
-                                                                                {idx + 1}
-                                                                            </div>
-                                                                        ) : null}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        {/* Row 3: 6 albums (indices 10-15) */}
-                                                        <div className="grid grid-cols-6 gap-0 mb-0">
-                                                            {grid.slice(10, 16).map((album, i) => {
-                                                                const idx = i + 10;
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onDragOver={(e) => handleDragOver(e, idx)}
-                                                                        onDragLeave={handleDragLeave}
-                                                                        onDrop={(e) => handleDrop(e, idx)}
-                                                                        className={`aspect-square relative group transition-all ${
-                                                                            showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'
-                                                                        } ${dragOverIndex === idx ? 'drag-over' : ''}`}
-                                                                        style={{
-                                                                            borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.2)' : undefined
-                                                                        }}
-                                                                    >
-                                                                        {album ? (
-                                                                            <>
-                                                                                <img
-                                                                                    src={album.image}
-                                                                                    alt={album.title}
-                                                                                    draggable
-                                                                                    onDragStart={(e) => handleDragStart(e, album, idx)}
-                                                                                    onDragEnd={handleDragEnd}
-                                                                                    onContextMenu={(e) => {
-                                                                                        e.preventDefault();
-                                                                                        openRenameModal(idx);
-                                                                                    }}
-                                                                                    className="album-cover w-full h-full object-cover rounded"
-                                                                                />
-                                                                                <div className="absolute top-0.5 right-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                    <button
-                                                                                        onClick={() => openRenameModal(idx)}
-                                                                                        className="bg-blue-500 hover:bg-blue-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Pencil className="w-2.5 h-2.5" />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => removeFromGrid(idx)}
-                                                                                        className="bg-red-500 hover:bg-red-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Trash className="w-2.5 h-2.5" />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </>
-                                                                        ) : (
-                                                                            <div className="empty-state text-[10px]">
-                                                                                {idx + 1}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        {/* Row 4: 6 albums (indices 16-21) */}
-                                                        <div className="grid grid-cols-6 gap-0 mb-0">
-                                                            {grid.slice(16, 22).map((album, i) => {
-                                                                const idx = i + 16;
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onDragOver={(e) => handleDragOver(e, idx)}
-                                                                        onDragLeave={handleDragLeave}
-                                                                        onDrop={(e) => handleDrop(e, idx)}
-                                                                        className={`aspect-square relative group transition-all ${
-                                                                            showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'
-                                                                        } ${dragOverIndex === idx ? 'drag-over' : ''}`}
-                                                                        style={{
-                                                                            borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.1)' : undefined
-                                                                        }}
-                                                                    >
-                                                                        {album ? (
-                                                                            <>
-                                                                                <img
-                                                                                    src={album.image}
-                                                                                    alt={album.title}
-                                                                                    draggable
-                                                                                    onDragStart={(e) => handleDragStart(e, album, idx)}
-                                                                                    onDragEnd={handleDragEnd}
-                                                                                    onContextMenu={(e) => {
-                                                                                        e.preventDefault();
-                                                                                        openRenameModal(idx);
-                                                                                    }}
-                                                                                    className="album-cover w-full h-full object-cover"
-                                                                                />
-                                                                                <div className="absolute top-0.5 right-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                    <button
-                                                                                        onClick={() => openRenameModal(idx)}
-                                                                                        className="bg-blue-500 hover:bg-blue-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Pencil className="w-2.5 h-2.5" />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => removeFromGrid(idx)}
-                                                                                        className="bg-red-500 hover:bg-red-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Trash className="w-2.5 h-2.5" />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </>
-                                                                        ) : showGuidelines ? (
-                                                                            <div className="w-full h-full flex items-center justify-center text-white/10 text-[10px]">
-                                                                                {idx + 1}
-                                                                            </div>
-                                                                        ) : null}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        {/* Row 5: 10 albums (indices 22-31) */}
-                                                        <div className="grid grid-cols-10 gap-0 mb-0">
-                                                            {grid.slice(22, 32).map((album, i) => {
-                                                                const idx = i + 22;
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onDragOver={(e) => handleDragOver(e, idx)}
-                                                                        onDragLeave={handleDragLeave}
-                                                                        onDrop={(e) => handleDrop(e, idx)}
-                                                                        className={`aspect-square relative group transition-all ${
-                                                                            showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'
-                                                                        } ${dragOverIndex === idx ? 'drag-over' : ''}`}
-                                                                        style={{
-                                                                            borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.1)' : undefined
-                                                                        }}
-                                                                    >
-                                                                        {album ? (
-                                                                            <>
-                                                                                <img
-                                                                                    src={album.image}
-                                                                                    alt={album.title}
-                                                                                    draggable
-                                                                                    onDragStart={(e) => handleDragStart(e, album, idx)}
-                                                                                    onDragEnd={handleDragEnd}
-                                                                                    onContextMenu={(e) => {
-                                                                                        e.preventDefault();
-                                                                                        openRenameModal(idx);
-                                                                                    }}
-                                                                                    className="album-cover w-full h-full object-cover"
-                                                                                />
-                                                                                <div className="absolute top-0.5 right-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                    <button
-                                                                                        onClick={() => openRenameModal(idx)}
-                                                                                        className="bg-blue-500 hover:bg-blue-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Pencil className="w-2 h-2" />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => removeFromGrid(idx)}
-                                                                                        className="bg-red-500 hover:bg-red-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Trash className="w-2 h-2" />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </>
-                                                                        ) : showGuidelines ? (
-                                                                            <div className="w-full h-full flex items-center justify-center text-white/10 text-[8px]">
-                                                                                {idx + 1}
-                                                                            </div>
-                                                                        ) : null}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        {/* Row 6: 10 albums (indices 32-41) */}
-                                                        <div className="grid grid-cols-10 gap-0">
-                                                            {grid.slice(32, 42).map((album, i) => {
-                                                                const idx = i + 32;
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onDragOver={(e) => handleDragOver(e, idx)}
-                                                                        onDragLeave={handleDragLeave}
-                                                                        onDrop={(e) => handleDrop(e, idx)}
-                                                                        className={`aspect-square relative group transition-all ${
-                                                                            showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'
-                                                                        } ${dragOverIndex === idx ? 'drag-over' : ''}`}
-                                                                        style={{
-                                                                            borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.1)' : undefined
-                                                                        }}
-                                                                    >
-                                                                        {album ? (
-                                                                            <>
-                                                                                <img
-                                                                                    src={album.image}
-                                                                                    alt={album.title}
-                                                                                    draggable
-                                                                                    onDragStart={(e) => handleDragStart(e, album, idx)}
-                                                                                    onDragEnd={handleDragEnd}
-                                                                                    onContextMenu={(e) => {
-                                                                                        e.preventDefault();
-                                                                                        openRenameModal(idx);
-                                                                                    }}
-                                                                                    className="album-cover w-full h-full object-cover"
-                                                                                />
-                                                                                <div className="absolute top-0.5 right-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                    <button
-                                                                                        onClick={() => openRenameModal(idx)}
-                                                                                        className="bg-blue-500 hover:bg-blue-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Pencil className="w-2 h-2" />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => removeFromGrid(idx)}
-                                                                                        className="bg-red-500 hover:bg-red-600 text-white p-0.5 rounded"
-                                                                                    >
-                                                                                        <Trash className="w-2 h-2" />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </>
-                                                                        ) : showGuidelines ? (
-                                                                            <div className="w-full h-full flex items-center justify-center text-white/10 text-[8px]">
-                                                                                {idx + 1}
-                                                                            </div>
-                                                                        ) : null}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Album List Sidebar */}
-                                                    {showTitles && filledAlbums.length > 0 && (
-                                                        <div className="w-64 hidden lg:block">
-                                                            <div className="space-y-1 text-xs">
-                                                                {filledAlbums.map((album, idx) => {
-                                                                    const gridIndex = grid.findIndex(a => a && a.id === album.id);
-                                                                    return (
-                                                                        <div
-                                                                            key={idx}
-                                                                            style={{ color: titleColor }}
-                                                                            className="leading-tight cursor-pointer hover:opacity-70 transition-opacity"
-                                                                            onClick={() => openRenameModal(gridIndex)}
-                                                                            title="Click to rename"
-                                                                        >
-                                                                            <span className="font-bold">{idx + 1}.</span> {album.title} <span className="opacity-70">— {album.artist}</span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </div>
-                                            )}
+                                            </>
+                                        )}
 
-                                            {layout === 'aboutYou' && (
-                                                <div
-                                                    className="grid gap-2 w-full"
-                                                    style={{
-                                                        gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
-                                                    }}
-                                                >
+                                        {layout === 'aboutYou' && (
+                                            <div className="max-w-[800px] mx-auto">
+                                                <div className="grid grid-cols-6 gap-2 w-full">
                                                     {aboutYouGrid.map((cell, index) => (
-                                                        <div
-                                                            key={index}
-                                                            onDragOver={(e) => handleDragOver(e, index)}
-                                                            onDragLeave={handleDragLeave}
-                                                            onDrop={(e) => handleDrop(e, index)}
-                                                            className={`grid-slot relative group transition-all ${
-                                                                !showGuidelines ? 'hidden-guides' : ''
-                                                            } ${dragOverIndex === index ? 'drag-over' : ''}`}
-                                                            style={{
-                                                                minWidth: '80px',
-                                                                minHeight: '120px',
-                                                                borderColor: bgColor === '#ffffff' && showGuidelines ? 'rgba(0, 0, 0, 0.2)' : undefined
-                                                            }}
+                                                        <div 
+                                                            key={index} 
+                                                            onDragOver={(e) => handleDragOver(e, index)} 
+                                                            onDragLeave={handleDragLeave} 
+                                                            onDrop={(e) => handleDrop(e, index)} 
+                                                            className={`grid-slot relative group transition-all ${!showGuidelines ? 'hidden-guides' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`} 
+                                                            style={{ minWidth: '80px', minHeight: '120px' }}
                                                         >
                                                             <div className="about-you-cell w-full h-full p-2">
                                                                 {cell?.album ? (
                                                                     <>
-                                                                        <img
-                                                                            src={cell.album.image}
-                                                                            alt={cell.album.title}
-                                                                            draggable
-                                                                            onDragStart={(e) => handleDragStart(e, cell.album, index)}
-                                                                            onDragEnd={handleDragEnd}
-                                                                            className="album-cover w-full aspect-square object-cover rounded"
+                                                                        <img 
+                                                                            src={cell.album.image} 
+                                                                            alt={cell.album.title} 
+                                                                            draggable 
+                                                                            onDragStart={(e) => handleDragStart(e, cell.album, index)} 
+                                                                            onDragEnd={handleDragEnd} 
+                                                                            className="album-cover w-full aspect-square object-cover rounded" 
                                                                         />
-                                                                        <button
-                                                                            onClick={() => removeFromGrid(index)}
+                                                                        <button 
+                                                                            onClick={() => removeFromGrid(index)} 
                                                                             className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-all z-10"
                                                                         >
                                                                             <Trash className="w-3 h-3" />
                                                                         </button>
-                                                                        </>
+                                                                    </>
                                                                 ) : (
-                                                                    <div className="w-full aspect-square bg-white/5 rounded flex items-center justify-center text-white/20 text-xs">
-                                                                        Drag here
-                                                                    </div>
+                                                                    <div className="w-full aspect-square bg-white/5 rounded flex items-center justify-center text-white/20 text-xs">Drag here</div>
                                                                 )}
-                                                                <div
-                                                                    contentEditable
-                                                                    suppressContentEditableWarning
-                                                                    onBlur={(e) => updateLabel(index, e.target.textContent)}
-                                                                    className="editable-label text-xs font-medium w-full"
+                                                                <div 
+                                                                    contentEditable 
+                                                                    suppressContentEditableWarning 
+                                                                    onBlur={(e) => updateLabel(index, e.target.textContent)} 
+                                                                    className="editable-label text-xs font-medium w-full" 
                                                                     style={{ color: titleColor }}
-                                                                    title="Click to edit label"
                                                                 >
                                                                     {cell?.label || ''}
                                                                 </div>
@@ -1799,8 +1530,128 @@
                                                         </div>
                                                     ))}
                                                 </div>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
+
+                                        {layout === 'classic' && (
+                                            <>
+                                                {title && (
+                                                    <h2 style={{ color: titleColor }} className="text-2xl md:text-3xl font-bold text-center mb-4">
+                                                        {title}
+                                                    </h2>
+                                                )}
+                                                <div className="flex gap-6">
+                                                    <div className="flex-1 max-w-[600px] mx-auto">
+                                                        {/* Row 1: 5 albums */}
+                                                        <div className="grid grid-cols-5 gap-0">
+                                                            {grid.slice(0, 5).map((album, i) => (
+                                                                <div 
+                                                                    key={i} 
+                                                                    onDragOver={(e) => handleDragOver(e, i)} 
+                                                                    onDragLeave={handleDragLeave} 
+                                                                    onDrop={(e) => handleDrop(e, i)} 
+                                                                    className={`aspect-square relative group ${showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'} ${dragOverIndex === i ? 'drag-over' : ''}`}
+                                                                >
+                                                                    {album ? (
+                                                                        <>
+                                                                            <img 
+                                                                                src={album.image} 
+                                                                                alt={album.title} 
+                                                                                draggable 
+                                                                                onDragStart={(e) => handleDragStart(e, album, i)} 
+                                                                                onDragEnd={handleDragEnd} 
+                                                                                onContextMenu={(e) => { e.preventDefault(); openRenameModal(i); }} 
+                                                                                className="w-full h-full object-cover" 
+                                                                            />
+                                                                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 z-10">
+                                                                                <button onClick={() => openRenameModal(i)} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
+                                                                                    <Pencil className="w-3 h-3" />
+                                                                                </button>
+                                                                                <button onClick={() => removeFromGrid(i)} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded">
+                                                                                    <Trash className="w-3 h-3" />
+                                                                                </button>
+                                                                            </div>
+                                                                            {showNumbers && (
+                                                                                <div className="absolute bottom-1 left-1 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs font-bold">
+                                                                                    {i + 1}
+                                                                                </div>
+                                                                            )}
+                                                                        </>
+                                                                    ) : showGuidelines && <div className="text-white/10 text-center text-xs flex items-center justify-center h-full">{i + 1}</div>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        {/* Rows 2-6 */}
+                                                        {[
+                                                            { start: 5, end: 10, cols: 5 },
+                                                            { start: 10, end: 16, cols: 6 },
+                                                            { start: 16, end: 22, cols: 6 },
+                                                            { start: 22, end: 32, cols: 10 },
+                                                            { start: 32, end: 42, cols: 10 }
+                                                        ].map(({ start, end, cols }) => (
+                                                            <div key={start} className={`grid gap-0`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+                                                                {grid.slice(start, end).map((album, i) => {
+                                                                    const idx = start + i;
+                                                                    return (
+                                                                        <div 
+                                                                            key={idx} 
+                                                                            onDragOver={(e) => handleDragOver(e, idx)} 
+                                                                            onDragLeave={handleDragLeave} 
+                                                                            onDrop={(e) => handleDrop(e, idx)} 
+                                                                            className={`aspect-square relative group ${showGuidelines ? 'classic-slot' : 'classic-slot hidden-guides'} ${dragOverIndex === idx ? 'drag-over' : ''}`}
+                                                                        >
+                                                                            {album ? (
+                                                                                <>
+                                                                                    <img 
+                                                                                        src={album.image} 
+                                                                                        alt={album.title} 
+                                                                                        draggable 
+                                                                                        onDragStart={(e) => handleDragStart(e, album, idx)} 
+                                                                                        onDragEnd={handleDragEnd} 
+                                                                                        onContextMenu={(e) => { e.preventDefault(); openRenameModal(idx); }} 
+                                                                                        className="w-full h-full object-cover" 
+                                                                                    />
+                                                                                    <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 z-10">
+                                                                                        <button onClick={() => openRenameModal(idx)} className="bg-blue-500 text-white p-0.5 rounded">
+                                                                                            <Pencil className="w-2 h-2" />
+                                                                                        </button>
+                                                                                        <button onClick={() => removeFromGrid(idx)} className="bg-red-500 text-white p-0.5 rounded">
+                                                                                            <Trash className="w-2 h-2" />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                    {showNumbers && (
+                                                                                        <div className="absolute bottom-0.5 left-0.5 bg-black/70 text-white px-1 py-0.5 rounded text-[10px] font-bold">
+                                                                                            {idx + 1}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : showGuidelines && <div className="text-white/10 text-center text-[8px] flex items-center justify-center h-full">{idx + 1}</div>}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {showTitles && filledAlbums.length > 0 && (
+                                                        <div className="w-64 hidden lg:block">
+                                                            {filledAlbums.map((album, idx) => {
+                                                                const gridIndex = grid.findIndex(a => a && a.id === album.id);
+                                                                return (
+                                                                    <div 
+                                                                        key={idx} 
+                                                                        style={{ color: titleColor }} 
+                                                                        className="text-xs cursor-pointer hover:opacity-70 mb-1" 
+                                                                        onClick={() => openRenameModal(gridIndex)}
+                                                                    >
+                                                                        {showNumbers && <span className="font-bold">{idx + 1}.</span>} {album.title} — {album.artist}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
