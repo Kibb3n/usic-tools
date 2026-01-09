@@ -1170,6 +1170,8 @@
                         `https://itunes.apple.com/lookup?id=${item.collectionId}&entity=song&limit=200`
                     );
 
+                    console.log('Songs data received:', songsData);
+
                     if (!songsData.results || songsData.results.length <= 1) {
                         setSearch(s => ({ ...s, error: 'No songs found.', loadingSongs: false }));
                         return;
@@ -1179,9 +1181,17 @@
                         .slice(1)
                         .filter(item => item.wrapperType === 'track' && item.kind === 'song');
 
-                    const uniqueTracks = await processTracksToUniqueSongs(tracks);
-                    const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+                    console.log('Filtered tracks:', tracks.length);
 
+                    const uniqueTracks = await processTracksToUniqueSongs(tracks);
+                    console.log('Unique tracks:', uniqueTracks);
+                    
+                    const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+                    console.log('Shuffled indices:', shuffledIndices);
+
+                    const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+
+                    // Update state first
                     setState(s => ({
                         ...s,
                         selectedArtist: item,
@@ -1191,7 +1201,7 @@
                         stage: 'sorting'
                     }));
 
-                    const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+                    // Then update sorting
                     setSorting({
                         sortedIndices: shuffledIndices,
                         i: 0,
@@ -1211,6 +1221,8 @@
                     });
 
                     setSearch(s => ({ ...s, loadingSongs: false }));
+                    
+                    console.log('State updated, stage is now sorting');
                 } catch (err) {
                     console.error('Songs fetch error:', err);
                     setSearch(s => ({ ...s, error: 'Failed to fetch songs.', loadingSongs: false }));
@@ -2102,7 +2114,7 @@
                                     <Link className="w-5 h-5" />
                                     Add URL
                                 </button>
-                                {(state.stage === 'selectMode' || state.stage === 'sorting') && (
+                                {(state.stage === 'selectMode' || state.stage === 'search' || state.stage === 'selectAlbums' || state.stage === 'sorting') && (
                                     <label className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer">
                                         <Download className="w-5 h-5" />
                                         Load Save
