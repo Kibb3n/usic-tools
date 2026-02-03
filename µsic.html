@@ -16,10 +16,6 @@
             33% { transform: translate(-150px, -100px) scale(0.9); }
             66% { transform: translate(100px, -150px) scale(1.2); }
         }
-        .grain {
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
-            pointer-events: none;
-        }
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -63,36 +59,60 @@
         .help-button.unread svg {
             color: #ffa500;
         }
+        .blob1, .blob2 {
+            transition: --color1 5s ease-in-out, --color2 5s ease-in-out;
+        }
+        @property --blob1-color {
+            syntax: '<color>';
+            inherits: false;
+            initial-value: #ff0080;
+        }
+        @property --blob2-color {
+            syntax: '<color>';
+            inherits: false;
+            initial-value: #7928ca;
+        }
+        #blob1 {
+            --blob1-color: #ff0080;
+            background: radial-gradient(circle, var(--blob1-color) 0%, transparent 70%);
+            animation: blob1 12s ease-in-out infinite;
+            top: 50%;
+            left: 33.333%;
+            transform: translate(-50%, -50%);
+            transition: --blob1-color 1.8s ease-in-out;
+        }
+        #blob2 {
+            --blob2-color: #7928ca;
+            background: radial-gradient(circle, var(--blob2-color) 0%, transparent 70%);
+            animation: blob2 12s ease-in-out infinite;
+            top: 50%;
+            right: 33.333%;
+            transform: translate(50%, -50%);
+            transition: --blob2-color 1.8s ease-in-out;
+        }
     </style>
 </head>
 <body>
     <div class="min-h-screen bg-black relative overflow-hidden">
         <div class="absolute inset-0 overflow-hidden">
-            <div class="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl"
-                style="background: radial-gradient(circle, #ff0080 0%, transparent 70%);
-                       animation: blob1 12s ease-in-out infinite;
-                       top: 50%; left: 33.333%; transform: translate(-50%, -50%);">
+            <div id="blob1" class="blob1 absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl">
             </div>
-            <div class="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl"
-                style="background: radial-gradient(circle, #7928ca 0%, transparent 70%);
-                       animation: blob2 12s ease-in-out infinite;
-                       top: 50%; right: 33.333%; transform: translate(50%, -50%);">
+            <div id="blob2" class="blob2 absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl">
             </div>
-            <div class="absolute inset-0 grain"></div>
         </div>
 
         <div class="relative z-10">
             <div class="flex justify-center pt-20">
                 <div class="text-center">
                     <h1 class="text-6xl font-bold text-white drop-shadow-lg mb-2">µsic tools</h1>
-                    <a href="index.html" class="text-gray-400 text-sm drop-shadow-md hover:text-white transition-colors">by kibben</a>
+                    <a href="index.html" class="text-gray-400 text-sm drop-shadow-md hover:text-white transition-colors" id="kibbenLink">by kibben</a>
                 </div>
             </div>
 
             <div class="flex flex-col items-center justify-center min-h-[calc(100vh-300px)] p-8">
-                <div class="grid md:grid-cols-3 gap-6 max-w-6xl w-full">
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl w-full">
                     <div class="relative group tool-card">
-                        <a href="guesser.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105">
+                        <a href="guesser.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#ff8800" data-color2="#ffcc00">
                             <div class="flex flex-col items-center gap-6">
                                 <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -112,7 +132,7 @@
                     </div>
 
                     <div class="relative group tool-card">
-                        <a href="ranker.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105">
+                        <a href="ranker.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#00d4ff" data-color2="#0066ff">
                             <div class="flex flex-col items-center gap-6">
                                 <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
@@ -132,7 +152,7 @@
                     </div>
 
                     <div class="relative group tool-card">
-                        <a href="topsters.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105">
+                        <a href="topsters.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#00ff88" data-color2="#00cc88">
                             <div class="flex flex-col items-center gap-6">
                                 <div class="w-24 h-24 grid grid-cols-2 gap-2 group-hover:scale-110 transition-transform">
                                     <div class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">1</div>
@@ -141,13 +161,33 @@
                                     <div class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">4</div>
                                 </div>
                                 <h2 class="text-3xl font-bold text-white">Topsters</h2>
-                                <p class="text-gray-300 text-lg text-center">Create your very own custom album collages</p>
+                                <p class="text-gray-300 text-lg text-center">Create custom album collages</p>
                                 <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
                         </a>
                         <button onclick="showHelp('topsters')" class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="relative group tool-card">
+                        <a href="tierlist.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#ff3333" data-color2="#00ff00">
+                            <div class="flex flex-col items-center gap-6">
+                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                </svg>
+                                <h2 class="text-3xl font-bold text-white">Tier List</h2>
+                                <p class="text-gray-300 text-lg text-center">Rank albums or songs in tier format</p>
+                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                        </a>
+                        <button onclick="showHelp('tierlist')" class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -176,6 +216,37 @@
     </div>
 
     <script>
+        const blob1 = document.getElementById('blob1');
+        const blob2 = document.getElementById('blob2');
+        const defaultColor1 = '#ff0080';
+        const defaultColor2 = '#7928ca';
+        
+        // Kibben link hover
+        const kibbenLink = document.getElementById('kibbenLink');
+        kibbenLink.addEventListener('mouseenter', () => {
+            blob1.style.setProperty('--blob1-color', 'rgb(0, 0, 255)');
+            blob2.style.setProperty('--blob2-color', 'rgb(0, 0, 255)');
+        });
+        kibbenLink.addEventListener('mouseleave', () => {
+            blob1.style.setProperty('--blob1-color', defaultColor1);
+            blob2.style.setProperty('--blob2-color', defaultColor2);
+        });
+        
+        // Tool card hovers
+        const toolCards = document.querySelectorAll('.tool-card a[data-color1]');
+        toolCards.forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                const color1 = card.getAttribute('data-color1');
+                const color2 = card.getAttribute('data-color2');
+                blob1.style.setProperty('--blob1-color', color1);
+                blob2.style.setProperty('--blob2-color', color2);
+            });
+            card.addEventListener('mouseleave', () => {
+                blob1.style.setProperty('--blob1-color', defaultColor1);
+                blob2.style.setProperty('--blob2-color', defaultColor2);
+            });
+        });
+        
         // Track which help buttons have been opened
         const openedHelp = JSON.parse(localStorage.getItem('openedHelp') || '{}');
         
@@ -324,6 +395,53 @@
 
                         <div class="bg-white/5 rounded-xl p-4 border border-white/10">
                             <p class="text-sm text-gray-400"><strong>Note:</strong> you may need to upload certain album covers manually - the iTunes database doesn't have everything, especially more obscure releases</p>
+                        </div>
+                    </div>
+                `
+            },
+            tierlist: {
+                title: "Tier List Maker",
+                content: `
+                    <div class="space-y-6">
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">What is This?</h4>
+                            <p class="text-gray-300">A tier list maker specifically for music. Drag and drop albums or songs into tiers (S, A, B, C, etc.) to rank them. It's like the ranker but more visual and you do all the work yourself.</p>
+                        </div>
+                        
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">How to Use It</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Search for music:</strong> find albums or songs just like in the other tools</li>
+                                <li><strong>Drag & drop:</strong> drag items from the search panel into whatever tier you want</li>
+                                <li><strong>Switch modes:</strong> toggle between album mode and song mode using the switch at the top</li>
+                                <li><strong>Customize tiers:</strong> rename tiers, change their colors, add or remove tiers in the settings</li>
+                                <li><strong>Custom tiles:</strong> create your own tiles with custom text and colors</li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Tips & Tricks</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Right-click to rename:</strong> right-click on any album or song to rename it</li>
+                                <li><strong>Search by artist:</strong> use the advanced search to browse an artist's entire discography</li>
+                                <li><strong>Unranked section:</strong> items start in the unranked section - drag them into tiers when you're ready</li>
+                                <li><strong>Export options:</strong> save as PNG image or export as JSON to continue later</li>
+                                <li><strong>Collapse search:</strong> hide the search panel for a cleaner view when you're done adding items</li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Album vs Song Mode</h4>
+                            <p class="text-gray-300 mb-2">You can switch between two modes:</p>
+                            <ul class="space-y-1 text-gray-300 ml-4">
+                                <li><strong>Album mode:</strong> rank entire albums</li>
+                                <li><strong>Song mode:</strong> rank individual songs from those albums</li>
+                            </ul>
+                            <p class="text-gray-300 mt-2">Warning: switching modes will move everything to unranked, so finish one mode before switching!</p>
+                        </div>
+
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <p class="text-sm text-gray-400"><strong>Note:</strong> your tier list is automatically saved in your browser, so you can come back to it later. Just don't clear your browser data!</p>
                         </div>
                     </div>
                 `
