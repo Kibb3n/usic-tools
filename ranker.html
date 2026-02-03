@@ -50,39 +50,7 @@
 
         // Local storage utilities
         const AUTOSAVE_KEY = 'ranker_autosaves';
-        const COMPLETED_KEY = 'ranker_completed';
-        const MAX_AUTOSAVES = 10;
-
-        
-        const loadCompleted = () => {
-            try {
-                const saved = localStorage.getItem(COMPLETED_KEY);
-                return saved ? JSON.parse(saved) : [];
-            } catch (e) {
-                return [];
-            }
-        };
-
-        const saveCompleted = (ranking) => {
-            try {
-                const completed = loadCompleted();
-                completed.unshift(ranking);
-                const trimmed = completed.slice(0, 50);
-                localStorage.setItem(COMPLETED_KEY, JSON.stringify(trimmed));
-            } catch (e) {
-                console.error('Failed to save completed:', e);
-            }
-        };
-
-        const deleteCompleted = (id) => {
-            try {
-                const completed = loadCompleted();
-                const filtered = completed.filter(r => r.id !== id);
-                localStorage.setItem(COMPLETED_KEY, JSON.stringify(filtered));
-            } catch (e) {
-                console.error('Failed to delete completed:', e);
-            }
-        };
+        const MAX_AUTOSAVES = 3;
 
         const loadAutoSaves = () => {
             try {
@@ -159,12 +127,6 @@
         const ChevronRight = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-        );
-
-        const ChevronDown = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
         );
 
@@ -275,12 +237,6 @@
         const List = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-        );
-
-        const Trophy = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
         );
 
@@ -406,16 +362,6 @@
         // Notification Component
         function Notification({ message, type, songIdx, onClose, onMoveTop, onMoveBottom }) {
             useEffect(() => {
-        if (state.stage === 'sorting' && sorting.j < sorting.sortedIndices.length - 1) {
-            const idx1 = sorting.sortedIndices[sorting.j];
-            const idx2 = sorting.sortedIndices[sorting.j + 1];
-            const color1 = state.songData[idx1]?.color || '#ff0080';
-            const color2 = state.songData[idx2]?.color || '#7928ca';
-            setBgColors([color1, color2]);
-        }
-    }, [sorting.j, sorting.sortedIndices, state.songData, state.stage]);
-
-    useEffect(() => {
                 const timer = setTimeout(onClose, 10000);
                 return () => clearTimeout(timer);
             }, [onClose]);
@@ -652,12 +598,6 @@
             const [modalOpen, setModalOpen] = useState(false);
             const [modalConfig, setModalConfig] = useState(null);
             const [autoSaves, setAutoSaves] = useState([]);
-            const [completed, setCompleted] = useState([]);
-            const [showCompleted, setShowCompleted] = useState(false);
-            const [expandedSaves, setExpandedSaves] = useState(false);
-            const [hasSeenAutosaveWarning, setHasSeenAutosaveWarning] = useState(
-                localStorage.getItem('hasSeenAutosaveWarning') === 'true'
-            );
             const [showProgress, setShowProgress] = useState(false);
             const [viewMode, setViewMode] = useState('grid');
             const [showUrlImport, setShowUrlImport] = useState(false);
@@ -667,7 +607,6 @@
 
             useEffect(() => {
                 setAutoSaves(loadAutoSaves());
-                setCompleted(loadCompleted());
             }, []);
 
             useEffect(() => {
@@ -899,7 +838,6 @@
                     }
                     
                     const uniqueTracks = validTracks.map((track) => ({
-                        name: decodeHTMLEntities(track.title),
                         name: track.title,
                         artwork: imageMatch ? imageMatch[1] : null,
                         albumName: titleMatch ? titleMatch[1] : 'Unknown Album',
@@ -1449,24 +1387,6 @@
                                 autoSkipped: s.autoSkipped + autoSkipCount
                             }));
                             setState(s => ({ ...s, stage: 'results' }));
-                            const completedRanking = {
-                                id: Date.now(),
-                                timestamp: Date.now(),
-                                artist: state.selectedArtist?.artistName || state.selectedArtist?.collectionName,
-                                songCount: state.songs.length - state.excludedSongs.size,
-                                rankings: indices.filter(idx => !state.excludedSongs.has(idx)).map((idx, rank) => ({
-                                    rank: rank + 1,
-                                    name: state.songs[idx],
-                                    artwork: state.songData[idx]?.artwork
-                                })),
-                                state,
-                                sorting: {
-                                    sortedIndices: indices,
-                                    preferences: newPrefs
-                                }
-                            };
-                            saveCompleted(completedRanking);
-                            setCompleted(loadCompleted());
                             return;
                         }
                     }
@@ -1719,11 +1639,6 @@
                 }
             };
 
-            const dismissAutosaveWarning = () => {
-                                setHasSeenAutosaveWarning(true);
-                                localStorage.setItem('hasSeenAutosaveWarning', 'true');
-                            };
-
             const removeAutoSave = (id) => {
                 deleteAutoSave(id);
                 setAutoSaves(loadAutoSaves());
@@ -1761,136 +1676,6 @@
                 link.download = `ranker-${artistName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.json`;
                 link.click();
                 URL.revokeObjectURL(url);
-            };
-
-            const exportToPDF = () => {
-                setModalConfig({
-                    title: 'Export to PDF',
-                    fields: [
-                        { name: 'fileName', label: 'File name', placeholder: 'my-ranking', required: true },
-                        { name: 'userName', label: 'Your name', placeholder: 'Your Name', required: true }
-                    ],
-                    onSubmit: (values) => {
-                        const { jsPDF } = window.jspdf;
-                        const doc = new jsPDF();
-                        
-                        // Gradient-like header with multiple colors
-                        const primaryColor = state.songData[sorting.sortedIndices[0]]?.color || '#ff0080';
-                        const rgb = primaryColor.match(/\d+/g);
-                        if (rgb) {
-                            doc.setFillColor(parseInt(rgb[0]), parseInt(rgb[1]), parseInt(rgb[2]));
-                        } else {
-                            doc.setFillColor(255, 0, 128);
-                        }
-                        doc.rect(0, 0, 210, 40, 'F');
-                        
-                        // Add decorative elements
-                        doc.setFillColor(255, 255, 255, 0.1);
-                        doc.circle(190, 10, 15, 'F');
-                        doc.circle(20, 35, 10, 'F');
-                        
-                        // Title
-                        doc.setTextColor(255, 255, 255);
-                        doc.setFontSize(28);
-                        doc.setFont(undefined, 'bold');
-                        doc.text(`${values.userName}'s Ranking`, 105, 20, { align: 'center' });
-                        doc.setFontSize(14);
-                        doc.setFont(undefined, 'normal');
-                        doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 30, { align: 'center' });
-                        
-                        // Date
-                        doc.setFontSize(10);
-                        doc.text(new Date().toLocaleDateString(), 105, 36, { align: 'center' });
-                        
-                        doc.setTextColor(0, 0, 0);
-                        let yPos = 50;
-
-                        if (state.usedAlbums.length > 0) {
-                            doc.setFontSize(16);
-                            doc.setFont(undefined, 'bold');
-                            doc.setTextColor(100, 100, 100);
-                            doc.text('Albums Included:', 20, yPos);
-                            yPos += 8;
-                            doc.setFontSize(11);
-                            doc.setFont(undefined, 'normal');
-                            doc.setTextColor(80, 80, 80);
-                            state.usedAlbums.forEach(album => {
-                                if (yPos > 270) {
-                                    doc.addPage();
-                                    yPos = 20;
-                                }
-                                doc.text(`• ${album.name}`, 25, yPos);
-                                yPos += 6;
-                            });
-                            yPos += 5;
-                        }
-                        
-                        // Rankings title
-                        doc.setFontSize(18);
-                        doc.setFont(undefined, 'bold');
-                        doc.setTextColor(50, 50, 50);
-                        doc.text('Your Rankings', 20, yPos);
-                        yPos += 10;
-
-                        // Table header
-                        doc.setFillColor(240, 240, 240);
-                        doc.rect(20, yPos - 6, 170, 10, 'F');
-                        doc.setFontSize(11);
-                        doc.setFont(undefined, 'bold');
-                        doc.setTextColor(60, 60, 60);
-                        doc.text('Rank', 25, yPos);
-                        doc.text('Song Title', 50, yPos);
-                        yPos += 12;
-
-                        doc.setFont(undefined, 'normal');
-                        const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
-                        
-                        filteredIndices.forEach((songIdx, rank) => {
-                            if (yPos > 270) {
-                                doc.addPage();
-                                yPos = 20;
-                            }
-                            
-                            // Alternating row colors
-                            if (rank % 2 === 0) {
-                                doc.setFillColor(248, 248, 248);
-                                doc.rect(20, yPos - 6, 170, 9, 'F');
-                            }
-                            
-                            // Highlight top 3
-                            if (rank < 3) {
-                                doc.setFillColor(255, 215, 0, 0.3);
-                                doc.rect(20, yPos - 6, 170, 9, 'F');
-                                doc.setFont(undefined, 'bold');
-                            } else {
-                                doc.setFont(undefined, 'normal');
-                            }
-                            
-                            doc.setFontSize(11);
-                            doc.setTextColor(40, 40, 40);
-                            doc.text(`#${rank + 1}`, 25, yPos);
-                            
-                            const songName = state.songs[songIdx];
-                            const maxWidth = 140;
-                            const lines = doc.splitTextToSize(songName, maxWidth);
-                            doc.text(lines, 50, yPos);
-                            
-                            yPos += Math.max(9, lines.length * 6);
-                        });
-                        
-                        // Footer
-                        const pageCount = doc.internal.getNumberOfPages();
-                        for (let i = 1; i <= pageCount; i++) {
-                            doc.setPage(i);
-                            doc.setFontSize(8);
-                            doc.setTextColor(150, 150, 150);
-                            doc.text(`Created with μsic tools - Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
-                        }
-                        
-                        doc.save(`${values.fileName}.pdf`);
-                    }
-                });
-                setModalOpen(true);
             };
 
             const loadData = (event) => {
@@ -1960,8 +1745,7 @@
                 reader.readAsText(file);
             };
 
-            // OLD EXPORT REMOVED
-            const exportToPDF_old = () => {
+            const exportToPDF = () => {
                 setModalConfig({
                     title: 'Export to PDF',
                     fields: [
@@ -2097,7 +1881,7 @@
                         <div className="p-8 max-w-4xl mx-auto">
                             {state.stage === 'selectMode' && (
                                 <>
-                                    <div className={`${autoSaves.length > 0 ? 'grid md:grid-cols-2 gap-6 mb-8' : 'flex flex-col items-center gap-6 mb-8 max-w-md mx-auto'}`}>
+                                    <div className="grid md:grid-cols-2 gap-6 mb-8">
                                         <button
                                             onClick={() => setState(s => ({ ...s, mode: 'artist', stage: 'search' }))}
                                             className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
@@ -2127,140 +1911,7 @@
                                         </button>
                                     </div>
 
-                                                                        {autoSaves.length > 0 && (
-                                        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-                                                    <Clock className="w-6 h-6" />
-                                                    Continue Recent Rankings
-                                                    {!hasSeenAutosaveWarning && (
-                                                        <span className="relative flex h-3 w-3">
-                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                                                        </span>
-                                                    )}
-                                                </h3>
-                                                {autoSaves.length > 3 && (
-                                                    <button
-                                                        onClick={() => setExpandedSaves(!expandedSaves)}
-                                                        className="text-white/70 hover:text-white flex items-center gap-1 text-sm"
-                                                    >
-                                                        {expandedSaves ? 'Show Less' : `Show All (${autoSaves.length})`}
-                                                        <ChevronDown className={`w-4 h-4 transition-transform ${expandedSaves ? 'rotate-180' : ''}`} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {!hasSeenAutosaveWarning && (
-                                                <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-4 py-3 mb-4 relative">
-                                                    <button
-                                                        onClick={dismissAutosaveWarning}
-                                                        className="absolute top-2 right-2 text-yellow-200 hover:text-white"
-                                                    >
-                                                        <X className="w-4 h-4" />
-                                                    </button>
-                                                    <p className="text-yellow-200 text-sm flex items-start gap-2 pr-6">
-                                                        <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                                                        <span>Auto-save is not 100% reliable. Always use "Save Progress" for important rankings!</span>
-                                                    </p>
-                                                </div>
-                                            )}
-                                            <div className="space-y-3">
-                                                {(expandedSaves ? autoSaves : autoSaves.slice(0, 3)).map(autosave => (
-                                                    <div key={autosave.id} className="bg-white/10 rounded-xl p-4 flex items-center gap-4 border border-white/20 hover:bg-white/15 transition-colors">
-                                                        <div className="flex-1">
-                                                            <p className="text-white font-semibold">
-                                                                {autosave.state.selectedArtist?.artistName || autosave.state.selectedArtist?.collectionName || 'Unknown'}
-                                                            </p>
-                                                            <p className="text-gray-300 text-sm mt-1">
-                                                                {autosave.sorting.comparisons} comparisons • {autosave.state.songs?.length || 0} songs
-                                                            </p>
-                                                            <p className="text-gray-400 text-xs mt-1">
-                                                                {new Date(autosave.timestamp).toLocaleString()}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                onClick={() => loadFromAutoSave(autosave)}
-                                                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium"
-                                                            >
-                                                                Continue
-                                                            </button>
-                                                            <button
-                                                                onClick={() => removeAutoSave(autosave.id)}
-                                                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
-                                                            >
-                                                                <X className="w-5 h-5" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {completed.length > 0 && (
-                                        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-2xl font-bold text-white flex items-center gap-2">
-                                                    <Trophy className="w-6 h-6" />
-                                                    Completed Rankings
-                                                </h3>
-                                                <button
-                                                    onClick={() => setShowCompleted(!showCompleted)}
-                                                    className="text-white/70 hover:text-white flex items-center gap-1 text-sm"
-                                                >
-                                                    {showCompleted ? 'Hide' : `View (${completed.length})`}
-                                                    <ChevronDown className={`w-4 h-4 transition-transform ${showCompleted ? 'rotate-180' : ''}`} />
-                                                </button>
-                                            </div>
-                                            {showCompleted && (
-                                                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                                                    {completed.map(ranking => (
-                                                        <div key={ranking.id} className="bg-white/10 rounded-xl p-4 border border-white/20">
-                                                            <div className="flex items-center justify-between mb-2">
-                                                                <div className="flex-1">
-                                                                    <p className="text-white font-semibold">{ranking.artist}</p>
-                                                                    <p className="text-gray-300 text-sm mt-1">
-                                                                        {ranking.songCount} songs • {new Date(ranking.timestamp).toLocaleDateString()}
-                                                                    </p>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        deleteCompleted(ranking.id);
-                                                                        setCompleted(loadCompleted());
-                                                                    }}
-                                                                    className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
-                                                                >
-                                                                    <X className="w-5 h-5" />
-                                                                </button>
-                                                            </div>
-                                                            <div className="flex gap-2 overflow-x-auto pb-2">
-                                                                {ranking.rankings?.slice(0, 5).map((song, idx) => (
-                                                                    <div key={idx} className="flex-shrink-0 w-16 text-center">
-                                                                        {song.artwork ? (
-                                                                            <img src={song.artwork} alt="" className="w-16 h-16 rounded-lg mb-1" />
-                                                                        ) : (
-                                                                            <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center mb-1">
-                                                                                <Music className="w-6 h-6 text-white/50" />
-                                                                            </div>
-                                                                        )}
-                                                                        <p className="text-white text-xs font-bold">#{idx + 1}</p>
-                                                                    </div>
-                                                                ))}
-                                                                {ranking.rankings?.length > 5 && (
-                                                                    <div className="flex-shrink-0 w-16 flex items-center justify-center text-white/50 text-sm">
-                                                                        +{ranking.rankings.length - 5}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {false && autoSaves.length > 0 && (
+                                    {autoSaves.length > 0 && (
                                         <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10">
                                             <h3 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
                                                 <Clock className="w-6 h-6" />
@@ -2353,7 +2004,7 @@
                                                     type="text"
                                                     value={search.albumName}
                                                     onChange={(e) => setSearch(s => ({ ...s, albumName: e.target.value }))}
-                                                    placeholder="IGOR, Revolver..."
+                                                    placeholder="Abbey Road..."
                                                     className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                 />
                                             </div>
@@ -2363,7 +2014,7 @@
                                                     type="text"
                                                     value={search.albumArtist}
                                                     onChange={(e) => setSearch(s => ({ ...s, albumArtist: e.target.value }))}
-                                                    placeholder="Tyler, The Creator..."
+                                                    placeholder="The Beatles..."
                                                     className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                 />
                                             </div>
@@ -2373,7 +2024,7 @@
                                                     type="text"
                                                     value={search.albumYear}
                                                     onChange={(e) => setSearch(s => ({ ...s, albumYear: e.target.value }))}
-                                                    placeholder="2019..."
+                                                    placeholder="1969..."
                                                     className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                 />
                                             </div>
