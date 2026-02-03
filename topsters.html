@@ -37,11 +37,11 @@
             transform: scale(1.05);
         }
         .classic-slot {
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
             transition: all 0.2s;
         }
         .classic-slot.hidden-guides {
-            border-color: transparent;
+            border-color: rgba(255, 255, 255, 0.1);
         }
         .classic-slot.drag-over {
             border-color: #60a5fa !important;
@@ -186,7 +186,7 @@
             return (
                 <div className="fixed inset-0 overflow-hidden pointer-events-none">
                     <div
-                        className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl will-change-transform"
+                        className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl will-change-transform transition-all duration-1000"
                         style={{
                             background: `radial-gradient(circle, ${colors[0]} 0%, transparent 70%)`,
                             animation: `blob1 12s ease-in-out infinite`,
@@ -196,7 +196,7 @@
                         }}
                     />
                     <div
-                        className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl will-change-transform"
+                        className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl will-change-transform transition-all duration-1000"
                         style={{
                             background: `radial-gradient(circle, ${colors[1]} 0%, transparent 70%)`,
                             animation: `blob2 12s ease-in-out infinite`,
@@ -256,6 +256,7 @@
             const [renameArtist, setRenameArtist] = useState('');
             const [leftPanelTab, setLeftPanelTab] = useState('search');
             const [showNumbers, setShowNumbers] = useState(true);
+            const [advancedSearchMode, setAdvancedSearchMode] = useState(false);
             
             const gridRef = useRef(null);
             const fileInputRef = useRef(null);
@@ -267,6 +268,106 @@
                 searchResults.slice(searchPage * itemsPerPage, (searchPage + 1) * itemsPerPage),
                 [searchResults, searchPage]
             );
+
+            // Extract dominant colors from albums
+            useEffect(() => {
+                const albums = layout === 'aboutYou' 
+                    ? aboutYouGrid.filter(cell => cell?.album).map(cell => cell.album)
+                    : grid.filter(album => album);
+                
+                if (albums.length > 0) {
+                    // Use the last few albums added (most recent)
+                    const recentAlbums = albums.slice(-6);
+                    
+                    // Create a canvas to extract colors from album covers
+                    const extractColors = async () => {
+                        const colors = [];
+                        
+                        for (const album of recentAlbums.slice(0, 2)) {
+                            try {
+                                const img = new Image();
+                                img.crossOrigin = 'Anonymous';
+                                img.src = album.image;
+                                
+                                await new Promise((resolve, reject) => {
+                                    img.onload = resolve;
+                                    img.onerror = reject;
+                                });
+                                
+                                const canvas = document.createElement('canvas');
+                                canvas.width = 50;
+                                canvas.height = 50;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, 50, 50);
+                                
+                                const imageData = ctx.getImageData(0, 0, 50, 50);
+                                const data = imageData.data;
+                                
+                                let r = 0, g = 0, b = 0, count = 0;
+                                for (let i = 0; i < data.length; i += 4) {
+                                    r += data[i];
+                                    g += data[i + 1];
+                                    b += data[i + 2];
+                                    count++;
+                                }
+                                
+                                r = Math.floor(r / count);
+                                g = Math.floor(g / count);
+                                b = Math.floor(b / count);
+                                
+                                colors.push(`rgb(${r}, ${g}, ${b})`);
+                            } catch (err) {
+                                console.error('Color extraction failed:', err);
+                            }
+                        }
+                        
+                        if (colors.length > 0) {
+                            // Ensure we have 2 colors
+                            if (colors.length === 1) {
+                                colors.push(colors[0]);
+                            }
+                            setBgColors(colors);
+                        }
+                    };
+                    
+                    extractColors();
+                } else {
+                    setBgColors(['#ff0080', '#7928ca']);
+                }
+            }, [grid, aboutYouGrid, layout]);
+
+            // Load from localStorage on mount
+            useEffect(() => {
+                try {
+                    const saved = localStorage.getItem('topstersData');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        setLayout(data.layout || 'standard');
+                        setGridWidth(data.gridWidth || 5);
+                        setGridHeight(data.gridHeight || 5);
+                        setTitle(data.title || 'My Top Albums');
+                        setTitleColor(data.titleColor || '#ffffff');
+                        setBgColor(data.bgColor || '#000000');
+                        setShowTitles(data.showTitles || false);
+                        setShowGuidelines(data.showGuidelines !== undefined ? data.showGuidelines : true);
+                        setGrid(data.grid || []);
+                        setAboutYouGrid(data.aboutYouGrid || []);
+                        setShowNumbers(data.showNumbers !== undefined ? data.showNumbers : true);
+                    }
+                } catch (err) {
+                    console.error('Failed to load saved data:', err);
+                }
+            }, []);
+
+            // Save to localStorage whenever grid changes
+            useEffect(() => {
+                try {
+                    const data = { layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, showGuidelines, grid, aboutYouGrid, showNumbers };
+                    localStorage.setItem('topstersData', JSON.stringify(data));
+                } catch (err) {
+                    console.error('Failed to save data:', err);
+                }
+            }, [layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, showGuidelines, grid, aboutYouGrid, showNumbers]);
 
             // Initialize grids
             useEffect(() => {
@@ -527,6 +628,12 @@
                 setRenameArtist('');
             }, [renameIndex, renameTitle, renameArtist, grid, saveToHistory]);
 
+            const handleRenameKeyPress = useCallback((e) => {
+                if (e.key === 'Enter') {
+                    confirmRename();
+                }
+            }, [confirmRename]);
+
             const switchLayout = useCallback((newLayout) => {
                 if (newLayout === 'aboutYou' && (layout === 'standard' || layout === 'classic')) {
                     const filledAlbums = grid.filter(a => a);
@@ -580,6 +687,16 @@
                 if (!gridRef.current) return;
 
                 try {
+                    // Hide all hover elements and make numbers visible
+                    const style = document.createElement('style');
+                    style.id = 'export-style';
+                    style.textContent = `
+                        .group:hover > div { opacity: 1 !important; }
+                        .group > div { opacity: 0 !important; }
+                        .empty-state { color: transparent !important; }
+                    `;
+                    document.head.appendChild(style);
+                    
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
                     const canvas = await html2canvas(gridRef.current, {
@@ -589,8 +706,25 @@
                         useCORS: true,
                         allowTaint: true,
                         foreignObjectRendering: false,
-                        imageTimeout: 0
+                        imageTimeout: 0,
+                        onclone: (clonedDoc) => {
+                            // Make all numbers visible in the clone
+                            const numbers = clonedDoc.querySelectorAll('.absolute.bottom-1, .absolute.bottom-0\\.5');
+                            numbers.forEach(num => {
+                                num.style.opacity = '1';
+                                num.style.visibility = 'visible';
+                                num.style.display = 'flex';
+                            });
+                            // Hide all buttons
+                            const buttons = clonedDoc.querySelectorAll('button');
+                            buttons.forEach(btn => {
+                                btn.style.display = 'none';
+                            });
+                        }
                     });
+                    
+                    // Remove the style
+                    document.getElementById('export-style')?.remove();
                     
                     canvas.toBlob((blob) => {
                         if (blob) {
@@ -695,6 +829,12 @@
                 setCustomTitle('');
                 setCustomArtist('');
             }, [pendingImage, customTitle, customArtist]);
+
+            const handleImageUploadKeyPress = useCallback((e) => {
+                if (e.key === 'Enter') {
+                    confirmImageUpload();
+                }
+            }, [confirmImageUpload]);
 
             const handlePasteImage = useCallback(async () => {
                 try {
@@ -988,77 +1128,91 @@
                                             Search
                                         </button>
                                         <button
-                                            onClick={() => setLeftPanelTab('layout')}
+                                            onClick={() => setLeftPanelTab('options')}
                                             className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                                                leftPanelTab === 'layout' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
-                                            }`}
-                                        >
-                                            <Layers className="w-4 h-4 inline mr-2" />
-                                            Layout
-                                        </button>
-                                        <button
-                                            onClick={() => setLeftPanelTab('settings')}
-                                            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                                                leftPanelTab === 'settings' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                leftPanelTab === 'options' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
                                             }`}
                                         >
                                             <Settings className="w-4 h-4 inline mr-2" />
-                                            Settings
+                                            Options
                                         </button>
                                     </div>
 
                                     {/* Search Panel */}
                                     {leftPanelTab === 'search' && (
                                         <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
-                                            <h3 className="text-lg md:text-xl font-bold text-white mb-4">Search Albums</h3>
+                                            <h3 className="text-lg md:text-xl font-bold text-white mb-4">
+                                                {advancedSearchMode ? 'Search by Artist' : 'Search Albums'}
+                                            </h3>
                                             <div className="space-y-3">
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="text"
-                                                        value={searchQuery}
-                                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                                        onKeyPress={(e) => e.key === 'Enter' && searchAlbums()}
-                                                        placeholder="Search for albums..."
-                                                        className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                    />
-                                                    <button
-                                                        onClick={searchAlbums}
-                                                        disabled={loading}
-                                                        className="px-4 py-2 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors flex items-center gap-2"
-                                                    >
-                                                        {loading ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-                                                    </button>
-                                                </div>
+                                                {!advancedSearchMode ? (
+                                                    <>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={searchQuery}
+                                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                                onKeyPress={(e) => e.key === 'Enter' && searchAlbums()}
+                                                                placeholder="Search for albums..."
+                                                                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                            />
+                                                            <button
+                                                                onClick={searchAlbums}
+                                                                disabled={loading}
+                                                                className="px-4 py-2 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors flex items-center gap-2"
+                                                            >
+                                                                {loading ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                                            </button>
+                                                        </div>
 
-                                                <button
-                                                    onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
-                                                    className="w-full px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg border border-purple-500/50 flex items-center justify-center gap-2 transition-colors"
-                                                >
-                                                    <Image className="w-5 h-5" />
-                                                    Advanced Search
-                                                </button>
+                                                        <button
+                                                            onClick={() => setAdvancedSearchMode(true)}
+                                                            className="w-full px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg border border-purple-500/50 flex items-center justify-center gap-2 transition-colors"
+                                                        >
+                                                            <Image className="w-5 h-5" />
+                                                            Advanced Search
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={artistSearchQuery}
+                                                                onChange={(e) => setArtistSearchQuery(e.target.value)}
+                                                                onKeyPress={(e) => e.key === 'Enter' && searchArtistForAlbums()}
+                                                                placeholder="Search for an artist..."
+                                                                className="flex-1 px-4 py-2 bg-purple-500/10 border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                                            />
+                                                            <button
+                                                                onClick={searchArtistForAlbums}
+                                                                disabled={loadingArtist}
+                                                                className="px-4 py-2 bg-purple-500 text-white hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors flex items-center gap-2"
+                                                            >
+                                                                {loadingArtist ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                                            </button>
+                                                        </div>
 
-                                                {showAdvancedSearch && (
-                                                    <div className="space-y-4 p-4 bg-white/5 rounded-lg border border-white/10">
-                                                        <div>
-                                                            <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
-                                                                <Upload className="w-4 h-4" />
-                                                                Upload Custom Image
-                                                            </h4>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => fileInputRef.current?.click()}
-                                                                    className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
-                                                                >
-                                                                    Choose File
-                                                                </button>
-                                                                <button
-                                                                    onClick={handlePasteImage}
-                                                                    className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
-                                                                >
-                                                                    Paste
-                                                                </button>
-                                                            </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => setAdvancedSearchMode(false)}
+                                                                className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
+                                                            >
+                                                                ← Back
+                                                            </button>
+                                                            <button
+                                                                onClick={() => fileInputRef.current?.click()}
+                                                                className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
+                                                            >
+                                                                <Upload className="w-4 h-4 inline mr-1" />
+                                                                Upload
+                                                            </button>
+                                                            <button
+                                                                onClick={handlePasteImage}
+                                                                className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-colors text-sm"
+                                                            >
+                                                                Paste
+                                                            </button>
                                                         </div>
 
                                                         {uploadedImages.length > 0 && (
@@ -1094,119 +1248,91 @@
                                                             </div>
                                                         )}
 
-                                                        <hr className="border-white/10" />
-
-                                                        <div>
-                                                            <h4 className="text-white font-semibold mb-2 flex items-center gap-2 text-sm">
-                                                                <Search className="w-4 h-4" />
-                                                                Search by Artist
-                                                            </h4>
-                                                            {!selectedArtistForAlbums ? (
-                                                                <div className="space-y-2">
-                                                                    <div className="flex gap-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            value={artistSearchQuery}
-                                                                            onChange={(e) => setArtistSearchQuery(e.target.value)}
-                                                                            onKeyPress={(e) => e.key === 'Enter' && searchArtistForAlbums()}
-                                                                            placeholder="Search for an artist..."
-                                                                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                                        />
-                                                                        <button
-                                                                            onClick={searchArtistForAlbums}
-                                                                            disabled={loadingArtist}
-                                                                            className="px-3 py-2 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-lg font-semibold"
-                                                                        >
-                                                                            {loadingArtist ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-                                                                        </button>
-                                                                    </div>
-                                                                    {artistSuggestions.length > 0 && (
-                                                                        <div className="space-y-1 max-h-[150px] overflow-y-auto">
-                                                                            {artistSuggestions.map((artist) => (
-                                                                                <button
-                                                                                    key={artist.artistId}
-                                                                                    onClick={() => selectArtistAndLoadAlbums(artist)}
-                                                                                    className="w-full text-left px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors"
-                                                                                >
-                                                                                    {artist.artistName}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
+                                                        {selectedArtistForAlbums ? (
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-white text-sm font-medium">{selectedArtistForAlbums.artistName}</span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setSelectedArtistForAlbums(null);
+                                                                            setArtistAlbums([]);
+                                                                            setArtistSuggestions([]);
+                                                                        }}
+                                                                        className="text-gray-400 hover:text-white text-xs"
+                                                                    >
+                                                                        Remove
+                                                                    </button>
                                                                 </div>
-                                                            ) : (
-                                                                <div className="space-y-2">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <span className="text-white text-sm font-medium">{selectedArtistForAlbums.artistName}</span>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setSelectedArtistForAlbums(null);
-                                                                                setArtistAlbums([]);
-                                                                                setArtistSuggestions([]);
-                                                                            }}
-                                                                            className="text-gray-400 hover:text-white text-xs"
-                                                                        >
-                                                                            Change
-                                                                        </button>
+                                                                {loadingArtist ? (
+                                                                    <div className="flex items-center justify-center py-4">
+                                                                        <Loader2 className="w-6 h-6 text-white" />
                                                                     </div>
-                                                                    {loadingArtist ? (
-                                                                        <div className="flex items-center justify-center py-4">
-                                                                            <Loader2 className="w-6 h-6 text-white" />
-                                                                        </div>
-                                                                    ) : artistAlbums.length > 0 ? (
-                                                                        <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
-                                                                            {artistAlbums.map((album) => (
-                                                                                <div
-                                                                                    key={album.id}
-                                                                                    draggable
-                                                                                    onDragStart={(e) => handleDragStart(e, album, null)}
-                                                                                    onDragEnd={handleDragEnd}
-                                                                                    className="album-cover bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
-                                                                                >
-                                                                                    <img
-                                                                                        src={album.image}
-                                                                                        alt={album.title}
-                                                                                        className="w-full aspect-square rounded object-cover mb-1"
-                                                                                    />
-                                                                                    <p className="text-white text-xs font-medium truncate">{album.title}</p>
-                                                                                    <p className="text-gray-400 text-[10px] truncate">{album.year}</p>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <p className="text-gray-400 text-sm text-center py-4">No albums found</p>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
+                                                                ) : artistAlbums.length > 0 ? (
+                                                                    <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto">
+                                                                        {artistAlbums.map((album) => (
+                                                                            <div
+                                                                                key={album.id}
+                                                                                draggable
+                                                                                onDragStart={(e) => handleDragStart(e, album, null)}
+                                                                                onDragEnd={handleDragEnd}
+                                                                                className="album-cover bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
+                                                                            >
+                                                                                <img
+                                                                                    src={album.image}
+                                                                                    alt={album.title}
+                                                                                    className="w-full aspect-square rounded object-cover mb-1"
+                                                                                />
+                                                                                <p className="text-white text-xs font-medium truncate">{album.title}</p>
+                                                                                <p className="text-gray-400 text-[10px] truncate">{album.year}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-gray-400 text-sm text-center py-4">No albums found</p>
+                                                                )}
+                                                            </div>
+                                                        ) : artistSuggestions.length > 0 ? (
+                                                            <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                                                                {artistSuggestions.map((artist) => (
+                                                                    <button
+                                                                        key={artist.artistId}
+                                                                        onClick={() => selectArtistAndLoadAlbums(artist)}
+                                                                        className="w-full text-left px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg text-white text-sm transition-colors border border-purple-500/20"
+                                                                    >
+                                                                        {artist.artistName}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        ) : null}
+                                                    </>
                                                 )}
                                                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
 
-                                                <div className="max-h-[500px] overflow-y-auto space-y-2">
-                                                    {searchResults.length === 0 && !loading && (
-                                                        <p className="text-gray-400 text-sm text-center py-8">
-                                                            {searchQuery ? 'No results found' : 'Search to add albums'}
-                                                        </p>
-                                                    )}
-                                                    {paginatedResults.map((album) => (
-                                                        <div
-                                                            key={album.id}
-                                                            draggable
-                                                            onDragStart={(e) => handleDragStart(e, album, null)}
-                                                            onDragEnd={handleDragEnd}
-                                                            className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
-                                                        >
-                                                            <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover" loading="lazy" />
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-white text-sm font-medium truncate">{album.title}</p>
-                                                                <p className="text-gray-400 text-xs truncate">{album.artist} {album.year && `(${album.year})`}</p>
+                                                {!advancedSearchMode && (
+                                                    <div className="max-h-[500px] overflow-y-auto space-y-2">
+                                                        {searchResults.length === 0 && !loading && (
+                                                            <p className="text-gray-400 text-sm text-center py-8">
+                                                            </p>
+                                                        )}
+                                                        {paginatedResults.map((album) => (
+                                                            <div
+                                                                key={album.id}
+                                                                draggable
+                                                                onDragStart={(e) => handleDragStart(e, album, null)}
+                                                                onDragEnd={handleDragEnd}
+                                                                className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
+                                                            >
+                                                                <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover" loading="lazy" />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-white text-sm font-medium truncate">{album.title}</p>
+                                                                    <p className="text-gray-400 text-xs truncate">{album.artist} {album.year && `(${album.year})`}</p>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                        ))}
+                                                    </div>
+                                                )}
 
-                                                {searchResults.length > itemsPerPage && (
+                                                {!advancedSearchMode && searchResults.length > itemsPerPage && (
                                                     <div className="flex items-center justify-between pt-3 border-t border-white/10">
                                                         <button
                                                             onClick={() => setSearchPage(p => Math.max(0, p - 1))}
@@ -1262,15 +1388,46 @@
                                         </div>
                                     )}
 
-                                    {/* Settings Panel */}
-                                    {leftPanelTab === 'settings' && (
+                                    {/* Options Panel */}
+                                    {leftPanelTab === 'options' && (
                                         <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
                                             <h3 className="text-lg md:text-xl font-bold text-white mb-4 flex items-center gap-2">
                                                 <Settings className="w-5 h-5" />
-                                                Settings
+                                                Options
                                             </h3>
                                             
                                             <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-white text-sm font-medium mb-2">Layout</label>
+                                                    <div className="space-y-2">
+                                                        <button
+                                                            onClick={() => switchLayout('standard')}
+                                                            className={`w-full px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                                                                layout === 'standard' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                            }`}
+                                                        >
+                                                            Standard Grid
+                                                        </button>
+                                                        <button
+                                                            onClick={() => switchLayout('classic')}
+                                                            className={`w-full px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                                                                layout === 'classic' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                            }`}
+                                                        >
+                                                            Classic Collage
+                                                        </button>
+                                                        <button
+                                                            onClick={() => switchLayout('aboutYou')}
+                                                            className={`w-full px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                                                                layout === 'aboutYou' ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'
+                                                            }`}
+                                                        >
+                                                            About You: Music
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <hr className="border-white/10" />
                                                 {layout === 'standard' && (
                                                     <>
                                                         <div>
@@ -1324,7 +1481,7 @@
 
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <label className="block text-white text-sm font-medium mb-2">Title Color</label>
+                                                        <label className="block text-white text-sm font-medium mb-2">Text Colour</label>
                                                         <input
                                                             type="color"
                                                             value={titleColor}
@@ -1333,7 +1490,7 @@
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-white text-sm font-medium mb-2">BG Color</label>
+                                                        <label className="block text-white text-sm font-medium mb-2">BG Colour</label>
                                                         <input
                                                             type="color"
                                                             value={bgColor}
@@ -1577,7 +1734,7 @@
                                                                                 </div>
                                                                             )}
                                                                         </>
-                                                                    ) : showGuidelines && <div className="text-white/10 text-center text-xs flex items-center justify-center h-full">{i + 1}</div>}
+                                                                                                                                                ) : showGuidelines && <div className="text-white text-center text-xs flex items-center justify-center h-full">{showNumbers ? i + 1 : ''}</div>}
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -1625,7 +1782,7 @@
                                                                                         </div>
                                                                                     )}
                                                                                 </>
-                                                                            ) : showGuidelines && <div className="text-white/10 text-center text-[8px] flex items-center justify-center h-full">{idx + 1}</div>}
+                                                                                                                                                                        ) : showGuidelines && <div className="text-white text-center text-[8px] flex items-center justify-center h-full">{showNumbers ? idx + 1 : ''}</div>}
                                                                         </div>
                                                                     );
                                                                 })}
