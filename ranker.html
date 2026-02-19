@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,37 +12,78 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         @keyframes blob1 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(150px, 100px) scale(1.2); }
-            66% { transform: translate(-100px, 150px) scale(0.9); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(150px, 100px) scale(1.2);
+            }
+
+            66% {
+                transform: translate(-100px, 150px) scale(0.9);
+            }
         }
+
         @keyframes blob2 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(-150px, -100px) scale(0.9); }
-            66% { transform: translate(100px, -150px) scale(1.2); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(-150px, -100px) scale(0.9);
+            }
+
+            66% {
+                transform: translate(100px, -150px) scale(1.2);
+            }
         }
+
         @keyframes slideIn {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
+
         @keyframes slideOut {
-            from { transform: translateY(0); opacity: 1; }
-            to { transform: translateY(100%); opacity: 0; }
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateY(100%);
+                opacity: 0;
+            }
         }
+
         .line-clamp-2 {
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
+
         .notification-enter {
             animation: slideIn 0.3s ease-out;
         }
+
         .notification-exit {
             animation: slideOut 0.3s ease-out;
         }
     </style>
 </head>
+
 <body>
     <div id="root"></div>
 
@@ -85,10 +127,10 @@
                     timestamp: Date.now(),
                     id: Date.now()
                 };
-                
+
                 autosaves.unshift(newSave);
                 const trimmed = autosaves.slice(0, MAX_AUTOSAVES);
-                
+
                 localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(trimmed));
             } catch (e) {
                 console.error('Failed to autosave:', e);
@@ -278,7 +320,7 @@
                         canvas.height = 100;
                         ctx.drawImage(img, 0, 0, 100, 100);
                         const data = ctx.getImageData(25, 25, 50, 50).data;
-                        
+
                         let r = 0, g = 0, b = 0;
                         for (let i = 0; i < data.length; i += 4) {
                             r += data[i];
@@ -289,7 +331,7 @@
                         r = Math.floor(r / pixels);
                         g = Math.floor(g / pixels);
                         b = Math.floor(b / pixels);
-                        
+
                         resolve(`rgb(${r}, ${g}, ${b})`);
                     } catch (e) {
                         resolve('#ff0080');
@@ -302,7 +344,7 @@
 
         const processTracksToUniqueSongs = async (tracks) => {
             const seenSongs = new Map();
-            
+
             for (const track of tracks) {
                 const songKey = track.trackName.toLowerCase().trim();
                 if (!seenSongs.has(songKey)) {
@@ -614,7 +656,7 @@
                     if (autoSaveTimerRef.current) {
                         clearInterval(autoSaveTimerRef.current);
                     }
-                    
+
                     autoSaveTimerRef.current = setInterval(() => {
                         const dataToSave = {
                             state: {
@@ -640,7 +682,7 @@
                         saveAutoSave(dataToSave);
                         setAutoSaves(loadAutoSaves());
                     }, 30000);
-                    
+
                     return () => {
                         if (autoSaveTimerRef.current) {
                             clearInterval(autoSaveTimerRef.current);
@@ -667,7 +709,7 @@
 
             const toggleAudio = (songIndex) => {
                 const song = state.songData[sorting.sortedIndices[songIndex]];
-                
+
                 if (!song?.previewUrl) return;
 
                 if (playingAudio.index === songIndex && playingAudio.audio) {
@@ -718,21 +760,21 @@
 
             const handleBandcampArtist = async (url) => {
                 setSearch(s => ({ ...s, loading: true, error: '' }));
-                
+
                 try {
                     const proxyUrl = 'https://api.allorigins.win/raw?url=';
                     const response = await fetch(proxyUrl + encodeURIComponent(url));
                     const html = await response.text();
-                    
+
                     const artistMatch = html.match(/<meta property="og:site_name" content="([^"]+)"/);
                     const artistName = artistMatch ? artistMatch[1] : 'Unknown Artist';
-                    
+
                     const albumLinks = html.match(/href="([^"]*\/album\/[^"]+)"/g);
                     if (!albumLinks || albumLinks.length === 0) {
                         setSearch(s => ({ ...s, error: 'No albums found for this artist.', loading: false }));
                         return;
                     }
-                    
+
                     const uniqueAlbums = new Set();
                     albumLinks.forEach(link => {
                         const match = link.match(/href="([^"]+)"/);
@@ -741,7 +783,7 @@
                             uniqueAlbums.add(fullUrl);
                         }
                     });
-                    
+
                     const albums = [];
                     for (let albumUrl of Array.from(uniqueAlbums).slice(0, 20)) {
                         try {
@@ -749,7 +791,7 @@
                             const albumHtml = await albumResponse.text();
                             const albumTitleMatch = albumHtml.match(/<meta property="og:title" content="([^"]+)"/);
                             const albumImageMatch = albumHtml.match(/<meta property="og:image" content="([^"]+)"/);
-                            
+
                             if (albumTitleMatch) {
                                 albums.push({
                                     collectionName: albumTitleMatch[1],
@@ -765,12 +807,12 @@
                             console.error('Failed to fetch album:', e);
                         }
                     }
-                    
+
                     if (albums.length === 0) {
                         setSearch(s => ({ ...s, error: 'No albums found.', loading: false }));
                         return;
                     }
-                    
+
                     setState(s => ({ ...s, selectedArtist: { artistName, bandcampUrl: url }, albums, stage: 'selectAlbums' }));
                     setSearch(s => ({ ...s, loading: false }));
                 } catch (err) {
@@ -780,23 +822,23 @@
 
             const handleBandcampAlbum = async (url) => {
                 setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
-                
+
                 try {
                     const proxyUrl = 'https://api.allorigins.win/raw?url=';
                     const response = await fetch(proxyUrl + encodeURIComponent(url));
-                    
+
                     if (!response.ok) {
                         throw new Error('Failed to fetch page');
                     }
-                    
+
                     const html = await response.text();
-                    
+
                     const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
                     const artistMatch = html.match(/<meta property="og:site_name" content="([^"]+)"/);
                     const imageMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
-                    
+
                     let tralbumData = null;
-                    
+
                     let tralbumMatch = html.match(/var TralbumData\s*=\s*({[\s\S]*?});/);
                     if (tralbumMatch) {
                         try {
@@ -805,7 +847,7 @@
                             console.error('Failed to parse TralbumData pattern 1:', e);
                         }
                     }
-                    
+
                     if (!tralbumData) {
                         const dataMatch = html.match(/data-tralbum="([^"]+)"/);
                         if (dataMatch) {
@@ -817,26 +859,26 @@
                             }
                         }
                     }
-                    
+
                     if (!tralbumData || !tralbumData.trackinfo) {
                         setSearch(s => ({ ...s, error: 'Could not find track data. This might not be a valid Bandcamp album URL.', loadingSongs: false }));
                         return;
                     }
-                    
+
                     const tracks = tralbumData.trackinfo || [];
-                    
+
                     if (tracks.length === 0) {
                         setSearch(s => ({ ...s, error: 'No tracks found on this album.', loadingSongs: false }));
                         return;
                     }
-                    
+
                     const validTracks = tracks.filter(track => track.title);
-                    
+
                     if (validTracks.length === 0) {
                         setSearch(s => ({ ...s, error: 'No valid tracks found.', loadingSongs: false }));
                         return;
                     }
-                    
+
                     const uniqueTracks = validTracks.map((track) => ({
                         name: track.title,
                         artwork: imageMatch ? imageMatch[1] : null,
@@ -844,12 +886,12 @@
                         color: '#ff0080',
                         previewUrl: track.file?.['mp3-128'] || null
                     }));
-                    
+
                     const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
-                    
+
                     setState(s => ({
                         ...s,
-                        selectedArtist: { 
+                        selectedArtist: {
                             collectionName: titleMatch ? titleMatch[1] : 'Unknown Album',
                             artistName: artistMatch ? artistMatch[1] : 'Unknown Artist',
                             bandcampUrl: url,
@@ -892,7 +934,7 @@
 
             const searchArtistOrAlbum = async () => {
                 const searchValue = state.mode === 'artist' ? search.artistName.trim() : search.albumName.trim();
-                
+
                 if (state.mode === 'artist' && !searchValue) {
                     setSearch(s => ({ ...s, error: 'Please enter an artist name' }));
                     return;
@@ -936,7 +978,7 @@
                         setSearch(s => ({ ...s, suggestions: artists.map(a => ({ ...a, type: 'artist' })), loading: false }));
                     } else {
                         let allResults = [];
-                        
+
                         try {
                             const searchData1 = await jsonpRequest(
                                 `https://itunes.apple.com/search?term=${encodeURIComponent(search.albumName)}&entity=album&limit=200`
@@ -947,13 +989,13 @@
                         } catch (e) {
                             console.error('Strategy 1 failed:', e);
                         }
-                        
+
                         if (search.albumArtist.trim()) {
                             try {
                                 const artistSearch = await jsonpRequest(
                                     `https://itunes.apple.com/search?term=${encodeURIComponent(search.albumArtist)}&entity=musicArtist&limit=10`
                                 );
-                                
+
                                 if (artistSearch.results && artistSearch.results.length > 0) {
                                     const artist = artistSearch.results.find(a => a.wrapperType === 'artist');
                                     if (artist) {
@@ -968,7 +1010,7 @@
                             } catch (e) {
                                 console.error('Strategy 2 failed:', e);
                             }
-                            
+
                             try {
                                 const searchData2 = await jsonpRequest(
                                     `https://itunes.apple.com/search?term=${encodeURIComponent(search.albumName + ' ' + search.albumArtist)}&entity=album&limit=200`
@@ -991,13 +1033,13 @@
                         const normalizeText = (text) => text.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
                         const albumLower = search.albumName.toLowerCase().trim();
                         const normalizedQuery = normalizeText(search.albumName);
-                        
+
                         filteredAlbums = filteredAlbums
                             .map(album => {
                                 let score = 0;
                                 const albumNameLower = album.collectionName.toLowerCase();
                                 const normalizedAlbumName = normalizeText(album.collectionName);
-                                
+
                                 if (albumNameLower === albumLower || normalizedAlbumName === normalizedQuery) {
                                     score += 100;
                                 }
@@ -1007,27 +1049,27 @@
                                 else if (albumNameLower.includes(albumLower) || normalizedAlbumName.includes(normalizedQuery)) {
                                     score += 25;
                                 }
-                                
+
                                 const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 2);
                                 const albumWords = normalizedAlbumName.split(/\s+/);
-                                const matchingWords = queryWords.filter(word => 
+                                const matchingWords = queryWords.filter(word =>
                                     albumWords.some(albumWord => albumWord.includes(word) || word.includes(albumWord))
                                 );
                                 score += matchingWords.length * 5;
-                                
+
                                 if (search.albumArtist.trim()) {
                                     const artistLower = search.albumArtist.toLowerCase().trim();
                                     const normalizedArtist = normalizeText(search.albumArtist);
                                     const albumArtistLower = album.artistName.toLowerCase();
                                     const normalizedAlbumArtist = normalizeText(album.artistName);
-                                    
+
                                     if (albumArtistLower === artistLower || normalizedAlbumArtist === normalizedArtist) {
                                         score += 40;
                                     } else if (albumArtistLower.includes(artistLower) || normalizedAlbumArtist.includes(normalizedArtist)) {
                                         score += 20;
                                     }
                                 }
-                                
+
                                 return { ...album, matchScore: score };
                             })
                             .filter(album => album.matchScore > 0)
@@ -1116,7 +1158,7 @@
                         selectedArtist: item,
                         songData: uniqueTracks,
                         songs: uniqueTracks.map(t => t.name),
-                        usedAlbums: [{name: item.collectionName, artist: item.artistName}],
+                        usedAlbums: [{ name: item.collectionName, artist: item.artistName }],
                         stage: 'sorting'
                     }));
 
@@ -1159,22 +1201,22 @@
 
                     for (const albumId of state.selectedAlbums) {
                         const album = state.albums.find(a => a.collectionId === albumId);
-                        
+
                         if (album?.source === 'bandcamp') {
                             const proxyUrl = 'https://api.allorigins.win/raw?url=';
                             const response = await fetch(proxyUrl + encodeURIComponent(album.bandcampUrl));
                             const html = await response.text();
                             const tralbumMatch = html.match(/var TralbumData = ({[\s\S]*?});/);
-                            
+
                             if (tralbumMatch) {
                                 const tralbumData = JSON.parse(tralbumMatch[1]);
                                 const tracks = tralbumData.trackinfo || [];
-                                
+
                                 albumsList.push({
                                     name: album.collectionName,
                                     artist: album.artistName
                                 });
-                                
+
                                 tracks.forEach(track => {
                                     allTracks.push({
                                         trackName: track.title,
@@ -1264,24 +1306,24 @@
             const checkForNotification = (idx, type) => {
                 const count = type === 'win' ? (sorting.winCounts[idx] || 0) : (sorting.lossCounts[idx] || 0);
                 const notificationKey = `${idx}-${type}`;
-                
+
                 if (count === 10 && !sorting.notificationShownFor.has(notificationKey) && !notification) {
                     const currentPos = getCurrentPosition(idx);
                     const songName = state.songs[idx];
                     const totalActive = state.songs.length - state.excludedSongs.size;
-                    
+
                     if (type === 'win' && currentPos < totalActive * 0.2) {
                         return;
                     }
                     if (type === 'loss' && currentPos > totalActive * 0.8) {
                         return;
                     }
-                    
+
                     setSorting(s => ({
                         ...s,
                         notificationShownFor: new Set([...s.notificationShownFor, notificationKey])
                     }));
-                    
+
                     if (type === 'win') {
                         setNotification({
                             message: `"${songName}" is performing really well!`,
@@ -1301,7 +1343,7 @@
             const makeSmartAssumption = useCallback((idx1, idx2) => {
                 const pairKey1 = `${idx1}-${idx2}`;
                 const pairKey2 = `${idx2}-${idx1}`;
-                
+
                 if (sorting.skippedPairs.has(pairKey1) || sorting.skippedPairs.has(pairKey2)) {
                     return null;
                 }
@@ -1330,11 +1372,11 @@
                 const totalPossible = (activeSongs * (activeSongs - 1)) / 2;
                 const made = sorting.comparisons;
                 const skipped = sorting.autoSkipped;
-                
+
                 const remaining = Math.max(0, totalPossible - made - skipped);
                 const estimatedSkipRate = made > 0 ? skipped / made : 0.3;
                 const estimatedRemaining = Math.ceil(remaining * (1 - estimatedSkipRate));
-                
+
                 setSorting(s => ({ ...s, estimatedRemaining, lastEstimateUpdate: made }));
             }, [state.songs.length, state.excludedSongs.size, sorting.comparisons, sorting.autoSkipped]);
 
@@ -1342,17 +1384,17 @@
                 let nextJ = newJ + 1;
                 let nextI = newI;
                 let autoSkipCount = 0;
-                
+
                 while (true) {
                     if (nextJ < state.songs.length - 1 - nextI) {
                         const idx1 = indices[nextJ];
                         const idx2 = indices[nextJ + 1];
-                        
+
                         if (state.excludedSongs.has(idx1) || state.excludedSongs.has(idx2)) {
                             nextJ++;
                             continue;
                         }
-                        
+
                         const assumption = makeSmartAssumption(idx1, idx2);
                         if (assumption) {
                             autoSkipCount++;
@@ -1401,7 +1443,7 @@
 
                 const idx1 = sorting.sortedIndices[sorting.j];
                 const idx2 = sorting.sortedIndices[sorting.j + 1];
-                
+
                 const historyEntry = {
                     sortedIndices: [...sorting.sortedIndices],
                     i: sorting.i,
@@ -1415,7 +1457,7 @@
                 const newPreferences = { ...sorting.preferences };
                 const newWinCounts = { ...sorting.winCounts };
                 const newLossCounts = { ...sorting.lossCounts };
-                
+
                 if (preferred === 'song1') {
                     newPreferences[idx1] = { ...(newPreferences[idx1] || {}), [idx2]: 'win' };
                     newPreferences[idx2] = { ...(newPreferences[idx2] || {}), [idx1]: 'loss' };
@@ -1431,14 +1473,14 @@
                     checkForNotification(idx2, 'win');
                     checkForNotification(idx1, 'loss');
                 }
-                
+
                 const newIndices = [...sorting.sortedIndices];
                 if (preferred === 'song2') {
                     [newIndices[sorting.j], newIndices[sorting.j + 1]] = [newIndices[sorting.j + 1], newIndices[sorting.j]];
                 }
 
                 const newComparisons = sorting.comparisons + 1;
-                
+
                 setSorting(s => ({
                     ...s,
                     comparisons: newComparisons,
@@ -1484,7 +1526,7 @@
                 const idx2 = sorting.sortedIndices[sorting.j + 1];
                 const pairKey = `${idx1}-${idx2}`;
                 const reversePairKey = `${idx2}-${idx1}`;
-                
+
                 const newSkippedPairs = new Set(sorting.skippedPairs);
                 newSkippedPairs.add(pairKey);
                 newSkippedPairs.add(reversePairKey);
@@ -1492,7 +1534,7 @@
                 setSorting(s => {
                     let newJ = s.j + 1;
                     let newI = s.i;
-                    
+
                     if (newJ >= state.songs.length - 1 - s.i) {
                         newI = s.i + 1;
                         newJ = 0;
@@ -1500,7 +1542,7 @@
                             setState(st => ({ ...st, stage: 'results' }));
                         }
                     }
-                    
+
                     return { ...s, i: newI, j: newJ, skippedPairs: newSkippedPairs };
                 });
             };
@@ -1520,7 +1562,7 @@
                             setSorting(s => {
                                 let newJ = s.j + 1;
                                 let newI = s.i;
-                                
+
                                 if (newJ >= state.songs.length - 1 - s.i) {
                                     newI = s.i + 1;
                                     newJ = 0;
@@ -1528,7 +1570,7 @@
                                         setState(st => ({ ...st, stage: 'results' }));
                                     }
                                 }
-                                
+
                                 return { ...s, i: newI, j: newJ };
                             });
                         }
@@ -1539,11 +1581,11 @@
 
             const handleRightClick = (e, songIndex) => {
                 e.preventDefault();
-                
+
                 const songIdx = sorting.sortedIndices[songIndex];
                 const canBest = canMoveToBest(songIdx);
                 const canWorst = canMoveToWorst(songIdx);
-                
+
                 setContextMenu({
                     x: e.clientX,
                     y: e.clientY,
@@ -1558,14 +1600,14 @@
                     ...s,
                     pinnedTop: new Set([...s.pinnedTop, songIdx])
                 }));
-                
-                const pinnedTopSongs = sorting.sortedIndices.filter(idx => 
+
+                const pinnedTopSongs = sorting.sortedIndices.filter(idx =>
                     sorting.pinnedTop.has(idx) || idx === songIdx
                 );
-                const otherSongs = sorting.sortedIndices.filter(idx => 
+                const otherSongs = sorting.sortedIndices.filter(idx =>
                     !sorting.pinnedTop.has(idx) && idx !== songIdx
                 );
-                
+
                 const newIndices = [...pinnedTopSongs, ...otherSongs];
                 setSorting(s => ({ ...s, sortedIndices: newIndices }));
                 setContextMenu(null);
@@ -1576,14 +1618,14 @@
                     ...s,
                     pinnedBottom: new Set([...s.pinnedBottom, songIdx])
                 }));
-                
-                const pinnedBottomSongs = sorting.sortedIndices.filter(idx => 
+
+                const pinnedBottomSongs = sorting.sortedIndices.filter(idx =>
                     sorting.pinnedBottom.has(idx) || idx === songIdx
                 );
-                const otherSongs = sorting.sortedIndices.filter(idx => 
+                const otherSongs = sorting.sortedIndices.filter(idx =>
                     !sorting.pinnedBottom.has(idx) && idx !== songIdx
                 );
-                
+
                 const newIndices = [...otherSongs, ...pinnedBottomSongs];
                 setSorting(s => ({ ...s, sortedIndices: newIndices }));
                 setContextMenu(null);
@@ -1605,13 +1647,13 @@
                     const notificationShownForSet = new Set(autosave.sorting.notificationShownFor || []);
                     const pinnedTopSet = new Set(autosave.sorting.pinnedTop || []);
                     const pinnedBottomSet = new Set(autosave.sorting.pinnedBottom || []);
-                    
+
                     setState({
                         ...autosave.state,
                         selectedAlbums: selectedAlbumsSet,
                         excludedSongs: excludedSongsSet
                     });
-                    
+
                     setSorting({
                         ...autosave.sorting,
                         history: [],
@@ -1620,7 +1662,7 @@
                         pinnedTop: pinnedTopSet,
                         pinnedBottom: pinnedBottomSet
                     });
-                    
+
                     if (autosave.search) {
                         setSearch(s => ({
                             ...s,
@@ -1666,7 +1708,7 @@
                         albumYear: search.albumYear
                     }
                 };
-                
+
                 const dataStr = JSON.stringify(dataToSave, null, 2);
                 const dataBlob = new Blob([dataStr], { type: 'application/json' });
                 const url = URL.createObjectURL(dataBlob);
@@ -1686,24 +1728,24 @@
                 reader.onload = (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        
+
                         if (!data.state || !data.sorting) {
                             throw new Error('Invalid save file format');
                         }
-                        
+
                         const selectedAlbumsSet = new Set(data.state.selectedAlbums || []);
                         const excludedSongsSet = new Set(data.state.excludedSongs || []);
                         const skippedPairsSet = new Set(data.sorting.skippedPairs || []);
                         const notificationShownForSet = new Set(data.sorting.notificationShownFor || []);
                         const pinnedTopSet = new Set(data.sorting.pinnedTop || []);
                         const pinnedBottomSet = new Set(data.sorting.pinnedBottom || []);
-                        
+
                         setState({
                             ...data.state,
                             selectedAlbums: selectedAlbumsSet,
                             excludedSongs: excludedSongsSet
                         });
-                        
+
                         setSorting({
                             ...data.sorting,
                             history: [],
@@ -1712,7 +1754,7 @@
                             pinnedTop: pinnedTopSet,
                             pinnedBottom: pinnedBottomSet
                         });
-                        
+
                         if (data.search) {
                             setSearch(s => ({
                                 ...s,
@@ -1726,14 +1768,14 @@
                                 error: ''
                             }));
                         }
-                        
+
                         event.target.value = '';
-                        
+
                     } catch (err) {
                         console.error('Load error:', err);
-                        setSearch(s => ({ 
-                            ...s, 
-                            error: 'Failed to load save file. Please make sure it\'s a valid Ranker save file.' 
+                        setSearch(s => ({
+                            ...s,
+                            error: 'Failed to load save file. Please make sure it\'s a valid Ranker save file.'
                         }));
                         event.target.value = '';
                     }
@@ -1755,7 +1797,7 @@
                     onSubmit: (values) => {
                         const { jsPDF } = window.jspdf;
                         const doc = new jsPDF();
-                        
+
                         doc.setFillColor(255, 0, 128);
                         doc.rect(0, 0, 210, 30, 'F');
                         doc.setTextColor(255, 255, 255);
@@ -1763,7 +1805,7 @@
                         doc.text(`${values.userName}'s Song Rankings`, 105, 15, { align: 'center' });
                         doc.setFontSize(12);
                         doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 23, { align: 'center' });
-                        
+
                         doc.setTextColor(0, 0, 0);
                         let yPos = 40;
 
@@ -1784,7 +1826,7 @@
                             });
                             yPos += 5;
                         }
-                        
+
                         doc.setFontSize(14);
                         doc.setFont(undefined, 'bold');
                         doc.text('Rankings:', 20, yPos);
@@ -1804,23 +1846,23 @@
                                 doc.addPage();
                                 yPos = 20;
                             }
-                            
+
                             if (rank % 2 === 0) {
                                 doc.setFillColor(245, 245, 245);
                                 doc.rect(20, yPos - 5, 170, 8, 'F');
                             }
-                            
+
                             doc.setFontSize(10);
                             doc.text(`${rank + 1}`, 25, yPos);
-                            
+
                             const songName = state.songs[songIdx];
                             const maxWidth = 130;
                             const lines = doc.splitTextToSize(songName, maxWidth);
                             doc.text(lines, 50, yPos);
-                            
+
                             yPos += Math.max(8, lines.length * 5);
                         });
-                        
+
                         doc.save(`${values.fileName}.pdf`);
                     }
                 });
@@ -1842,7 +1884,7 @@
                             <a href="µsic.html" className="text-center hover:opacity-80 transition-opacity">
                                 <h1 className="text-3xl font-bold text-white drop-shadow-lg">μsic tools</h1>
                             </a>
-                            
+
                             <div className="flex gap-3">
                                 {state.stage === 'selectMode' && (
                                     <button
@@ -1857,12 +1899,12 @@
                                     <label className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer">
                                         <Download className="w-5 h-5" />
                                         Load Save
-                                        <input 
+                                        <input
                                             ref={state.stage === 'selectMode' ? fileInputRef : null}
-                                            type="file" 
-                                            accept=".json" 
-                                            onChange={loadData} 
-                                            className="hidden" 
+                                            type="file"
+                                            accept=".json"
+                                            onChange={loadData}
+                                            className="hidden"
                                         />
                                     </label>
                                 )}
@@ -1878,7 +1920,7 @@
                             </div>
                         </div>
 
-                        <div className="p-8 max-w-4xl mx-auto">
+                        <div className={`p-8 max-w-4xl mx-auto ${state.stage === 'selectMode' && autoSaves.length === 0 ? 'min-h-[calc(100vh-80px)] flex flex-col justify-center' : ''}`}>
                             {state.stage === 'selectMode' && (
                                 <>
                                     <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -2083,7 +2125,7 @@
                                                     </button>
                                                 ))}
                                             </div>
-                                            
+
                                             {search.suggestions.length > itemsPerPage && (
                                                 <div className="flex justify-center gap-3 mt-6">
                                                     <button
@@ -2159,11 +2201,10 @@
                                                     }
                                                     setState(s => ({ ...s, selectedAlbums: newSet }));
                                                 }}
-                                                className={`p-4 rounded-xl transition-all border-2 ${
-                                                    state.selectedAlbums.has(album.collectionId)
-                                                        ? 'bg-white/20 border-white/50'
-                                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                }`}
+                                                className={`p-4 rounded-xl transition-all border-2 ${state.selectedAlbums.has(album.collectionId)
+                                                    ? 'bg-white/20 border-white/50'
+                                                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                    }`}
                                             >
                                                 <img src={album.artworkUrl100} alt={album.collectionName} className="w-full aspect-square rounded-lg mb-3" />
                                                 <p className="text-white font-medium text-sm text-center line-clamp-2">{album.collectionName}</p>
@@ -2205,7 +2246,7 @@
                                         <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
                                             <div
                                                 className="h-3 rounded-full transition-all duration-500 ease-out"
-                                                style={{ 
+                                                style={{
                                                     width: `${Math.min(100, progress)}%`,
                                                     background: `linear-gradient(to right, ${bgColors[0]}, ${bgColors[1]})`
                                                 }}
@@ -2229,8 +2270,8 @@
                                             >
                                                 <div className="flex flex-col items-center gap-5">
                                                     {state.songData[sorting.sortedIndices[sorting.j]]?.artwork ? (
-                                                        <img 
-                                                            src={state.songData[sorting.sortedIndices[sorting.j]].artwork} 
+                                                        <img
+                                                            src={state.songData[sorting.sortedIndices[sorting.j]].artwork}
                                                             alt=""
                                                             className="w-32 h-32 rounded-lg"
                                                         />
@@ -2272,8 +2313,8 @@
                                             >
                                                 <div className="flex flex-col items-center gap-5">
                                                     {state.songData[sorting.sortedIndices[sorting.j + 1]]?.artwork ? (
-                                                        <img 
-                                                            src={state.songData[sorting.sortedIndices[sorting.j + 1]].artwork} 
+                                                        <img
+                                                            src={state.songData[sorting.sortedIndices[sorting.j + 1]].artwork}
                                                             alt=""
                                                             className="w-32 h-32 rounded-lg"
                                                         />
@@ -2381,22 +2422,20 @@
                                         <div className="flex justify-center gap-2 mb-6">
                                             <button
                                                 onClick={() => setViewMode('grid')}
-                                                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                                                    viewMode === 'grid' 
-                                                        ? 'bg-white text-black' 
-                                                        : 'bg-white/10 text-white hover:bg-white/20'
-                                                }`}
+                                                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${viewMode === 'grid'
+                                                    ? 'bg-white text-black'
+                                                    : 'bg-white/10 text-white hover:bg-white/20'
+                                                    }`}
                                             >
                                                 <Grid className="w-5 h-5" />
                                                 Grid
                                             </button>
                                             <button
                                                 onClick={() => setViewMode('list')}
-                                                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                                                    viewMode === 'list' 
-                                                        ? 'bg-white text-black' 
-                                                        : 'bg-white/10 text-white hover:bg-white/20'
-                                                }`}
+                                                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${viewMode === 'list'
+                                                    ? 'bg-white text-black'
+                                                    : 'bg-white/10 text-white hover:bg-white/20'
+                                                    }`}
                                             >
                                                 <List className="w-5 h-5" />
                                                 List
@@ -2416,8 +2455,8 @@
                                                                 #{rank + 1}
                                                             </div>
                                                             {song?.artwork ? (
-                                                                <img 
-                                                                    src={song.artwork} 
+                                                                <img
+                                                                    src={song.artwork}
                                                                     alt={state.songs[songIdx]}
                                                                     className="w-full aspect-square rounded-lg mb-2"
                                                                 />
@@ -2442,8 +2481,8 @@
                                                     >
                                                         <div className="text-3xl font-bold text-white w-16">#{rank + 1}</div>
                                                         {state.songData[songIdx]?.artwork && (
-                                                            <img 
-                                                                src={state.songData[songIdx].artwork} 
+                                                            <img
+                                                                src={state.songData[songIdx].artwork}
                                                                 alt=""
                                                                 className="w-16 h-16 rounded-lg"
                                                             />
@@ -2474,22 +2513,22 @@
                             <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-md w-full border border-white/20 shadow-2xl">
                                 <div className="flex items-center justify-between mb-6">
                                     <h3 className="text-2xl font-bold text-white">Import from URL</h3>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setShowUrlImport(false);
                                             setUrlInput('');
                                             setSearch(s => ({ ...s, error: '' }));
-                                        }} 
+                                        }}
                                         className="p-2 hover:bg-white/10 rounded-lg"
                                     >
                                         <X className="w-6 h-6 text-white" />
                                     </button>
                                 </div>
-                                
+
                                 <p className="text-gray-300 mb-4">
                                     Paste a URL from Bandcamp (artist or album). Support for Spotify, Apple Music, and Deezer coming soon!
                                 </p>
-                                
+
                                 <input
                                     type="text"
                                     value={urlInput}
@@ -2498,13 +2537,13 @@
                                     placeholder="https://artist.bandcamp.com/album/..."
                                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50 mb-4"
                                 />
-                                
+
                                 {search.error && (
                                     <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mb-4">
                                         <p className="text-red-200 text-sm">{search.error}</p>
                                     </div>
                                 )}
-                                
+
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => {
@@ -2571,5 +2610,101 @@
 
         ReactDOM.render(<RankerMode />, document.getElementById('root'));
     </script>
+    <!-- Help Button -->
+    <button id="helpBtn"
+        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
+        class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
+        style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+    </button>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+        style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);"
+        onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
+        <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
+            <div class="rounded-3xl p-8 shadow-2xl"
+                style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px);">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-3xl font-bold text-white">Ranker</h3>
+                    <button
+                        onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        style="background: rgba(255,255,255,0.1);">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height: 60vh;">
+                    <div class="space-y-6">
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">What is This?</h4>
+                            <p class="text-gray-300">A comparison-based ranker that sorts songs by asking you to pick
+                                between two at a time. Easier than staring at a blank list — you just answer one simple
+                                question repeatedly until it's done.</p>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">How the Algorithm Works</h4>
+                            <p class="text-gray-300 mb-3">Under the hood this uses an optimised sort with transitive
+                                inference:</p>
+                            <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+                                <li>You compare two songs and pick your favourite</li>
+                                <li>Your picks slowly bubble the best songs to the top</li>
+                                <li>The algorithm skips obvious comparisons (if A > B and B > C, it already knows A > C)
+                                </li>
+                                <li>It keeps going until everything is sorted</li>
+                            </ol>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Using It</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Rank Artist:</strong> pick an artist, select which albums to include, and
+                                    rank their whole catalogue</li>
+                                <li><strong>Rank Album:</strong> rank all tracks from one specific album</li>
+                                <li><strong>Preview:</strong> hit the play button to hear a 30-second clip (requires
+                                    Apple Music availability)</li>
+                                <li><strong>Undo:</strong> changed your mind? Undo your last pick</li>
+                                <li><strong>Skip:</strong> genuinely can't choose? Skip it — the algorithm will try to
+                                    infer the answer from your other choices. If it can't, it'll ask again later</li>
+                                <li><strong>Right-click a song card:</strong> instantly move a song to the top or bottom
+                                    if you're certain about it</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Saving & Exporting</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Save Progress:</strong> save mid-ranking as a JSON file — useful for large
+                                    discographies</li>
+                                <li><strong>Load Save:</strong> resume a previous session from a saved file</li>
+                                <li><strong>Export PDF:</strong> when you're done, download a formatted PDF of your
+                                    ranked list</li>
+                            </ul>
+                        </div>
+                        <div class="rounded-xl p-4"
+                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                            <p class="text-sm text-gray-400"><strong>Tip:</strong> try to stay consistent — if you
+                                contradict yourself too often the algorithm has to make judgment calls and the results
+                                can get a bit random</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('helpModal').classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        });
+    </script>
 </body>
+
 </html>
