@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,71 +8,131 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @keyframes blob1 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(150px, 100px) scale(1.2); }
-            66% { transform: translate(-100px, 150px) scale(0.9); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(150px, 100px) scale(1.2);
+            }
+
+            66% {
+                transform: translate(-100px, 150px) scale(0.9);
+            }
         }
+
         @keyframes blob2 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(-150px, -100px) scale(0.9); }
-            66% { transform: translate(100px, -150px) scale(1.2); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(-150px, -100px) scale(0.9);
+            }
+
+            66% {
+                transform: translate(100px, -150px) scale(1.2);
+            }
         }
+
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
+
         @keyframes slideUp {
-            from { 
+            from {
                 opacity: 0;
                 transform: translate(-50%, -45%);
             }
-            to { 
+
+            to {
                 opacity: 1;
                 transform: translate(-50%, -50%);
             }
         }
+
         .modal-backdrop {
             animation: fadeIn 0.3s ease-out;
         }
+
         .modal-content {
             animation: slideUp 0.4s ease-out;
         }
+
         .help-icon {
             position: fixed;
             bottom: 20px;
             right: 20px;
             z-index: 50;
         }
+
         .tool-card:hover .help-button {
             transform: scale(1.15);
         }
+
         .help-button {
             transition: transform 0.3s ease;
         }
+
         .help-button:hover {
             transform: scale(1.3) !important;
         }
+
         .help-button.unread {
             background: linear-gradient(135deg, rgba(255, 165, 0, 0.3), rgba(255, 140, 0, 0.2));
             border-color: rgba(255, 165, 0, 0.4);
             box-shadow: 0 0 20px rgba(255, 165, 0, 0.3);
         }
+
         .help-button.unread svg {
             color: #ffa500;
         }
-        .blob1, .blob2 {
+
+        #kofiBtn {
+            background: linear-gradient(135deg, rgba(255,94,58,0.25), rgba(255,94,58,0.12));
+            border: 1px solid rgba(255,94,58,0.35);
+            color: #ff9280;
+            box-shadow: 0 0 14px rgba(255,94,58,0.18);
+            transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+        #kofiBtn:hover {
+            background: linear-gradient(135deg, rgba(255,20,147,0.45), rgba(255,105,180,0.3));
+            border-color: rgba(255,20,147,0.5);
+            color: #ffb3d9;
+            box-shadow: 0 0 20px rgba(255,20,147,0.35);
+            transform: scale(1.05);
+        }
+        #kofiBtn:active {
+            transform: scale(0.95);
+        }
+
+        .blob1,
+        .blob2 {
             transition: --color1 5s ease-in-out, --color2 5s ease-in-out;
         }
+
         @property --blob1-color {
             syntax: '<color>';
             inherits: false;
             initial-value: #ff0080;
         }
+
         @property --blob2-color {
             syntax: '<color>';
             inherits: false;
             initial-value: #7928ca;
         }
+
         #blob1 {
             --blob1-color: #ff0080;
             background: radial-gradient(circle, var(--blob1-color) 0%, transparent 70%);
@@ -81,6 +142,7 @@
             transform: translate(-50%, -50%);
             transition: --blob1-color 1.8s ease-in-out;
         }
+
         #blob2 {
             --blob2-color: #7928ca;
             background: radial-gradient(circle, var(--blob2-color) 0%, transparent 70%);
@@ -92,7 +154,17 @@
         }
     </style>
 </head>
+
 <body>
+    <!-- Buy Me a Coffee button fixed top right -->
+    <a href="https://ko-fi.com/kibben" target="_blank" rel="noopener noreferrer" id="kofiBtn"
+        class="fixed top-4 right-4 z-50 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.34.407 0 0 1.62-1.754 3.508-.785 1.887.971 1.938 2.422.706 4.133zm6.962.463c-.822.207-1.701-.082-1.701-.082V5.119c1.49.26 3.043 1.073 2.715 4.308-.144 1.408-.806 2.275-1.014 3.495z" />
+        </svg>
+        buy me a coffee
+    </a>
+
     <div class="min-h-screen bg-black relative overflow-hidden">
         <div class="absolute inset-0 overflow-hidden">
             <div id="blob1" class="blob1 absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl">
@@ -105,91 +177,136 @@
             <div class="flex justify-center pt-20">
                 <div class="text-center">
                     <h1 class="text-6xl font-bold text-white drop-shadow-lg mb-2">µsic tools</h1>
-                    <a href="index.html" class="text-gray-400 text-sm drop-shadow-md hover:text-white transition-colors" id="kibbenLink">by kibben</a>
+                    <div class="flex items-center justify-center gap-4 mt-1">
+                        <a href="index.html"
+                            class="text-gray-400 text-sm drop-shadow-md hover:text-white transition-colors"
+                            id="kibbenLink">by kibben</a>
+
+                    </div>
                 </div>
             </div>
 
             <div class="flex flex-col items-center justify-center min-h-[calc(100vh-300px)] p-8">
                 <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl w-full">
                     <div class="relative group tool-card">
-                        <a href="guesser.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#ff8800" data-color2="#ffcc00">
+                        <a href="guesser.html"
+                            class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
+                            data-color1="#ff8800" data-color2="#ffcc00">
                             <div class="flex flex-col items-center gap-6">
-                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <h2 class="text-3xl font-bold text-white">Guesser</h2>
-                                <p class="text-gray-300 text-lg text-center">Guess songs from an artist's discography</p>
-                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                <p class="text-gray-300 text-lg text-center">Guess songs from an artist's discography
+                                </p>
+                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
                         </a>
-                        <button onclick="showHelp('guesser')" class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
+                        <button onclick="showHelp('guesser')"
+                            class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </button>
                     </div>
 
                     <div class="relative group tool-card">
-                        <a href="ranker.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#00d4ff" data-color2="#0066ff">
+                        <a href="ranker.html"
+                            class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
+                            data-color1="#00d4ff" data-color2="#0066ff">
                             <div class="flex flex-col items-center gap-6">
-                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 10l7-7m0 0l7 7m-7-7v18" />
                                 </svg>
                                 <h2 class="text-3xl font-bold text-white">Ranker</h2>
                                 <p class="text-gray-300 text-lg text-center">Rank songs from artists or albums</p>
-                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
                         </a>
-                        <button onclick="showHelp('ranker')" class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
+                        <button onclick="showHelp('ranker')"
+                            class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </button>
                     </div>
 
                     <div class="relative group tool-card">
-                        <a href="topsters.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#00ff88" data-color2="#00cc88">
+                        <a href="topsters.html"
+                            class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
+                            data-color1="#00ff88" data-color2="#00cc88">
                             <div class="flex flex-col items-center gap-6">
-                                <div class="w-24 h-24 grid grid-cols-2 gap-2 group-hover:scale-110 transition-transform">
-                                    <div class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">1</div>
-                                    <div class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">2</div>
-                                    <div class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">3</div>
-                                    <div class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">4</div>
+                                <div
+                                    class="w-24 h-24 grid grid-cols-2 gap-2 group-hover:scale-110 transition-transform">
+                                    <div
+                                        class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">
+                                        1</div>
+                                    <div
+                                        class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">
+                                        2</div>
+                                    <div
+                                        class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">
+                                        3</div>
+                                    <div
+                                        class="bg-white rounded-lg flex items-center justify-center text-black text-2xl font-bold">
+                                        4</div>
                                 </div>
                                 <h2 class="text-3xl font-bold text-white">Topsters</h2>
                                 <p class="text-gray-300 text-lg text-center">Create custom album collages</p>
-                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
                         </a>
-                        <button onclick="showHelp('topsters')" class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
+                        <button onclick="showHelp('topsters')"
+                            class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </button>
                     </div>
 
                     <div class="relative group tool-card">
-                        <a href="tierlist.html" class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105" data-color1="#ff3333" data-color2="#00ff00">
+                        <a href="tierlist.html"
+                            class="block bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
+                            data-color1="#ff3333" data-color2="#00ff00">
                             <div class="flex flex-col items-center gap-6">
-                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                <svg class="w-24 h-24 text-white group-hover:scale-110 transition-transform" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                                 </svg>
                                 <h2 class="text-3xl font-bold text-white">Tier List</h2>
                                 <p class="text-gray-300 text-lg text-center">Rank albums or songs in tier format</p>
-                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                <svg class="w-8 h-8 text-white/70 group-hover:text-white" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
                         </a>
-                        <button onclick="showHelp('tierlist')" class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
+                        <button onclick="showHelp('tierlist')"
+                            class="help-button unread absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center transition-all border border-white/20 z-10">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </button>
                     </div>
@@ -199,14 +316,18 @@
     </div>
 
     <!-- Help Modal -->
-    <div id="helpModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 modal-backdrop" onclick="closeHelp()">
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl mx-4 modal-content" onclick="event.stopPropagation()">
+    <div id="helpModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 modal-backdrop"
+        onclick="closeHelp()">
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl mx-4 modal-content"
+            onclick="event.stopPropagation()">
             <div class="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/20">
                 <div class="flex items-center justify-between mb-6">
                     <h3 id="helpTitle" class="text-3xl font-bold text-white"></h3>
-                    <button onclick="closeHelp()" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all">
+                    <button onclick="closeHelp()"
+                        class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all">
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
@@ -220,7 +341,7 @@
         const blob2 = document.getElementById('blob2');
         const defaultColor1 = '#ff0080';
         const defaultColor2 = '#7928ca';
-        
+
         // Kibben link hover
         const kibbenLink = document.getElementById('kibbenLink');
         kibbenLink.addEventListener('mouseenter', () => {
@@ -231,7 +352,7 @@
             blob1.style.setProperty('--blob1-color', defaultColor1);
             blob2.style.setProperty('--blob2-color', defaultColor2);
         });
-        
+
         // Tool card hovers
         const toolCards = document.querySelectorAll('.tool-card a[data-color1]');
         toolCards.forEach(card => {
@@ -246,10 +367,10 @@
                 blob2.style.setProperty('--blob2-color', defaultColor2);
             });
         });
-        
+
         // Track which help buttons have been opened
         const openedHelp = JSON.parse(localStorage.getItem('openedHelp') || '{}');
-        
+
         // Remove unread class from previously opened buttons
         document.addEventListener('DOMContentLoaded', () => {
             Object.keys(openedHelp).forEach(tool => {
@@ -262,209 +383,223 @@
 
         const helpContent = {
             guesser: {
-                title: "Guesser Game",
+                title: "Guesser",
                 content: `
                     <div class="space-y-6">
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">How to Play</h4>
-                            <p class="text-gray-300">Basically it's like Wordle but for music. You've got 6 tries to guess a random song from whatever artist / albums you pick. Pretty straightforward if you have used yeezle.xyz before as well</p>
+                            <p class="text-gray-300">It's like Wordle but for music. You've got 6 tries to guess a random song from whatever artist and albums you pick. After each wrong guess you get colour-coded clues on how close you were.</p>
                         </div>
-                        
+
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Getting Started</h4>
                             <ol class="list-decimal list-inside space-y-2 text-gray-300">
-                                <li>Search for an artist (try someone with a big discography, it's more fun). You can also add a second or third artist to make a larger pool.</li>
-                                <li>Pick which albums you want included - you can do all of them or just a few</li>
-                                <li>The game picks a random song and you start guessing</li>
+                                <li>Search for an artist (someone with a big discography is more fun). You can add multiple artists to make a larger pool.</li>
+                                <li>Pick which albums to include — or just hit select all</li>
+                                <li>A random song is picked and you start guessing</li>
                             </ol>
                         </div>
 
                         <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">The Clue System</h4>
-                            <p class="text-gray-300 mb-3">After each guess, you'll get color-coded hints:</p>
+                            <h4 class="text-xl font-semibold text-white mb-2">Clue Colours</h4>
                             <ul class="space-y-2 text-gray-300">
-                                <li><span class="inline-block w-4 h-4 bg-green-500 rounded mr-2"></span><strong>Green = perfect match</strong></li>
-                                <li><span class="inline-block w-4 h-4 bg-yellow-500 rounded mr-2"></span><strong>Yellow = you're close!</strong> (within 30 seconds for length, same year-ish for release, or a couple tracks away)</li>
-                                <li><span class="inline-block w-4 h-4 bg-red-500/40 rounded mr-2"></span><strong>Red = not even close</strong></li>
+                                <li><span class="inline-block w-4 h-4 bg-green-500 rounded mr-2"></span><strong>Green</strong> — exact match for that column</li>
+                                <li><span class="inline-block w-4 h-4 bg-yellow-500 rounded mr-2"></span><strong>Yellow</strong> — you're close (within 30 s for duration, roughly same year, a couple of tracks away for position)</li>
+                                <li><span class="inline-block w-4 h-4 bg-red-500/40 rounded mr-2"></span><strong>Red</strong> — not close at all</li>
                             </ul>
                         </div>
 
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Progressive Hints</h4>
-                            <p class="text-gray-300 mb-2">The game gives you progressively better hints as you go:</p>
+                            <p class="text-gray-300 mb-2">Hints unlock as guesses go:</p>
                             <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
-                                <li>Guess 2: first letter of the song</li>
-                                <li>Guess 3: how many characters long it is</li>
-                                <li>Guess 5: which album it's from</li>
+                                <li>Guess 2 — first letter of the song title</li>
+                                <li>Guess 3 — character count of the title</li>
+                                <li>Guess 5 — which album it's from</li>
                             </ul>
                         </div>
 
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Stats & Sharing</h4>
-                            <p class="text-gray-300">Your stats are saved locally, and you can share results with that emoji grid thing everyone does. Flex your music knowledge!</p>
+                            <p class="text-gray-300">Your win/loss stats are saved locally. After a game you can share your result as an emoji grid.</p>
+                        </div>
+
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
+                                Keyboard Shortcuts
+                            </h4>
+                            <div class="space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span>Navigate song dropdown</span><span class="flex gap-1"><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">↑</kbd><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">↓</kbd></span></div>
+                                <div class="flex items-center justify-between"><span>Submit highlighted guess</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">Enter</kbd></div>
+                                <div class="flex items-center justify-between"><span>Clear search input</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">Escape</kbd></div>
+                            </div>
                         </div>
                     </div>
                 `
             },
             ranker: {
-                title: "Ranker Tool",
+                title: "Ranker",
                 content: `
                     <div class="space-y-6">
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">What is This?</h4>
-                            <p class="text-gray-300">This tool should hopefully make it way easier to rank your favourite artist or albums by just asking you to compare two songs at a time. It might take a while but the results always feel kinda right.</p>
-                        </div>
-                        
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">How Bubble Sort Works</h4>
-                            <p class="text-gray-300 mb-3">Under the hood, this uses bubble sort. Here's how it works without getting too technical:</p>
-                            <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
-                                <li>You compare two songs and pick which one you like better</li>
-                                <li>Your favorites slowly "bubble up" to the top of the list</li>
-                                <li>The algorithm remembers your choices and skips obvious comparisons (like if you said A > B and B > C, it knows A > C)</li>
-                                <li>Rinse and repeat until everything's sorted</li>
-                            </ol>
-                            <p class="text-gray-300 mt-2">It's not the fastest sorting algorithm out there, but it's really good for when humans are doing the comparing because it minimises the number of decisions you have to make.</p>
+                            <p class="text-gray-300">A comparison-based ranker that sorts songs by asking you to pick between two at a time. Easier than staring at a blank list — you just answer one simple question repeatedly until it's done.</p>
                         </div>
 
                         <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">How to Use It</h4>
+                            <h4 class="text-xl font-semibold text-white mb-2">How the Algorithm Works</h4>
+                            <p class="text-gray-300 mb-3">Under the hood this uses an optimised sort with transitive inference:</p>
+                            <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
+                                <li>You compare two songs and pick your favourite</li>
+                                <li>Your picks slowly bubble the best songs to the top</li>
+                                <li>The algorithm skips obvious comparisons (if A > B and B > C, it already knows A > C)</li>
+                                <li>It keeps going until everything is sorted</li>
+                            </ol>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Using It</h4>
                             <ul class="space-y-2 text-gray-300">
-                                <li><strong>Artist mode:</strong> pick an artist, then choose which albums you want. Great for doing their whole discography</li>
-                                <li><strong>Album mode:</strong> just want to rank one specific album? Use this</li>
-                                <li><strong>Audio previews:</strong> can't remember how a song goes? Hit the play button for a 30-second preview (if Apple Music has it)</li>
-                                <li><strong>Undo button:</strong> made a mistake? Just undo it.</li>
-                                <li><strong>Skip button:</strong> genuinely can't decide? Skip it and the algorithm will figure it out from your other choices, if it can't it will give you the question again later on</li>
+                                <li><strong>Rank Artist:</strong> pick an artist, select which albums to include, and rank their whole catalogue</li>
+                                <li><strong>Rank Album:</strong> rank all tracks from one specific album</li>
+                                <li><strong>Preview:</strong> hit the play button to hear a 30-second clip (requires Apple Music availability)</li>
+                                <li><strong>Undo:</strong> changed your mind? Undo your last pick</li>
+                                <li><strong>Skip:</strong> genuinely can't choose? Skip it — the algorithm will try to infer the answer from your other choices. If it can't, it'll ask again later</li>
+                                <li><strong>Right-click a song card:</strong> instantly move a song to the top or bottom if you're certain about it</li>
                             </ul>
                         </div>
 
                         <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Saving Your Work</h4>
-                            <p class="text-gray-300">You can save your progress as a file and come back to it later (because ranking 200+ songs takes a while). When you're done, export it as a PDF to share or just keep for yourself.</p>
+                            <h4 class="text-xl font-semibold text-white mb-2">Saving & Exporting</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Save Progress:</strong> save mid-ranking as a JSON file — useful for large discographies</li>
+                                <li><strong>Load Save:</strong> resume a previous session from a saved file</li>
+                                <li><strong>Export PDF:</strong> when you're done, download a formatted PDF of your ranked list</li>
+                            </ul>
                         </div>
 
                         <div class="bg-white/5 rounded-xl p-4 border border-white/10">
-                            <p class="text-sm text-gray-400"><strong>Tip:</strong> try to be consistent with your preferences or the results get weird. If you contradict yourself too much, the algorithm just shrugs and does its best lol</p>
+                            <p class="text-sm text-gray-400"><strong>Tip:</strong> try to stay consistent — if you contradict yourself too often the algorithm has to make judgment calls and the results can get a bit random</p>
                         </div>
                     </div>
                 `
             },
             topsters: {
-                title: "Topsters Creator",
+                title: "Topsters",
                 content: `
                     <div class="space-y-6">
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">What are Topsters?</h4>
-                            <p class="text-gray-300">You know those grids of album covers people post on Twitter/Reddit showing their favorite albums? That's a topster (or chart, or collage, whatever you want to call it). It's basically a tier list but make it aesthetic.</p>
+                            <p class="text-gray-300">Grids of album covers showing your favourites — you've definitely seen these on social media. They originated on music forums like RateYourMusic and 4chan's /mu/ as a quick way to show off your taste.</p>
                         </div>
-                        
+
                         <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">History</h4>
-                            <p class="text-gray-300 mb-3">This format blew up in the late 2000s on sites like RateYourMusic and 4chan's /mu/ board. Music nerds needed a way to show off their taste and argue about it in the comments, so the topster was born.</p>
-                            <p class="text-gray-300 mb-3">It became a whole thing because:</p>
-                            <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
-                                <li>You could instantly judge someone's music taste (for better or worse)</li>
-                                <li>It was a good way to find new music from people with similar taste</li>
-                                <li>They looked cool and were easy to share</li>
-                                <li>Making "decade in review" charts became a tradition</li>
+                            <h4 class="text-xl font-semibold text-white mb-2">Layout Modes</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Standard:</strong> custom grid — set any width and height you want (up to 12×12)</li>
+                                <li><strong>Top 42:</strong> the classic 6×7 /mu/ format</li>
+                                <li><strong>Top 100:</strong> a 10×10 grid. Requires commitment</li>
+                                <li><strong>About You:</strong> labelled slots for albums that represent different things — your most played, comfort listen, the one that got you into music, etc.</li>
                             </ul>
-                            <p class="text-gray-300 mt-2">Now they're everywhere. You've probably seen them even if you didn't know what they were called.</p>
                         </div>
 
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Using This Tool</h4>
-                            <p class="text-gray-300 mb-3">Here's what you can do:</p>
                             <ul class="space-y-2 text-gray-300">
-                                <li><strong>Search albums:</strong> pulls from iTunes so the library is huge</li>
-                                <li><strong>Pick your grid size:</strong> 3x3, 5x5, 10x10, whatever you want</li>
-                                <li><strong>Drag & drop:</strong> arrange them however you like. Top-left is usually #1 but do what you want</li>
-                                <li><strong>Add a title:</strong> give it some personality. "Albums that changed my life" or "2024 in review" or whatever</li>
-                                <li><strong>Export & share:</strong> download it as an image and post it wherever. Prepare for people to have opinions</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Common Sizes</h4>
-                            <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
-                                <li><strong>Top 100 (10x10):</strong> the classic. Requires commitment</li>
-                                <li><strong>Top 42 (6x7):</strong> popular on /mu/, no idea why this specific number</li>
-                                <li><strong>Top 25 (5x5):</strong> good middle ground, not too much not too little</li>
-                                <li><strong>Top 9 (3x3):</strong> just your absolute essentials. Hardest to make imo</li>
+                                <li><strong>Search albums:</strong> search by album name or browse by artist. Pulls from iTunes</li>
+                                <li><strong>Drag & drop:</strong> arrange albums however you like. Drag one onto another to swap them</li>
+                                <li><strong>Right-click an album:</strong> rename or remove it from the grid</li>
+                                <li><strong>Multiple charts:</strong> create and switch between multiple saved charts</li>
+                                <li><strong>Customise:</strong> toggle album titles, numbers, change background colour, adjust grid gap</li>
+                                <li><strong>Export:</strong> download as a PNG image, ready to post</li>
                             </ul>
                         </div>
 
                         <div class="bg-white/5 rounded-xl p-4 border border-white/10">
-                            <p class="text-sm text-gray-400"><strong>Note:</strong> you may need to upload certain album covers manually - the iTunes database doesn't have everything, especially more obscure releases</p>
+                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
+                                Keyboard Shortcuts
+                            </h4>
+                            <div class="space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span>Undo last action</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl Z</kbd></div>
+                                <div class="flex items-center justify-between"><span>Redo</span><span class="flex gap-1"><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl ⇧ Z</kbd><span class="text-gray-500 text-xs mx-1">or</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl Y</kbd></span></div>
+                            </div>
                         </div>
                     </div>
                 `
             },
             tierlist: {
-                title: "Tier List Maker",
+                title: "Tier List",
                 content: `
                     <div class="space-y-6">
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">What is This?</h4>
-                            <p class="text-gray-300">A tier list maker specifically for music. Drag and drop albums or songs into tiers (S, A, B, C, etc.) to rank them. It's like the ranker but more visual and you do all the work yourself.</p>
+                            <p class="text-gray-300">A drag-and-drop tier list maker for music. Place albums or songs into tiers (S, A, B, C…) yourself. Unlike the Ranker there's no algorithm — you decide everything.</p>
                         </div>
-                        
+
                         <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">How to Use It</h4>
+                            <h4 class="text-xl font-semibold text-white mb-2">Getting Started</h4>
                             <ul class="space-y-2 text-gray-300">
-                                <li><strong>Search for music:</strong> find albums or songs just like in the other tools</li>
-                                <li><strong>Drag & drop:</strong> drag items from the search panel into whatever tier you want</li>
-                                <li><strong>Switch modes:</strong> toggle between album mode and song mode using the switch at the top</li>
-                                <li><strong>Customize tiers:</strong> rename tiers, change their colors, add or remove tiers in the settings</li>
-                                <li><strong>Custom tiles:</strong> create your own tiles with custom text and colors</li>
+                                <li><strong>Album mode:</strong> search and add albums, then drag them into tiers</li>
+                                <li><strong>Song mode:</strong> toggle the Album/Song switch at the top to rank individual tracks instead</li>
+                                <li>Items start in the Unranked section — drag them into tiers when you're ready</li>
                             </ul>
                         </div>
 
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Tips & Tricks</h4>
                             <ul class="space-y-2 text-gray-300">
-                                <li><strong>Right-click to rename:</strong> right-click on any album or song to rename it</li>
-                                <li><strong>Search by artist:</strong> use the advanced search to browse an artist's entire discography</li>
-                                <li><strong>Unranked section:</strong> items start in the unranked section - drag them into tiers when you're ready</li>
-                                <li><strong>Export options:</strong> save as PNG image or export as JSON to continue later</li>
-                                <li><strong>Collapse search:</strong> hide the search panel for a cleaner view when you're done adding items</li>
+                                <li><strong>Right-click to rename:</strong> right-click any tile to rename it</li>
+                                <li><strong>Settings panel:</strong> rename tiers, change tier colours, add/remove tiers, bulk-move items</li>
+                                <li><strong>Custom tiles:</strong> create your own tile with custom text and colour</li>
+                                <li><strong>Collapse search:</strong> hide the search sidebar once you're done adding items (Cmd+H)</li>
+                                <li><strong>Auto-save:</strong> your tier list saves automatically to the browser</li>
                             </ul>
                         </div>
 
                         <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Album vs Song Mode</h4>
-                            <p class="text-gray-300 mb-2">You can switch between two modes:</p>
-                            <ul class="space-y-1 text-gray-300 ml-4">
-                                <li><strong>Album mode:</strong> rank entire albums</li>
-                                <li><strong>Song mode:</strong> rank individual songs from those albums</li>
+                            <h4 class="text-xl font-semibold text-white mb-2">Exporting</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Export as image:</strong> downloads a clean PNG of your tier list</li>
+                                <li><strong>Save as JSON:</strong> exports your full tier list as a file to continue later</li>
                             </ul>
-                            <p class="text-gray-300 mt-2">Warning: switching modes will move everything to unranked, so finish one mode before switching!</p>
                         </div>
 
                         <div class="bg-white/5 rounded-xl p-4 border border-white/10">
-                            <p class="text-sm text-gray-400"><strong>Note:</strong> your tier list is automatically saved in your browser, so you can come back to it later. Just don't clear your browser data!</p>
+                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
+                                Keyboard Shortcuts
+                            </h4>
+                            <div class="space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span>Undo last action</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl Z</kbd></div>
+                                <div class="flex items-center justify-between"><span>Redo</span><span class="flex gap-1"><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl ⇧ Z</kbd><span class="text-gray-500 text-xs mx-1">or</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl Y</kbd></span></div>
+                                <div class="flex items-center justify-between"><span>Toggle search panel</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl H</kbd></div>
+                                <div class="flex items-center justify-between"><span>Export as image</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl E</kbd></div>
+                                <div class="flex items-center justify-between"><span>Save as JSON</span><kbd class="px-2 py-0.5 bg-white/10 rounded text-xs">⌘/Ctrl S</kbd></div>
+                            </div>
                         </div>
                     </div>
                 `
             }
         };
-
         function showHelp(tool) {
             const modal = document.getElementById('helpModal');
             const title = document.getElementById('helpTitle');
             const content = document.getElementById('helpContent');
-            
+
             const help = helpContent[tool];
             title.textContent = help.title;
             content.innerHTML = help.content;
-            
+
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
-            
+
             // Mark as read and remove orange tint
             openedHelp[tool] = true;
             localStorage.setItem('openedHelp', JSON.stringify(openedHelp));
-            
-            const buttons = document.querySelectorAll(`button[onclick="showHelp('${tool}')"]`);
+
+            const buttons = document.querySelectorAll(`button[onclick = "showHelp('${tool}')"]`);
             buttons.forEach(btn => btn.classList.remove('unread'));
         }
 
@@ -482,4 +617,5 @@
         });
     </script>
 </body>
+
 </html>
