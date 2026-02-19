@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guesser - μsic tools</title>
-    
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -12,29 +13,54 @@
 
     <style>
         @keyframes blob1 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(150px, 100px) scale(1.2); }
-            66% { transform: translate(-100px, 150px) scale(0.9); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(150px, 100px) scale(1.2);
+            }
+
+            66% {
+                transform: translate(-100px, 150px) scale(0.9);
+            }
         }
+
         @keyframes blob2 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(-150px, -100px) scale(0.9); }
-            66% { transform: translate(100px, -150px) scale(1.2); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(-150px, -100px) scale(0.9);
+            }
+
+            66% {
+                transform: translate(100px, -150px) scale(1.2);
+            }
         }
+
         .grain {
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
             pointer-events: none;
         }
+
         .dropdown-selected {
-            background: linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%);
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
             color: #000000 !important;
         }
+
         .dropdown-not-selected {
-            background: rgba(255,255,255,0.5);
+            background: rgba(255, 255, 255, 0.5);
             color: #6b7280 !important;
         }
     </style>
 </head>
+
 <body class="bg-black text-white">
     <div id="root"></div>
 
@@ -152,7 +178,7 @@
                         canvas.height = 50;
                         ctx.drawImage(img, 0, 0, 50, 50);
                         const data = ctx.getImageData(10, 10, 30, 30).data;
-                        
+
                         let r = 0, g = 0, b = 0;
                         for (let i = 0; i < data.length; i += 4) {
                             r += data[i];
@@ -160,7 +186,7 @@
                             b += data[i + 2];
                         }
                         const pixels = data.length / 4;
-                        resolve(`rgb(${Math.floor(r/pixels)}, ${Math.floor(g/pixels)}, ${Math.floor(b/pixels)})`);
+                        resolve(`rgb(${Math.floor(r / pixels)}, ${Math.floor(g / pixels)}, ${Math.floor(b / pixels)})`);
                     } catch (e) {
                         resolve('#ff0080');
                     }
@@ -198,7 +224,7 @@
                             localStorage.setItem(key, JSON.stringify(value));
                             return true;
                         }
-                    } catch {}
+                    } catch { }
                     return false;
                 }
             }
@@ -220,7 +246,7 @@
         // --- Reusable Components ---
         const ConfirmDialog = ({ isOpen, onConfirm, onCancel, title, message }) => {
             if (!isOpen) return null;
-            
+
             return (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white/10 backdrop-blur-2xl rounded-2xl p-6 max-w-md w-full border border-white/20">
@@ -351,7 +377,7 @@
                         colorCache.current[album.artworkUrl100] = color;
                         return color;
                     };
-                    
+
                     Promise.all([getAlbumColor(lastTwo[0]), getAlbumColor(lastTwo[1])]).then(colors => {
                         setBgColors(colors);
                     });
@@ -364,7 +390,7 @@
                         colorCache.current[album.artworkUrl100] = color;
                         return color;
                     };
-                    
+
                     getAlbumColor(gameState.selectedAlbums[0]).then(color => {
                         setBgColors([color, getRandomColor()]);
                     });
@@ -374,8 +400,8 @@
             // Filter songs based on current guess - optimized with useMemo
             const filteredSongs = useMemo(() => {
                 if (!currentGuess.trim() || gameState.stage !== 'playing') return [];
-                
-                return gameState.allSongs.filter(song => 
+
+                return gameState.allSongs.filter(song =>
                     song.name.toLowerCase().includes(currentGuess.toLowerCase()) &&
                     !gameState.guesses.find(g => g.song.name === song.name)
                 ).slice(0, 10);
@@ -385,7 +411,7 @@
             useEffect(() => {
                 const handleKeyDown = (e) => {
                     if (filteredSongs.length === 0 || isSubmittingGuess) return;
-                    
+
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         setSelectedSongIndex(prev => (prev + 1) % filteredSongs.length);
@@ -429,7 +455,7 @@
 
             const saveRecentGame = useCallback((config) => {
                 const randomAlbumArt = config.albums[Math.floor(Math.random() * config.albums.length)]?.artworkUrl100;
-                
+
                 const newGame = {
                     id: Date.now(),
                     timestamp: new Date().toISOString(),
@@ -449,23 +475,23 @@
                     newStats.artistCounts = newStats.artistCounts || {};
                     newStats.artistCounts[artist.artistName] = (newStats.artistCounts[artist.artistName] || 0) + 1;
                 });
-                
+
                 const mostPlayed = Object.entries(newStats.artistCounts).sort((a, b) => b[1] - a[1])[0];
                 if (mostPlayed) {
                     newStats.favoriteArtist = mostPlayed[0];
                 }
-                
+
                 saveStats(newStats);
             }, [recentGames, stats, saveStats]);
 
             const togglePin = useCallback((game) => {
                 const isPinned = pinnedGames.find(g => g.id === game.id);
-                
+
                 if (isPinned) {
                     const updated = pinnedGames.filter(g => g.id !== game.id);
                     setPinnedGames(updated);
                     storage.set('guesser_pinned_games', updated);
-                    
+
                     const updatedRecent = [{ ...game, isPinned: false }, ...recentGames].slice(0, MAX_RECENT);
                     setRecentGames(updatedRecent);
                     storage.set('guesser_recent_games', updatedRecent);
@@ -475,11 +501,11 @@
                         setTimeout(() => setSearchState(s => ({ ...s, error: '' })), 3000);
                         return;
                     }
-                    
+
                     const updated = [...pinnedGames, { ...game, isPinned: true }];
                     setPinnedGames(updated);
                     storage.set('guesser_pinned_games', updated);
-                    
+
                     const updatedRecent = recentGames.filter(g => g.id !== game.id);
                     setRecentGames(updatedRecent);
                     storage.set('guesser_recent_games', updatedRecent);
@@ -500,17 +526,17 @@
 
             const editGame = (game) => {
                 setEditingGame(game.id);
-                
+
                 // Fetch album data for each artist
                 const fetchArtistAlbums = async () => {
                     const artistAlbumsMap = {};
-                    
+
                     for (const artist of game.artists) {
                         try {
                             const albumsData = await jsonpRequest(
                                 `https://itunes.apple.com/lookup?id=${artist.artistId}&entity=album&limit=200`
                             );
-                            
+
                             if (albumsData.results && albumsData.results.length > 1) {
                                 const artistAlbumsData = albumsData.results
                                     .slice(1)
@@ -521,18 +547,18 @@
                                         const typeB = b.collectionType || 'Album';
                                         const orderA = typeOrder[typeA] !== undefined ? typeOrder[typeA] : 3;
                                         const orderB = typeOrder[typeB] !== undefined ? typeOrder[typeB] : 3;
-                                        
+
                                         if (orderA !== orderB) return orderA - orderB;
                                         return new Date(b.releaseDate) - new Date(a.releaseDate);
                                     });
-                                    
+
                                 artistAlbumsMap[artist.artistId] = artistAlbumsData;
                             }
                         } catch (err) {
                             console.error('Failed to fetch albums for artist:', artist.artistName);
                         }
                     }
-                    
+
                     setGameState(s => ({
                         ...s,
                         selectedArtists: game.artists,
@@ -540,10 +566,10 @@
                         artistAlbums: artistAlbumsMap,
                         stage: 'selectAlbums'
                     }));
-                    
+
                     setSelectedArtistTab(-1); // Set to "All" tab
                 };
-                
+
                 fetchArtistAlbums();
             };
 
@@ -619,9 +645,9 @@
                             const typeB = b.collectionType || 'Album';
                             const orderA = typeOrder[typeA] !== undefined ? typeOrder[typeA] : 3;
                             const orderB = typeOrder[typeB] !== undefined ? typeOrder[typeB] : 3;
-                            
+
                             if (orderA !== orderB) return orderA - orderB;
-                            
+
                             // Within same type, sort by release date (newest first)
                             return new Date(b.releaseDate) - new Date(a.releaseDate);
                         });
@@ -673,14 +699,14 @@
                     if (!gameState.selectedArtists[selectedArtistTab]) return;
                     const artist = gameState.selectedArtists[selectedArtistTab];
                     const albums = gameState.artistAlbums[artist.artistId] || [];
-                    
+
                     const newSelected = [...gameState.selectedAlbums];
                     albums.forEach(album => {
                         if (!newSelected.find(a => a.collectionId === album.collectionId)) {
                             newSelected.push(album);
                         }
                     });
-                    
+
                     setGameState(s => ({ ...s, selectedAlbums: newSelected }));
                 }
             };
@@ -694,10 +720,10 @@
                     if (!gameState.selectedArtists[selectedArtistTab]) return;
                     const artist = gameState.selectedArtists[selectedArtistTab];
                     const albums = gameState.artistAlbums[artist.artistId] || [];
-                    
+
                     setGameState(s => ({
                         ...s,
-                        selectedAlbums: s.selectedAlbums.filter(selected => 
+                        selectedAlbums: s.selectedAlbums.filter(selected =>
                             !albums.find(album => album.collectionId === selected.collectionId)
                         )
                     }));
@@ -720,20 +746,20 @@
                     const albums = s.artistAlbums[artistId] || [];
                     const newArtistAlbums = { ...s.artistAlbums };
                     delete newArtistAlbums[artistId];
-                    
+
                     const newSelectedArtists = s.selectedArtists.filter(a => a.artistId !== artistId);
-                    
+
                     return {
                         ...s,
                         selectedArtists: newSelectedArtists,
-                        selectedAlbums: s.selectedAlbums.filter(album => 
+                        selectedAlbums: s.selectedAlbums.filter(album =>
                             !albums.find(a => a.collectionId === album.collectionId)
                         ),
                         artistAlbums: newArtistAlbums,
                         stage: newSelectedArtists.length === 0 ? 'recentGames' : 'selectAlbums'
                     };
                 });
-                
+
                 setSelectedArtistTab(0);
                 setConfirmDialog({ isOpen: false, type: null, data: null });
             };
@@ -789,10 +815,10 @@
                         gameOver: false,
                         won: false
                     }));
-                    
+
                     setBgColors([getRandomColor(), getRandomColor()]);
                     setShowAnswer(false);
-                    
+
                     saveRecentGame({ artists, albums });
                     setSearchState(s => ({ ...s, loadingSongs: false }));
                 } catch (err) {
@@ -837,16 +863,16 @@
                 const guess = {
                     song: song,
                     isCorrect: song.name === gameState.targetSong.name,
-                    durationMatch: song.duration === gameState.targetSong.duration ? 'correct' : 
-                                  Math.abs(durationDiff) < 30000 ? 'close' : 'far',
+                    durationMatch: song.duration === gameState.targetSong.duration ? 'correct' :
+                        Math.abs(durationDiff) < 30000 ? 'close' : 'far',
                     durationDirection: durationDiff > 0 ? 'down' : durationDiff < 0 ? 'up' : 'exact',
                     dateMatch: song.releaseDate === gameState.targetSong.releaseDate ? 'correct' :
-                              Math.abs(dateDiff) < 31536000000 ? 'close' : 'far',
+                        Math.abs(dateDiff) < 31536000000 ? 'close' : 'far',
                     dateDirection: dateDiff > 0 ? 'down' : dateDiff < 0 ? 'up' : 'exact',
                     trackMatch: song.trackNumber === gameState.targetSong.trackNumber ? 'correct' :
-                                Math.abs(trackDiff) <= 2 ? 'close' : 'far',
+                        Math.abs(trackDiff) <= 2 ? 'close' : 'far',
                     trackDirection: trackDiff > 0 ? 'down' : trackDiff < 0 ? 'up' : 'exact',
-                    artistMatch: gameState.selectedArtists.length > 1 
+                    artistMatch: gameState.selectedArtists.length > 1
                         ? (song.artistName === gameState.targetSong.artistName ? 'correct' : 'far')
                         : null,
                     albumMatch: song.albumId === gameState.targetSong.albumId ? 'correct' : 'far',
@@ -870,7 +896,7 @@
                 if (gameOver) {
                     const newStats = { ...stats };
                     newStats.gamesPlayed++;
-                    
+
                     if (won) {
                         newStats.gamesWon++;
                         newStats.currentStreak++;
@@ -879,7 +905,7 @@
                     } else {
                         newStats.currentStreak = 0;
                     }
-                    
+
                     saveStats(newStats);
                 }
             };
@@ -929,12 +955,12 @@
             const confirmGiveUp = () => {
                 setShowAnswer(true);
                 setGameState(s => ({ ...s, gameOver: true }));
-                
+
                 const newStats = { ...stats };
                 newStats.gamesPlayed++;
                 newStats.currentStreak = 0;
                 saveStats(newStats);
-                
+
                 setConfirmDialog({ isOpen: false, type: null, data: null });
             };
 
@@ -959,12 +985,12 @@
             const generateShareText = () => {
                 const guessCount = gameState.won ? gameState.guesses.length : 'X';
                 let text = `🎵 Guesser ${guessCount}/${MAX_GUESSES}\n\n`;
-                
+
                 gameState.guesses.forEach(guess => {
                     const duration = guess.durationMatch === 'correct' ? '🟩' : guess.durationMatch === 'close' ? '🟨' : '⬛';
                     const date = guess.dateMatch === 'correct' ? '🟩' : guess.dateMatch === 'close' ? '🟨' : '⬛';
                     const track = guess.trackMatch === 'correct' ? '🟩' : guess.trackMatch === 'close' ? '🟨' : '⬛';
-                    const artist = gameState.selectedArtists.length > 1 
+                    const artist = gameState.selectedArtists.length > 1
                         ? (guess.artistMatch === 'correct' ? '🟩' : '⬛')
                         : '';
                     text += `${duration}${date}${track}${artist}\n`;
@@ -997,15 +1023,15 @@
             };
 
             const paginatedSuggestions = searchState.suggestions.slice(
-                searchState.page * ITEMS_PER_PAGE, 
+                searchState.page * ITEMS_PER_PAGE,
                 (searchState.page + 1) * ITEMS_PER_PAGE
             );
 
             const hintLevel = getHintLevel();
             const remainingGuesses = MAX_GUESSES - gameState.guesses.length;
-            
+
             const displayedPinnedGames = showAllPinned ? pinnedGames : pinnedGames.slice(0, 4);
-            
+
             const GameCard = useCallback(({ game, isPinned, onPin, onLoad, onEdit, onExpand, isExpanded }) => (
                 <div className="bg-white/10 rounded-xl border border-white/20 hover:bg-white/15 transition-all">
                     <div className="p-4">
@@ -1068,7 +1094,7 @@
             return (
                 <div className="min-h-screen bg-black relative overflow-hidden">
                     <AnimatedBackground colors={bgColors} />
-                    
+
                     <ConfirmDialog
                         isOpen={confirmDialog.isOpen}
                         onConfirm={confirmDialog.type === 'giveUp' ? confirmGiveUp : confirmRemoveArtist}
@@ -1128,7 +1154,7 @@
                                                                 <div className="text-xs text-gray-300">Max Streak</div>
                                                             </div>
                                                         </div>
-                                                        
+
                                                         {stats.favoriteArtist && (
                                                             <div className="text-center p-3 bg-white/10 rounded-lg">
                                                                 <p className="text-xs text-gray-300">Favorite Artist</p>
@@ -1136,16 +1162,16 @@
                                                                 <p className="text-xs text-gray-400">{stats.artistCounts[stats.favoriteArtist]} games</p>
                                                             </div>
                                                         )}
-                                                        
+
                                                         <div>
                                                             <h4 className="text-sm font-semibold text-white mb-2">Guess Distribution</h4>
                                                             {stats.guessDistribution.map((count, idx) => (
                                                                 <div key={idx} className="flex items-center gap-2 mb-1">
                                                                     <span className="text-white w-4 text-sm">{idx + 1}</span>
                                                                     <div className="flex-1 bg-white/20 rounded h-5 overflow-hidden">
-                                                                        <div 
+                                                                        <div
                                                                             className="bg-green-500 h-full flex items-center justify-end pr-2 transition-all"
-                                                                            style={{ 
+                                                                            style={{
                                                                                 width: `${stats.gamesWon > 0 ? Math.max((count / stats.gamesWon) * 100, count > 0 ? 8 : 0) : 0}%`
                                                                             }}
                                                                         >
@@ -1157,7 +1183,7 @@
                                                         </div>
                                                     </div>
                                                 )}
-                                                
+
                                                 {stats.gamesPlayed === 0 && (
                                                     <p className="text-gray-400 text-center text-sm">Play your first game to see stats!</p>
                                                 )}
@@ -1176,7 +1202,7 @@
                                                             <h3 className="text-lg font-bold text-white">Pinned Games ({pinnedGames.length})</h3>
                                                             <ChevronDown className={`w-5 h-5 text-white transition-transform ${pinnedCollapsed ? '' : 'rotate-180'}`} />
                                                         </button>
-                                                        
+
                                                         {!pinnedCollapsed && (
                                                             <>
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1193,7 +1219,7 @@
                                                                         />
                                                                     ))}
                                                                 </div>
-                                                                
+
                                                                 {pinnedGames.length > 4 && (
                                                                     <button
                                                                         onClick={() => setShowAllPinned(!showAllPinned)}
@@ -1216,7 +1242,7 @@
                                                             <h3 className="text-lg font-bold text-white">Recent Games</h3>
                                                             <ChevronDown className={`w-5 h-5 text-white transition-transform ${recentCollapsed ? '' : 'rotate-180'}`} />
                                                         </button>
-                                                        
+
                                                         {!recentCollapsed && (
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                                 {recentGames.map((game) => (
@@ -1346,11 +1372,10 @@
                                         <div className="flex gap-2 mb-4 flex-wrap">
                                             <button
                                                 onClick={() => setSelectedArtistTab(-1)}
-                                                className={`px-4 py-2 rounded-lg transition-all ${
-                                                    selectedArtistTab === -1
+                                                className={`px-4 py-2 rounded-lg transition-all ${selectedArtistTab === -1
                                                         ? 'bg-white/20 border-2 border-white/50 text-white'
                                                         : 'bg-white/10 border-2 border-white/20 text-gray-300 hover:bg-white/15'
-                                                }`}
+                                                    }`}
                                             >
                                                 All
                                             </button>
@@ -1358,11 +1383,10 @@
                                                 <button
                                                     key={artist.artistId}
                                                     onClick={() => setSelectedArtistTab(idx)}
-                                                    className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                                                        selectedArtistTab === idx
+                                                    className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${selectedArtistTab === idx
                                                             ? 'bg-white/20 border-2 border-white/50 text-white'
                                                             : 'bg-white/10 border-2 border-white/20 text-gray-300 hover:bg-white/15'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <span className="truncate max-w-[150px]">{artist.artistName}</span>
                                                     <button
@@ -1421,7 +1445,7 @@
                                     {(() => {
                                         let albums = [];
                                         let tabTitle = '';
-                                        
+
                                         if (selectedArtistTab === -1) {
                                             // "All" tab - show all albums from all artists
                                             tabTitle = 'All Artists';
@@ -1435,12 +1459,12 @@
                                             tabTitle = artist.artistName;
                                             albums = gameState.artistAlbums[artist.artistId] || [];
                                         }
-                                        
-                                        const selectedFromThisTab = albums.filter(album => 
+
+                                        const selectedFromThisTab = albums.filter(album =>
                                             gameState.selectedAlbums.find(a => a.collectionId === album.collectionId)
                                         );
                                         const allSelected = selectedFromThisTab.length === albums.length && albums.length > 0;
-                                        
+
                                         return (
                                             <div className="mb-20">
                                                 <div className="flex items-center justify-between mb-3">
@@ -1469,11 +1493,10 @@
                                                             <button
                                                                 key={album.collectionId}
                                                                 onClick={() => toggleAlbumSelection(album)}
-                                                                className={`p-3 rounded-xl transition-all border-2 ${
-                                                                    isSelected
+                                                                className={`p-3 rounded-xl transition-all border-2 ${isSelected
                                                                         ? 'bg-white/20 border-white/50 scale-95'
                                                                         : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <img src={album.artworkUrl100} alt={album.collectionName} className="w-full aspect-square rounded-lg mb-2 object-cover" loading="lazy" />
                                                                 <p className="text-white font-medium text-sm text-center line-clamp-2">{album.collectionName}</p>
@@ -1526,7 +1549,7 @@
                                                         autoFocus
                                                         disabled={isSubmittingGuess}
                                                     />
-                                                    
+
                                                     {filteredSongs.length > 0 && (
                                                         <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl overflow-hidden z-10 shadow-xl max-h-96 overflow-y-auto">
                                                             {filteredSongs.map((song, idx) => (
@@ -1534,9 +1557,8 @@
                                                                     key={song.name}
                                                                     onClick={() => makeGuess(song)}
                                                                     disabled={isSubmittingGuess}
-                                                                    className={`w-full px-6 py-3 text-left transition-colors border-b border-gray-200 last:border-b-0 disabled:opacity-50 ${
-                                                                        idx === selectedSongIndex ? 'dropdown-selected' : 'dropdown-not-selected'
-                                                                    }`}
+                                                                    className={`w-full px-6 py-3 text-left transition-colors border-b border-gray-200 last:border-b-0 disabled:opacity-50 ${idx === selectedSongIndex ? 'dropdown-selected' : 'dropdown-not-selected'
+                                                                        }`}
                                                                 >
                                                                     <p className="font-medium">{song.name}</p>
                                                                     <p className="text-sm">{song.albumName} - {song.artistName}</p>
@@ -1544,7 +1566,7 @@
                                                             ))}
                                                         </div>
                                                     )}
-                                                    
+
                                                     {isSubmittingGuess && (
                                                         <div className="absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl border border-white/30 rounded-xl p-4 flex items-center justify-center gap-2">
                                                             <Loader2 className="w-5 h-5 text-gray-900" />
@@ -1678,5 +1700,119 @@
 
         ReactDOM.render(<GuesserMode />, document.getElementById('root'));
     </script>
+    <!-- Help Button -->
+    <button id="helpBtn"
+        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
+        class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
+        style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+    </button>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+        style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);"
+        onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
+        <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
+            <div class="rounded-3xl p-8 shadow-2xl"
+                style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px);">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-3xl font-bold text-white">Guesser</h3>
+                    <button
+                        onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        style="background: rgba(255,255,255,0.1);">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height: 60vh;">
+                    <div class="space-y-6">
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">How to Play</h4>
+                            <p class="text-gray-300">It's like Wordle but for music. You've got 6 tries to guess a
+                                random song from whatever artist and albums you pick. After each wrong guess you get
+                                colour-coded clues on how close you were.</p>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Getting Started</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-gray-300">
+                                <li>Search for an artist (someone with a big discography is more fun). You can add
+                                    multiple artists to make a larger pool.</li>
+                                <li>Pick which albums to include — or just hit select all</li>
+                                <li>A random song is picked and you start guessing</li>
+                            </ol>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Clue Colours</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><span
+                                        class="inline-block w-4 h-4 bg-green-500 rounded mr-2"></span><strong>Green</strong>
+                                    — exact match for that column</li>
+                                <li><span
+                                        class="inline-block w-4 h-4 bg-yellow-500 rounded mr-2"></span><strong>Yellow</strong>
+                                    — you're close (within 30 s for duration, roughly same year, a couple of tracks away
+                                    for position)</li>
+                                <li><span
+                                        class="inline-block w-4 h-4 bg-red-500/40 rounded mr-2"></span><strong>Red</strong>
+                                    — not close at all</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Progressive Hints</h4>
+                            <p class="text-gray-300 mb-2">Hints unlock as guesses go:</p>
+                            <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
+                                <li>Guess 2 — first letter of the song title</li>
+                                <li>Guess 3 — character count of the title</li>
+                                <li>Guess 5 — which album it's from</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Stats & Sharing</h4>
+                            <p class="text-gray-300">Your win/loss stats are saved locally. After a game you can share
+                                your result as an emoji grid.</p>
+                        </div>
+                        <div class="rounded-xl p-4"
+                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                                Keyboard Shortcuts
+                            </h4>
+                            <div class="space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span>Navigate song dropdown</span><span
+                                        class="flex gap-1"><kbd class="px-2 py-0.5 rounded text-xs"
+                                            style="background:rgba(255,255,255,0.1);">↑</kbd><kbd
+                                            class="px-2 py-0.5 rounded text-xs"
+                                            style="background:rgba(255,255,255,0.1);">↓</kbd></span></div>
+                                <div class="flex items-center justify-between"><span>Submit highlighted guess</span><kbd
+                                        class="px-2 py-0.5 rounded text-xs"
+                                        style="background:rgba(255,255,255,0.1);">Enter</kbd></div>
+                                <div class="flex items-center justify-between"><span>Clear search input</span><kbd
+                                        class="px-2 py-0.5 rounded text-xs"
+                                        style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('helpModal').classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        });
+    </script>
 </body>
+
 </html>
