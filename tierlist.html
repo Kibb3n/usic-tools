@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,44 +12,73 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         @keyframes blob1 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(150px, 100px) scale(1.2); }
-            66% { transform: translate(-100px, 150px) scale(0.9); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(150px, 100px) scale(1.2);
+            }
+
+            66% {
+                transform: translate(-100px, 150px) scale(0.9);
+            }
         }
+
         @keyframes blob2 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(-150px, -100px) scale(0.9); }
-            66% { transform: translate(100px, -150px) scale(1.2); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(-150px, -100px) scale(0.9);
+            }
+
+            66% {
+                transform: translate(100px, -150px) scale(1.2);
+            }
         }
+
         .grain {
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
             pointer-events: none;
         }
+
         .tier-slot {
             border: 2px dashed rgba(255, 255, 255, 0.2);
             transition: all 0.2s;
             min-height: 80px;
         }
+
         .tier-slot.drag-over {
             border-color: #60a5fa !important;
             background: rgba(96, 165, 250, 0.2);
         }
+
         .draggable-item {
             cursor: grab;
             user-select: none;
             transition: transform 0.2s;
         }
+
         .draggable-item:hover {
             transform: scale(1.05);
             z-index: 10;
         }
+
         .draggable-item:active {
             cursor: grabbing;
         }
+
         .draggable-item.dragging {
             opacity: 0.4;
             transform: scale(0.9);
         }
+
         .song-bg {
             position: absolute;
             inset: 0;
@@ -56,6 +86,7 @@
             filter: blur(8px);
             transform: scale(1.1);
         }
+
         .song-title {
             position: relative;
             z-index: 1;
@@ -63,6 +94,7 @@
             padding: 4px 8px;
             border-radius: 4px;
         }
+
         .mode-switch {
             position: relative;
             width: 200px;
@@ -72,6 +104,7 @@
             cursor: pointer;
             border: 2px solid rgba(255, 255, 255, 0.2);
         }
+
         .mode-switch-slider {
             position: absolute;
             top: 2px;
@@ -83,9 +116,11 @@
             transition: transform 0.3s ease;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
+
         .mode-switch.songs .mode-switch-slider {
             transform: translateX(96px);
         }
+
         .mode-label {
             position: absolute;
             top: 50%;
@@ -96,24 +131,31 @@
             width: 100px;
             text-align: center;
         }
+
         .mode-label.left {
             left: 0;
         }
+
         .mode-label.right {
             right: 0;
         }
+
         .mode-switch .mode-label.left {
             color: black;
         }
+
         .mode-switch .mode-label.right {
             color: white;
         }
+
         .mode-switch.songs .mode-label.left {
             color: white;
         }
+
         .mode-switch.songs .mode-label.right {
             color: black;
         }
+
         .editable-title {
             cursor: text;
             transition: all 0.2s;
@@ -121,24 +163,29 @@
             min-width: 200px;
             text-align: center;
         }
+
         .editable-title:hover:not(.editing) {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
             padding: 4px 12px;
         }
+
         .undo-toast {
             animation: slideUp 0.3s ease-out;
         }
+
         @keyframes slideUp {
             from {
                 transform: translateY(100px);
                 opacity: 0;
             }
+
             to {
                 transform: translateY(0);
                 opacity: 1;
             }
         }
+
         .sticky-sidebar {
             position: sticky;
             top: 1rem;
@@ -147,6 +194,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="root"></div>
 
@@ -361,7 +409,7 @@
             const [createTileModalOpen, setCreateTileModalOpen] = useState(false);
             const [newTileTitle, setNewTileTitle] = useState('');
             const [newTileColor, setNewTileColor] = useState('#8b5cf6');
-            
+
             const [searchCollapsed, setSearchCollapsed] = useState(false);
             const [unrankedInSidebar, setUnrankedInSidebar] = useState(false);
             const [settingsOpen, setSettingsOpen] = useState(false);
@@ -417,7 +465,7 @@
                         e.preventDefault();
                         undo();
                     }
-                    if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') || 
+                    if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') ||
                         ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
                         e.preventDefault();
                         redo();
@@ -495,7 +543,7 @@
 
             useEffect(() => {
                 const allItems = Object.values(tiers).flat().filter(item => item);
-                
+
                 if (allItems.length === 0) {
                     setBgColors(['#ff0080', '#7928ca']);
                     return;
@@ -504,7 +552,7 @@
                 const extractColors = async () => {
                     const colors = [];
                     const recentItems = allItems.slice(-2);
-                    
+
                     for (const item of recentItems) {
                         try {
                             if (item.custom) {
@@ -515,46 +563,46 @@
                             const img = new Image();
                             img.crossOrigin = 'Anonymous';
                             img.src = item.image;
-                            
+
                             await new Promise((resolve, reject) => {
                                 img.onload = resolve;
                                 img.onerror = reject;
                                 setTimeout(reject, 3000);
                             });
-                            
+
                             const canvas = document.createElement('canvas');
                             canvas.width = 50;
                             canvas.height = 50;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, 50, 50);
-                            
+
                             const imageData = ctx.getImageData(0, 0, 50, 50);
                             const data = imageData.data;
-                            
+
                             let r = 0, g = 0, b = 0;
                             for (let i = 0; i < data.length; i += 4) {
                                 r += data[i];
                                 g += data[i + 1];
                                 b += data[i + 2];
                             }
-                            
+
                             const count = data.length / 4;
                             r = Math.floor(r / count);
                             g = Math.floor(g / count);
                             b = Math.floor(b / count);
-                            
+
                             colors.push(`rgb(${r}, ${g}, ${b})`);
                         } catch (err) {
                             console.error('Color extraction failed:', err);
                         }
                     }
-                    
+
                     if (colors.length > 0) {
                         if (colors.length === 1) colors.push(colors[0]);
                         setBgColors(colors);
                     }
                 };
-                
+
                 extractColors();
             }, [tiers]);
 
@@ -572,17 +620,17 @@
                         const lastfmData = await lastfmResponse.json();
 
                         if (lastfmData.results?.albummatches?.album) {
-                            const albums = Array.isArray(lastfmData.results.albummatches.album) 
-                                ? lastfmData.results.albummatches.album 
+                            const albums = Array.isArray(lastfmData.results.albummatches.album)
+                                ? lastfmData.results.albummatches.album
                                 : [lastfmData.results.albummatches.album];
-                            
+
                             const enrichedAlbums = await Promise.all(
                                 albums
                                     .filter(album => {
                                         const image = album.image?.find(img => img.size === 'extralarge')?.['#text'] || '';
-                                        return image && image.length > 20 && 
-                                               !image.includes('2a96cbd8b46e442fc41c2b86b821562f') && 
-                                               !image.includes('c6f59c1e5e7240a4c0d427abd71f3dbb');
+                                        return image && image.length > 20 &&
+                                            !image.includes('2a96cbd8b46e442fc41c2b86b821562f') &&
+                                            !image.includes('c6f59c1e5e7240a4c0d427abd71f3dbb');
                                     })
                                     .slice(0, 15)
                                     .map(async album => {
@@ -590,10 +638,10 @@
                                             const infoUrl = `https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=33866e12a02528e0bb9211bd2f351c28&artist=${encodeURIComponent(album.artist)}&album=${encodeURIComponent(album.name)}&format=json`;
                                             const infoResponse = await fetch(infoUrl);
                                             const infoData = await infoResponse.json();
-                                            
+
                                             const playcount = parseInt(infoData.album?.playcount || '0');
                                             const listeners = parseInt(infoData.album?.listeners || '0');
-                                            
+
                                             return {
                                                 title: album.name,
                                                 artist: album.artist,
@@ -607,7 +655,7 @@
                                         }
                                     })
                             );
-                            
+
                             lastfmCanonical = enrichedAlbums.filter(a => a !== null);
                         }
                     } catch (error) {
@@ -618,7 +666,7 @@
                     const itunesData = await jsonpRequest(
                         `https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&entity=album&limit=200`
                     );
-                    
+
                     let itunesResults = [];
                     if (itunesData.results) {
                         itunesResults = itunesData.results
@@ -643,7 +691,7 @@
                             const itunesArtistNorm = normalizeString(itunes.artist);
                             const lfmTitleNorm = normalizeString(lfm.title);
                             const lfmArtistNorm = normalizeString(lfm.artist);
-                            
+
                             return itunesTitleNorm === lfmTitleNorm && itunesArtistNorm === lfmArtistNorm;
                         });
 
@@ -662,7 +710,7 @@
                             const mergedArtistNorm = normalizeString(merged.artist);
                             const lfmTitleNorm = normalizeString(lfm.title);
                             const lfmArtistNorm = normalizeString(lfm.artist);
-                            
+
                             return mergedTitleNorm === lfmTitleNorm && mergedArtistNorm === lfmArtistNorm;
                         });
                     }).map(lfm => ({
@@ -678,7 +726,7 @@
                     }));
 
                     const allResults = [...mergedResults, ...lastfmOnly];
-                    
+
                     // Remove exact duplicates
                     const seen = new Map();
                     const uniqueResults = [];
@@ -689,32 +737,32 @@
                             uniqueResults.push(album);
                         }
                     }
-                    
+
                     // Advanced sorting with popularity bias
                     const queryNorm = normalizeString(searchQuery);
                     const sortedResults = uniqueResults.sort((a, b) => {
                         const aTitleNorm = normalizeString(a.title);
                         const bTitleNorm = normalizeString(b.title);
-                        
+
                         // Exact title match
                         const aExactTitle = aTitleNorm === queryNorm;
                         const bExactTitle = bTitleNorm === queryNorm;
                         if (aExactTitle && !bExactTitle) return -1;
                         if (!aExactTitle && bExactTitle) return 1;
-                        
+
                         // Both exact matches - sort by popularity
                         if (aExactTitle && bExactTitle) {
                             if (a.popularityScore !== b.popularityScore) {
                                 return b.popularityScore - a.popularityScore;
                             }
                         }
-                        
+
                         // Title starts with query
                         const aStartsTitle = aTitleNorm.startsWith(queryNorm);
                         const bStartsTitle = bTitleNorm.startsWith(queryNorm);
                         if (aStartsTitle && !bStartsTitle) return -1;
                         if (!aStartsTitle && bStartsTitle) return 1;
-                        
+
                         // Both start with query - sort by popularity heavily
                         if (aStartsTitle && bStartsTitle) {
                             if (a.popularityScore > 10000 && b.popularityScore < 10000) return -1;
@@ -723,26 +771,26 @@
                                 return b.popularityScore - a.popularityScore;
                             }
                         }
-                        
+
                         // Contains query in title
                         const aContainsTitle = aTitleNorm.includes(queryNorm);
                         const bContainsTitle = bTitleNorm.includes(queryNorm);
                         if (aContainsTitle && !bContainsTitle) return -1;
                         if (!aContainsTitle && bContainsTitle) return 1;
-                        
+
                         // Sort by popularity for everything else
                         if (a.popularityScore !== b.popularityScore) {
                             return b.popularityScore - a.popularityScore;
                         }
-                        
+
                         // Finally by year
                         if (a.year && b.year && a.year !== b.year) {
                             return b.year - a.year;
                         }
-                        
+
                         return 0;
                     });
-                    
+
                     setSearchResults(sortedResults.slice(0, 40));
                 } catch (error) {
                     console.error('Search error:', error);
@@ -754,21 +802,21 @@
                 if (!artistSearchQuery.trim()) return;
                 setLoadingArtist(true);
                 setArtistSuggestions([]);
-                
+
                 try {
                     const data = await jsonpRequest(
                         `https://itunes.apple.com/search?term=${encodeURIComponent(artistSearchQuery)}&entity=musicArtist&limit=20`
                     );
-                    
+
                     if (data.results) {
                         const seen = new Set();
                         const artists = data.results.filter(item => {
-                                if (item.wrapperType !== 'artist') return false;
-                                const name = item.artistName.toLowerCase();
-                                if (seen.has(name)) return false;
-                                seen.add(name);
-                                return true;
-                            });
+                            if (item.wrapperType !== 'artist') return false;
+                            const name = item.artistName.toLowerCase();
+                            if (seen.has(name)) return false;
+                            seen.add(name);
+                            return true;
+                        });
                         setArtistSuggestions(artists);
                     }
                 } catch (err) {
@@ -781,22 +829,22 @@
                 setLoadingArtist(true);
                 setSelectedArtist(artist);
                 setArtistAlbums([]);
-                
+
                 try {
                     const data = await jsonpRequest(
                         `https://itunes.apple.com/lookup?id=${artist.artistId}&entity=album&limit=200`
                     );
-                    
+
                     if (data.results && data.results.length > 1) {
                         const albums = data.results.slice(1).filter(item => item.wrapperType === 'collection').map(album => ({
-                                id: `itunes-${album.collectionId}`,
-                                title: album.collectionName,
-                                artist: album.artistName,
-                                image: album.artworkUrl100.replace('100x100', '600x600'),
-                                year: album.releaseDate ? new Date(album.releaseDate).getFullYear() : '',
-                                collectionId: album.collectionId,
-                                source: 'iTunes'
-                            })).sort((a, b) => (b.year || 0) - (a.year || 0));
+                            id: `itunes-${album.collectionId}`,
+                            title: album.collectionName,
+                            artist: album.artistName,
+                            image: album.artworkUrl100.replace('100x100', '600x600'),
+                            year: album.releaseDate ? new Date(album.releaseDate).getFullYear() : '',
+                            collectionId: album.collectionId,
+                            source: 'iTunes'
+                        })).sort((a, b) => (b.year || 0) - (a.year || 0));
                         setArtistAlbums(albums);
                     }
                 } catch (err) {
@@ -809,22 +857,22 @@
                 setLoadingSongs(true);
                 setSelectedAlbum(album);
                 setAlbumSongs([]);
-                
+
                 try {
                     const data = await jsonpRequest(
                         `https://itunes.apple.com/lookup?id=${album.collectionId}&entity=song&limit=200`
                     );
-                    
+
                     if (data.results && data.results.length > 1) {
                         const songs = data.results.slice(1).filter(item => item.wrapperType === 'track').sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0)).map(track => ({
-                                id: `track-${track.trackId}`,
-                                title: track.trackName,
-                                artist: track.artistName,
-                                image: album.image,
-                                albumTitle: album.title,
-                                trackNumber: track.trackNumber,
-                                collectionId: album.collectionId
-                            }));
+                            id: `track-${track.trackId}`,
+                            title: track.trackName,
+                            artist: track.artistName,
+                            image: album.image,
+                            albumTitle: album.title,
+                            trackNumber: track.trackNumber,
+                            collectionId: album.collectionId
+                        }));
                         setAlbumSongs(songs);
                     }
                 } catch (err) {
@@ -835,22 +883,22 @@
 
             const fetchAlbumTracks = useCallback(async (album) => {
                 if (!album.collectionId) return [];
-                
+
                 try {
                     const data = await jsonpRequest(
                         `https://itunes.apple.com/lookup?id=${album.collectionId}&entity=song&limit=200`
                     );
-                    
+
                     if (data.results && data.results.length > 1) {
                         return data.results.slice(1).filter(item => item.wrapperType === 'track').sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0)).map(track => ({
-                                id: `track-${track.trackId}`,
-                                title: track.trackName,
-                                artist: track.artistName,
-                                image: album.image,
-                                albumTitle: album.title,
-                                trackNumber: track.trackNumber,
-                                collectionId: album.collectionId
-                            }));
+                            id: `track-${track.trackId}`,
+                            title: track.trackName,
+                            artist: track.artistName,
+                            image: album.image,
+                            albumTitle: album.title,
+                            trackNumber: track.trackNumber,
+                            collectionId: album.collectionId
+                        }));
                     }
                 } catch (err) {
                     console.error('Track fetch error:', err);
@@ -919,7 +967,7 @@
                     saveToHistory(newTiers);
                     return newTiers;
                 });
-                
+
                 setDraggedItem(null);
                 setDraggedFrom(null);
             }, [draggedItem, draggedFrom, saveToHistory]);
@@ -940,7 +988,7 @@
                     const newTiers = { ...prev };
                     const item = newTiers[tier].find(i => i.id === itemId);
                     if (!item) return prev;
-                    
+
                     newTiers[tier] = [item, ...newTiers[tier].filter(i => i.id !== itemId)];
                     saveToHistory(newTiers);
                     return newTiers;
@@ -952,7 +1000,7 @@
                     const newTiers = { ...prev };
                     const item = newTiers[tier].find(i => i.id === itemId);
                     if (!item) return prev;
-                    
+
                     newTiers[tier] = [...newTiers[tier].filter(i => i.id !== itemId), item];
                     saveToHistory(newTiers);
                     return newTiers;
@@ -1006,7 +1054,7 @@
 
             const confirmModeSwitch = useCallback(async () => {
                 setModeWarningOpen(false);
-                
+
                 if (!songsMode) {
                     setAlbumBackup(JSON.parse(JSON.stringify(tiers)));
                     const newTiers = {};
@@ -1014,9 +1062,9 @@
                         newTiers[tierName] = [];
                     });
                     newTiers.unranked = [];
-                    
+
                     const seenSongs = new Set();
-                    
+
                     for (const tierName of Object.keys(tiers)) {
                         const albums = tiers[tierName];
                         for (const album of albums) {
@@ -1058,14 +1106,14 @@
                 setTiers(prev => {
                     const newTiers = { ...prev };
                     const itemsToMove = [...newTiers[bulkMoveFrom]];
-                    
+
                     if (!newTiers[bulkMoveTo]) {
                         newTiers[bulkMoveTo] = [];
                     }
-                    
+
                     newTiers[bulkMoveTo] = [...newTiers[bulkMoveTo], ...itemsToMove];
                     newTiers[bulkMoveFrom] = [];
-                    
+
                     saveToHistory(newTiers);
                     return newTiers;
                 });
@@ -1082,9 +1130,9 @@
                     style.id = 'export-style';
                     style.textContent = '.group:hover > div { opacity: 1 !important; } .group > div { opacity: 0 !important; }';
                     document.head.appendChild(style);
-                    
+
                     await new Promise(resolve => setTimeout(resolve, 100));
-                    
+
                     const canvas = await html2canvas(tierListRef.current, {
                         backgroundColor: '#1a1a1a',
                         scale: 2,
@@ -1092,9 +1140,9 @@
                         useCORS: true,
                         allowTaint: true
                     });
-                    
+
                     document.getElementById('export-style')?.remove();
-                    
+
                     canvas.toBlob((blob) => {
                         const url = URL.createObjectURL(blob);
                         const link = document.createElement('a');
@@ -1123,7 +1171,7 @@
 
             const exportToCSV = useCallback(() => {
                 let csv = 'Tier,Title,Artist,Year\n';
-                
+
                 tierNames.forEach(tierName => {
                     (tiers[tierName] || []).forEach(item => {
                         const title = `"${(item.title || '').replace(/"/g, '""')}"`;
@@ -1132,7 +1180,7 @@
                         csv += `${tierName},${title},${artist},${year}\n`;
                     });
                 });
-                
+
                 (tiers.unranked || []).forEach(item => {
                     const title = `"${(item.title || '').replace(/"/g, '""')}"`;
                     const artist = `"${(item.artist || '').replace(/"/g, '""')}"`;
@@ -1163,14 +1211,14 @@
                         }
                         setSongsMode(false);
                         setAlbumBackup(null);
-                        
+
                         if (data.tierNames) {
                             setTierNames(data.tierNames);
                         }
                         if (data.tierColors) {
                             setTierColors(data.tierColors);
                         }
-                        
+
                         const reconstructedTiers = { ...data.tiers };
                         const namesArray = data.tierNames || DEFAULT_TIERS;
                         namesArray.forEach(tierName => {
@@ -1181,7 +1229,7 @@
                         if (!reconstructedTiers.unranked) {
                             reconstructedTiers.unranked = [];
                         }
-                        
+
                         setTiers(reconstructedTiers);
                         setTitle(data.title || 'My Music Tier List');
                         setSettingsTitleEdit(data.title || 'My Music Tier List');
@@ -1214,7 +1262,7 @@
                     Object.values(tiers).forEach(tierItems => {
                         allItems.push(...tierItems);
                     });
-                    
+
                     setTierNames(DEFAULT_TIERS);
                     setTierColors(TIER_COLORS);
                     const newTiers = {
@@ -1259,7 +1307,7 @@
                 setTierNames(prev => [...prev, newTierName]);
                 setTierColors(prev => ({
                     ...prev,
-                    [newTierName]: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`
+                    [newTierName]: `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`
                 }));
                 setTiers(prev => ({
                     ...prev,
@@ -1298,7 +1346,7 @@
                     alert('Tier name already exists');
                     return;
                 }
-                
+
                 setTierNames(prev => prev.map(n => n === oldName ? newName : n));
                 setTiers(prev => {
                     const newTiers = { ...prev };
@@ -1431,7 +1479,7 @@
                             <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
                                 <h3 className="text-xl font-bold text-white mb-4">Switch Mode</h3>
                                 <p className="text-white mb-6">
-                                    {songsMode 
+                                    {songsMode
                                         ? "Switching back to Album mode will move all items to unranked."
                                         : "Switching to Songs mode will convert all albums to their tracks and move them to unranked."
                                     }
@@ -1779,7 +1827,7 @@
                             <a href="µsic.html" className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg hover:opacity-80 transition-opacity cursor-pointer">
                                 µsic tools
                             </a>
-                            
+
                             <div className="flex flex-wrap items-center gap-3">
                                 {searchCollapsed && (
                                     <button
@@ -1811,7 +1859,7 @@
                                     <span className="hidden sm:inline">Redo</span>
                                 </button>
 
-                                <div 
+                                <div
                                     className={`mode-switch ${songsMode ? 'songs' : ''}`}
                                     onClick={toggleSongsMode}
                                 >
@@ -1879,11 +1927,10 @@
                         </div>
 
                         <div className="px-4 md:px-8 pb-8 max-w-7xl mx-auto">
-                            <div className={`grid gap-4 md:gap-6 transition-all duration-500 ${
-                                showUnrankedInSidebar ? 'lg:grid-cols-[360px_1fr]' : 
-                                !searchCollapsed ? 'lg:grid-cols-[360px_1fr]' : 
-                                'grid-cols-1'
-                            }`}>
+                            <div className={`grid gap-4 md:gap-6 transition-all duration-500 ${showUnrankedInSidebar ? 'lg:grid-cols-[360px_1fr]' :
+                                    !searchCollapsed ? 'lg:grid-cols-[360px_1fr]' :
+                                        'grid-cols-1'
+                                }`}>
                                 {showUnrankedInSidebar && (
                                     <div className="sticky-sidebar bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10">
                                         <h3 className="text-white text-base font-semibold mb-2">Unranked</h3>
@@ -1924,7 +1971,7 @@
                                                 <h3 className="text-lg font-bold text-white mb-3">
                                                     {selectedAlbum ? 'Album Songs' : advancedSearchMode ? 'Search by Artist' : 'Search Albums'}
                                                 </h3>
-                                                
+
                                                 {selectedAlbum ? (
                                                     <div className="space-y-3">
                                                         <button
@@ -1937,7 +1984,7 @@
                                                             <ChevronLeft className="w-4 h-4" />
                                                             Back to Albums
                                                         </button>
-                                                        
+
                                                         <div className="bg-white/10 rounded-lg p-3 border border-white/20">
                                                             <div className="flex gap-3">
                                                                 <img src={selectedAlbum.image} alt={selectedAlbum.title} className="w-16 h-16 rounded object-cover" />
@@ -2140,7 +2187,7 @@
                                                 className="text-xl md:text-2xl font-bold text-white text-center mb-4 bg-white/10 border border-white/20 rounded-lg px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-white/50"
                                             />
                                         ) : (
-                                            <h2 
+                                            <h2
                                                 onClick={handleTitleClick}
                                                 className="editable-title text-xl md:text-2xl font-bold text-white mb-4"
                                             >
@@ -2182,5 +2229,117 @@
 
         ReactDOM.render(<TierListApp />, document.getElementById('root'));
     </script>
+    <!-- Help Button -->
+    <button id="helpBtn"
+        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
+        class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
+        style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+    </button>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+        style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);"
+        onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
+        <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
+            <div class="rounded-3xl p-8 shadow-2xl"
+                style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px);">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-3xl font-bold text-white">Tier List</h3>
+                    <button
+                        onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        style="background: rgba(255,255,255,0.1);">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height: 60vh;">
+                    <div class="space-y-6">
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">What is This?</h4>
+                            <p class="text-gray-300">A drag-and-drop tier list maker for music. Place albums or songs
+                                into tiers (S, A, B, C…) yourself. Unlike the Ranker there's no algorithm — you decide
+                                everything.</p>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Getting Started</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Album mode:</strong> search and add albums, then drag them into tiers</li>
+                                <li><strong>Song mode:</strong> toggle the Album/Song switch at the top to rank
+                                    individual tracks instead</li>
+                                <li>Items start in the Unranked section — drag them into tiers when you're ready</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Tips & Tricks</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Right-click to rename:</strong> right-click any tile to rename it</li>
+                                <li><strong>Settings panel:</strong> rename tiers, change tier colours, add/remove
+                                    tiers, bulk-move items</li>
+                                <li><strong>Custom tiles:</strong> create your own tile with custom text and colour</li>
+                                <li><strong>Collapse search:</strong> hide the search sidebar once you're done adding
+                                    items</li>
+                                <li><strong>Auto-save:</strong> your tier list saves automatically to the browser</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">Exporting</h4>
+                            <ul class="space-y-2 text-gray-300">
+                                <li><strong>Export as image:</strong> downloads a PNG screenshot of your tier list</li>
+                                <li><strong>Save as JSON:</strong> exports the raw data — useful for sharing or resuming
+                                    later</li>
+                            </ul>
+                        </div>
+                        <div class="rounded-xl p-4"
+                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                                Keyboard Shortcuts
+                            </h4>
+                            <div class="space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span>Undo</span><kbd
+                                        class="px-2 py-0.5 rounded text-xs"
+                                        style="background:rgba(255,255,255,0.1);">⌘/Ctrl Z</kbd></div>
+                                <div class="flex items-center justify-between"><span>Redo</span><span
+                                        class="flex gap-1"><kbd class="px-2 py-0.5 rounded text-xs"
+                                            style="background:rgba(255,255,255,0.1);">⌘/Ctrl ⇧ Z</kbd><span
+                                            class="text-gray-500 text-xs mx-1">or</span><kbd
+                                            class="px-2 py-0.5 rounded text-xs"
+                                            style="background:rgba(255,255,255,0.1);">⌘/Ctrl Y</kbd></span></div>
+                                <div class="flex items-center justify-between"><span>Toggle search sidebar</span><kbd
+                                        class="px-2 py-0.5 rounded text-xs"
+                                        style="background:rgba(255,255,255,0.1);">⌘/Ctrl H</kbd></div>
+                                <div class="flex items-center justify-between"><span>Export as image</span><kbd
+                                        class="px-2 py-0.5 rounded text-xs"
+                                        style="background:rgba(255,255,255,0.1);">⌘/Ctrl E</kbd></div>
+                                <div class="flex items-center justify-between"><span>Save as JSON</span><kbd
+                                        class="px-2 py-0.5 rounded text-xs"
+                                        style="background:rgba(255,255,255,0.1);">⌘/Ctrl S</kbd></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('helpModal').classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        });
+    </script>
 </body>
+
 </html>
