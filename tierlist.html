@@ -193,6 +193,7 @@
         const draggedItemRef = useRef(null);
         const draggedFromRef = useRef(null);
         const dropInsertIndexRef = useRef(null);
+        const droppedRef = useRef(false); // guard against duplicate drop events from bubbling
 
         const [renameModalOpen, setRenameModalOpen] = useState(false);
         const [renameItem, setRenameItem] = useState(null);
@@ -509,6 +510,7 @@
             setDraggedFrom(fromTier);
             draggedItemRef.current = item;
             draggedFromRef.current = fromTier;
+            droppedRef.current = false;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', item.id);
             requestAnimationFrame(() => {
@@ -565,6 +567,9 @@
 
         const handleDrop = useCallback((e, toTier) => {
             e.preventDefault();
+            e.stopPropagation();
+            if (droppedRef.current) return; // already handled — ignore bubbled duplicate
+            droppedRef.current = true;
             const item = draggedItemRef.current;
             const fromTier = draggedFromRef.current;
             const insertAt = dropInsertIndexRef.current;
@@ -613,12 +618,30 @@
             });
         }, [saveToHistory]);
 
-        const moveItemToFront = useCallback((tier, itemId) => {
-            setTiers(prev => { const nt={...prev}; const item=nt[tier].find(i=>i.id===itemId); if(!item) return prev; nt[tier]=[item,...nt[tier].filter(i=>i.id!==itemId)]; saveToHistory(nt); return nt; });
+        const moveItemLeft = useCallback((tier, itemId) => {
+            setTiers(prev => {
+                const nt = {...prev};
+                const arr = [...(nt[tier] || [])];
+                const idx = arr.findIndex(i => i.id === itemId);
+                if (idx <= 0) return prev;
+                [arr[idx-1], arr[idx]] = [arr[idx], arr[idx-1]];
+                nt[tier] = arr;
+                saveToHistory(nt);
+                return nt;
+            });
         }, [saveToHistory]);
 
-        const moveItemToEnd = useCallback((tier, itemId) => {
-            setTiers(prev => { const nt={...prev}; const item=nt[tier].find(i=>i.id===itemId); if(!item) return prev; nt[tier]=[...nt[tier].filter(i=>i.id!==itemId),item]; saveToHistory(nt); return nt; });
+        const moveItemRight = useCallback((tier, itemId) => {
+            setTiers(prev => {
+                const nt = {...prev};
+                const arr = [...(nt[tier] || [])];
+                const idx = arr.findIndex(i => i.id === itemId);
+                if (idx < 0 || idx >= arr.length - 1) return prev;
+                [arr[idx], arr[idx+1]] = [arr[idx+1], arr[idx]];
+                nt[tier] = arr;
+                saveToHistory(nt);
+                return nt;
+            });
         }, [saveToHistory]);
 
         const openRenameModal = useCallback((tier, item) => { setRenameItem({tier,item}); setRenameTitle(item.title); setRenameModalOpen(true); }, []);
@@ -932,8 +955,8 @@
                 </div>
                 {showReorderButtons && (
                     <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                        <button onClick={() => moveItemToFront(tier, item.id)} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move to front"><ArrowLeft className="w-3 h-3"/></button>
-                        <button onClick={() => moveItemToEnd(tier, item.id)} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move to end"><ArrowRight className="w-3 h-3"/></button>
+                        <button onClick={() => moveItemLeft(tier, item.id)} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move left one"><ArrowLeft className="w-3 h-3"/></button>
+                        <button onClick={() => moveItemRight(tier, item.id)} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move right one"><ArrowRight className="w-3 h-3"/></button>
                     </div>
                 )}
             </div>
@@ -1183,81 +1206,83 @@
                                             {/* Results */}
                                             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
 
-                                                {/* Album results — both modes, Albums tab */}
+                                                {/* Album results — Albums tab */}
                                                 {!selectedAlbum && !advancedSearchMode && searchResults.map(album => (
                                                     songsMode ? (
-                                                        /* Songs mode: click album to see its tracks */
+                                                        /* Songs mode: click to drill into track list */
                                                         <button key={album.id} onClick={() => selectAlbumAndLoadSongs(album)}
-                                                            className="w-full text-left bg-white/10 rounded-lg p-2 border border-white/10 hover:bg-white/20 active:bg-white/30 transition-all flex items-center gap-3 group">
+                                                            className="w-full text-left bg-white/10 rounded-lg p-2 border border-white/10 hover:bg-white/20 transition-all flex items-center gap-3 group">
                                                             <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover shrink-0"/>
                                                             <div className="flex-1 min-w-0">
                                                                 <p className="text-white text-sm font-medium truncate">{album.title}</p>
                                                                 <p className="text-gray-400 text-xs truncate">{album.artist}{album.year&&` (${album.year})`}</p>
                                                             </div>
-                                                            <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/70 shrink-0 transition-colors"/>
+                                                            <ChevronRight className="w-4 h-4 text-white/40 group-hover:text-white/70 shrink-0"/>
                                                         </button>
                                                     ) : (
-                                                        /* Album mode: draggable + add + browse songs */
-                                                        <div key={album.id} className="bg-white/10 rounded-lg p-2 border border-white/10 hover:bg-white/20 transition-all">
-                                                            <div className="flex items-center gap-3">
-                                                                <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd}
-                                                                    className="flex items-center gap-3 flex-1 min-w-0 draggable-item cursor-grab">
-                                                                    <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover shrink-0"/>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className="text-white text-sm font-medium truncate">{album.title}</p>
-                                                                        <p className="text-gray-400 text-xs truncate">{album.artist}{album.year&&` (${album.year})`}</p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex flex-col gap-1 shrink-0">
-                                                                    <button onClick={() => addItemToUnranked(album)} className="w-7 h-7 bg-white/20 hover:bg-white/30 text-white rounded-lg flex items-center justify-center transition-colors" title="Add album to unranked"><Plus className="w-4 h-4"/></button>
-                                                                    <button onClick={() => selectAlbumAndLoadSongs(album)} className="w-7 h-7 bg-purple-500/30 hover:bg-purple-500/50 text-white rounded-lg flex items-center justify-center transition-colors" title="Browse songs"><Music className="w-3 h-3"/></button>
+                                                        /* Album mode: drag to place, + to add to unranked */
+                                                        <div key={album.id} className="group bg-white/10 rounded-lg p-2 border border-white/10 hover:bg-white/20 transition-all flex items-center gap-3">
+                                                            <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd}
+                                                                className="flex items-center gap-3 flex-1 min-w-0 draggable-item cursor-grab">
+                                                                <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover shrink-0"/>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-white text-sm font-medium truncate">{album.title}</p>
+                                                                    <p className="text-gray-400 text-xs truncate">{album.artist}{album.year&&` (${album.year})`}</p>
                                                                 </div>
                                                             </div>
+                                                            <button onClick={() => addItemToUnranked(album)}
+                                                                className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/10 hover:bg-white text-white/50 hover:text-black"
+                                                                title="Add to unranked">
+                                                                <Plus className="w-4 h-4"/>
+                                                            </button>
                                                         </div>
                                                     )
                                                 ))}
 
-                                                {/* Artist suggestions — both modes */}
+                                                {/* Artist suggestions */}
                                                 {advancedSearchMode && !selectedArtist && artistSuggestions.map(artist => (
-                                                    <button key={artist.artistId} onClick={() => selectArtistAndLoadAlbums(artist)} className="w-full text-left px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg text-white text-sm transition-colors border border-purple-500/20">
-                                                        {artist.artistName}
+                                                    <button key={artist.artistId} onClick={() => selectArtistAndLoadAlbums(artist)}
+                                                        className="w-full text-left px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-all border border-white/10 flex items-center gap-2">
+                                                        <Music className="w-3.5 h-3.5 text-white/40 shrink-0"/>
+                                                        <span className="truncate">{artist.artistName}</span>
+                                                        <ChevronRight className="w-3.5 h-3.5 text-white/30 shrink-0 ml-auto"/>
                                                     </button>
                                                 ))}
 
-                                                {/* Artist's albums — songs mode: click to drill in; album mode: drag + add */}
+                                                {/* Artist albums */}
                                                 {advancedSearchMode && selectedArtist && !loadingArtist && !selectedAlbum && (
                                                     <div className="grid grid-cols-2 gap-2">
                                                         {artistAlbums.map(album => (
                                                             songsMode ? (
-                                                                /* Songs mode: click album card to browse songs */
+                                                                /* Songs mode: click to drill into tracks */
                                                                 <button key={album.id} onClick={() => selectAlbumAndLoadSongs(album)}
-                                                                    className="bg-white/10 rounded-lg p-2 hover:bg-white/20 active:bg-white/30 transition-all border border-white/10 text-left group">
+                                                                    className="bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10 text-left">
                                                                     <img src={album.image} alt={album.title} className="w-full aspect-square rounded object-cover mb-1"/>
                                                                     <p className="text-white text-xs font-medium truncate">{album.title}</p>
                                                                     <p className="text-gray-400 text-[10px] truncate">{album.year}</p>
                                                                 </button>
                                                             ) : (
-                                                                /* Album mode: drag + add + browse */
-                                                                <div key={album.id} className="bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10 relative group">
-                                                                    <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd} className="draggable-item">
+                                                                /* Album mode: drag to place, + visible on hover */
+                                                                <div key={album.id} className="group relative bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10">
+                                                                    <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd} className="draggable-item cursor-grab">
                                                                         <img src={album.image} alt={album.title} className="w-full aspect-square rounded object-cover mb-1"/>
                                                                         <p className="text-white text-xs font-medium truncate">{album.title}</p>
                                                                         <p className="text-gray-400 text-[10px] truncate">{album.year}</p>
                                                                     </div>
-                                                                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                                                        <button onClick={() => addItemToUnranked(album)} className="w-6 h-6 bg-white/30 hover:bg-white/50 text-white rounded flex items-center justify-center" title="Add album"><Plus className="w-3 h-3"/></button>
-                                                                        <button onClick={() => selectAlbumAndLoadSongs(album)} className="w-6 h-6 bg-purple-500/40 hover:bg-purple-500/60 text-white rounded flex items-center justify-center" title="Browse songs"><Music className="w-3 h-3"/></button>
-                                                                    </div>
+                                                                    <button onClick={() => addItemToUnranked(album)}
+                                                                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 bg-black/60 hover:bg-white text-white hover:text-black"
+                                                                        title="Add to unranked">
+                                                                        <Plus className="w-3.5 h-3.5"/>
+                                                                    </button>
                                                                 </div>
                                                             )
                                                         ))}
                                                     </div>
                                                 )}
 
-                                                {/* ── SONG LIST (both modes — shown after clicking an album) ── */}
+                                                {/* Song list — only reachable in songs mode */}
                                                 {selectedAlbum && (
                                                     <>
-                                                        {/* Album header */}
                                                         <div className="bg-white/10 rounded-lg p-3 border border-white/20 flex gap-3 items-center">
                                                             <img src={selectedAlbum.image} alt={selectedAlbum.title} className="w-14 h-14 rounded object-cover shrink-0"/>
                                                             <div className="flex-1 min-w-0">
@@ -1274,15 +1299,21 @@
                                                             <p className="text-white/40 text-sm text-center py-6">No tracks found</p>
                                                         ) : albumSongs.map(song => (
                                                             <div key={song.id} className="bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10">
-                                                                {/* Track number badge */}
                                                                 <span className="text-white/40 text-xs w-5 text-right shrink-0">{song.trackNumber}</span>
-                                                                <div draggable onDragStart={e=>handleDragStart(e,song,null)} onDragEnd={handleDragEnd} className="draggable-item flex-1 min-w-0">
+                                                                {/* Only draggable in songs mode */}
+                                                                <div draggable={songsMode} onDragStart={e => songsMode && handleDragStart(e, song, null)} onDragEnd={handleDragEnd}
+                                                                    className={`flex-1 min-w-0 ${songsMode ? 'draggable-item cursor-grab' : ''}`}>
                                                                     <p className="text-white text-sm font-medium truncate">{song.title}</p>
                                                                     <p className="text-gray-400 text-xs truncate">{song.artist}</p>
                                                                 </div>
-                                                                <button onClick={() => addItemToUnranked(song)} className="shrink-0 w-7 h-7 bg-white/20 hover:bg-white/30 text-white rounded-lg flex items-center justify-center transition-colors" title="Add to unranked">
-                                                                    <Plus className="w-4 h-4"/>
-                                                                </button>
+                                                                {/* + only in songs mode */}
+                                                                {songsMode && (
+                                                                    <button onClick={() => addItemToUnranked(song)}
+                                                                        className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all bg-white/10 hover:bg-white text-white/50 hover:text-black"
+                                                                        title="Add to unranked">
+                                                                        <Plus className="w-4 h-4"/>
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </>
