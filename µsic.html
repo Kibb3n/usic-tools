@@ -747,6 +747,8 @@
                 await emailjs.send('service_o0okd7c', 'template_ycla75q', {
                     bug_title: title || '(no title)',
                     bug_body: body || '(no details provided)',
+                    name: 'anonymous',
+                    email: 'kibben2005@gmail.com',
                 });
                 btn.textContent = 'sent!';
                 setTimeout(() => {
