@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         html, body { background: #000; }
         @keyframes blob1 {
@@ -93,7 +94,7 @@
 
         // Local storage utilities
         const AUTOSAVE_KEY = 'ranker_autosaves';
-        const MAX_AUTOSAVES = 3;
+        const MAX_AUTOSAVES = 5;
 
         const loadAutoSaves = () => {
             try {
@@ -123,13 +124,21 @@
         const saveAutoSave = (data) => {
             try {
                 const autosaves = loadAutoSaves();
+                const sessionId = data.sessionId || data.state?.selectedArtist?.artistId || data.state?.selectedArtist?.collectionId || Date.now();
                 const newSave = {
                     ...data,
+                    sessionId,
                     timestamp: Date.now(),
-                    id: Date.now()
+                    id: sessionId
                 };
 
-                autosaves.unshift(newSave);
+                // Upsert: replace existing entry with same sessionId, otherwise prepend
+                const existingIdx = autosaves.findIndex(s => s.sessionId === sessionId || s.id === sessionId);
+                if (existingIdx !== -1) {
+                    autosaves[existingIdx] = newSave;
+                } else {
+                    autosaves.unshift(newSave);
+                }
                 const trimmed = autosaves.slice(0, MAX_AUTOSAVES);
 
                 localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(trimmed));
@@ -268,6 +277,18 @@
         const Clock = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const Check = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+        );
+
+        const ChevronDown = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
         );
 
@@ -645,8 +666,12 @@
             const [viewMode, setViewMode] = useState('grid');
             const [showUrlImport, setShowUrlImport] = useState(false);
             const [urlInput, setUrlInput] = useState('');
+            const [autoSaveStatus, setAutoSaveStatus] = useState('idle');
+            const [autoSaveCollapsed, setAutoSaveCollapsed] = useState(false);
             const fileInputRef = useRef(null);
             const autoSaveTimerRef = useRef(null);
+            const autoSaveStatusTimerRef = useRef(null);
+            const sessionIdRef = useRef(null);
 
             useEffect(() => {
                 setAutoSaves(loadAutoSaves());
@@ -658,8 +683,14 @@
                         clearInterval(autoSaveTimerRef.current);
                     }
 
-                    autoSaveTimerRef.current = setInterval(() => {
+                    // Assign a stable sessionId when ranking begins (once per session)
+                    if (!sessionIdRef.current) {
+                        sessionIdRef.current = state.selectedArtist?.artistId || state.selectedArtist?.collectionId || Date.now();
+                    }
+
+                    const doSave = () => {
                         const dataToSave = {
+                            sessionId: sessionIdRef.current,
                             state: {
                                 ...state,
                                 selectedAlbums: Array.from(state.selectedAlbums),
@@ -682,7 +713,18 @@
                         };
                         saveAutoSave(dataToSave);
                         setAutoSaves(loadAutoSaves());
-                    }, 30000);
+                        setAutoSaveStatus('saved');
+                        if (autoSaveStatusTimerRef.current) clearTimeout(autoSaveStatusTimerRef.current);
+                        autoSaveStatusTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 2500);
+                    };
+
+                    // Save every 5 comparisons
+                    if (sorting.comparisons > 0 && sorting.comparisons % 5 === 0) {
+                        doSave();
+                    }
+
+                    // Also save on interval as fallback
+                    autoSaveTimerRef.current = setInterval(doSave, 10000);
 
                     return () => {
                         if (autoSaveTimerRef.current) {
@@ -1034,20 +1076,21 @@
                         const normalizeText = (text) => text.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
                         const albumLower = search.albumName.toLowerCase().trim();
                         const normalizedQuery = normalizeText(search.albumName);
+                        const artistQueryNorm = search.albumArtist.trim() ? normalizeText(search.albumArtist) : null;
 
                         filteredAlbums = filteredAlbums
                             .map(album => {
                                 let score = 0;
                                 const albumNameLower = album.collectionName.toLowerCase();
                                 const normalizedAlbumName = normalizeText(album.collectionName);
+                                const normalizedAlbumArtist = normalizeText(album.artistName || '');
 
+                                // Album name matching
                                 if (albumNameLower === albumLower || normalizedAlbumName === normalizedQuery) {
                                     score += 100;
-                                }
-                                else if (albumNameLower.startsWith(albumLower) || normalizedAlbumName.startsWith(normalizedQuery)) {
+                                } else if (albumNameLower.startsWith(albumLower) || normalizedAlbumName.startsWith(normalizedQuery)) {
                                     score += 50;
-                                }
-                                else if (albumNameLower.includes(albumLower) || normalizedAlbumName.includes(normalizedQuery)) {
+                                } else if (albumNameLower.includes(albumLower) || normalizedAlbumName.includes(normalizedQuery)) {
                                     score += 25;
                                 }
 
@@ -1058,18 +1101,25 @@
                                 );
                                 score += matchingWords.length * 5;
 
-                                if (search.albumArtist.trim()) {
-                                    const artistLower = search.albumArtist.toLowerCase().trim();
-                                    const normalizedArtist = normalizeText(search.albumArtist);
-                                    const albumArtistLower = album.artistName.toLowerCase();
-                                    const normalizedAlbumArtist = normalizeText(album.artistName);
-
-                                    if (albumArtistLower === artistLower || normalizedAlbumArtist === normalizedArtist) {
-                                        score += 40;
-                                    } else if (albumArtistLower.includes(artistLower) || normalizedAlbumArtist.includes(normalizedArtist)) {
-                                        score += 20;
+                                // Artist matching — heavily weighted when artist was provided
+                                if (artistQueryNorm) {
+                                    if (normalizedAlbumArtist === artistQueryNorm) {
+                                        score += 200; // exact artist match is the strongest signal
+                                    } else if (normalizedAlbumArtist.includes(artistQueryNorm) || artistQueryNorm.includes(normalizedAlbumArtist)) {
+                                        score += 80;
+                                    } else {
+                                        // Partial word overlap
+                                        const artistQueryWords = artistQueryNorm.split(/\s+/).filter(w => w.length > 1);
+                                        const artistAlbumWords = normalizedAlbumArtist.split(/\s+/);
+                                        const artistWordMatches = artistQueryWords.filter(w => artistAlbumWords.includes(w)).length;
+                                        score += artistWordMatches * 30;
+                                        // Penalise non-matching artists when artist was specified
+                                        if (artistWordMatches === 0) score -= 50;
                                     }
                                 }
+
+                                // Prefer albums with higher track counts (more likely to be the real release)
+                                if (album.trackCount) score += Math.min(album.trackCount, 20);
 
                                 return { ...album, matchScore: score };
                             })
@@ -1649,6 +1699,9 @@
                     const pinnedTopSet = new Set(autosave.sorting.pinnedTop || []);
                     const pinnedBottomSet = new Set(autosave.sorting.pinnedBottom || []);
 
+                    // Restore the sessionId so future saves overwrite this entry
+                    sessionIdRef.current = autosave.sessionId || autosave.id || null;
+
                     setState({
                         ...autosave.state,
                         selectedAlbums: selectedAlbumsSet,
@@ -1799,16 +1852,45 @@
                         const { jsPDF } = window.jspdf;
                         const doc = new jsPDF();
 
-                        doc.setFillColor(255, 0, 128);
-                        doc.rect(0, 0, 210, 30, 'F');
+                        // Derive colors from top-ranked songs' artwork
+                        const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+                        const parseColor = (colorStr) => {
+                            const m = (colorStr || '').match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                            if (m) return [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+                            if (colorStr && colorStr.startsWith('#')) {
+                                const hex = colorStr.slice(1);
+                                return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+                            }
+                            return null;
+                        };
+                        const col1Raw = state.songData[filteredIndices[0]]?.color || '#ff0080';
+                        const col2Raw = state.songData[filteredIndices[1]]?.color || state.songData[filteredIndices[0]]?.color || '#7928ca';
+                        const col1 = parseColor(col1Raw) || [255, 0, 128];
+                        const col2 = parseColor(col2Raw) || [121, 40, 202];
+
+                        // Header bar with gradient (jsPDF doesn't natively support gradients, simulate with blended fill)
+                        const steps = 20;
+                        const headerH = 32;
+                        for (let i = 0; i < steps; i++) {
+                            const t = i / (steps - 1);
+                            const r = Math.round(col1[0] + (col2[0] - col1[0]) * t);
+                            const g = Math.round(col1[1] + (col2[1] - col1[1]) * t);
+                            const b = Math.round(col1[2] + (col2[2] - col1[2]) * t);
+                            doc.setFillColor(r, g, b);
+                            doc.rect(i * (210 / steps), 0, 210 / steps + 1, headerH, 'F');
+                        }
+
                         doc.setTextColor(255, 255, 255);
-                        doc.setFontSize(24);
-                        doc.text(`${values.userName}'s Song Rankings`, 105, 15, { align: 'center' });
-                        doc.setFontSize(12);
-                        doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 23, { align: 'center' });
+                        doc.setFontSize(20);
+                        doc.text(`${values.userName}'s Song Rankings`, 105, 13, { align: 'center' });
+                        doc.setFontSize(11);
+                        doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 21, { align: 'center' });
+                        doc.setFontSize(8);
+                        doc.setTextColor(255, 255, 255);
+                        doc.text('\u03BCsic tools \u00B7 ranker', 105, 28, { align: 'center' });
 
                         doc.setTextColor(0, 0, 0);
-                        let yPos = 40;
+                        let yPos = 42;
 
                         if (state.usedAlbums.length > 0) {
                             doc.setFontSize(14);
@@ -1822,7 +1904,7 @@
                                     doc.addPage();
                                     yPos = 20;
                                 }
-                                doc.text(`• ${album.name}`, 25, yPos);
+                                doc.text(`\u2022 ${album.name}`, 25, yPos);
                                 yPos += 5;
                             });
                             yPos += 5;
@@ -1841,7 +1923,6 @@
                         yPos += 10;
 
                         doc.setFont(undefined, 'normal');
-                        const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
                         filteredIndices.forEach((songIdx, rank) => {
                             if (yPos > 270) {
                                 doc.addPage();
@@ -1864,10 +1945,186 @@
                             yPos += Math.max(8, lines.length * 5);
                         });
 
+                        // Footer on every page with gradient
+                        const pageCount = doc.internal.getNumberOfPages();
+                        for (let p = 1; p <= pageCount; p++) {
+                            doc.setPage(p);
+                            for (let i = 0; i < steps; i++) {
+                                const t = i / (steps - 1);
+                                const r = Math.round(col1[0] + (col2[0] - col1[0]) * t);
+                                const g = Math.round(col1[1] + (col2[1] - col1[1]) * t);
+                                const b = Math.round(col1[2] + (col2[2] - col1[2]) * t);
+                                doc.setFillColor(r, g, b);
+                                doc.rect(i * (210 / steps), 287, 210 / steps + 1, 10, 'F');
+                            }
+                            doc.setFontSize(7);
+                            doc.setTextColor(255, 255, 255);
+                            doc.text('\u03BCsic tools \u00B7 ranker', 105, 293, { align: 'center' });
+                        }
+
                         doc.save(`${values.fileName}.pdf`);
                     }
                 });
                 setModalOpen(true);
+            };
+
+            const exportToTXT = () => {
+                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'Unknown';
+                const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+                let txt = `μsic tools · ranker\n`;
+                txt += `${'─'.repeat(40)}\n`;
+                txt += `${artistName} — Song Rankings\n`;
+                txt += `Generated: ${new Date().toLocaleString()}\n`;
+                if (state.usedAlbums && state.usedAlbums.length > 0) {
+                    txt += `Albums: ${state.usedAlbums.map(a => a.name).join(', ')}\n`;
+                }
+                txt += `${'─'.repeat(40)}\n\n`;
+                filteredIndices.forEach((songIdx, rank) => {
+                    txt += `${String(rank + 1).padStart(3, ' ')}. ${state.songs[songIdx]}\n`;
+                });
+                txt += `\n${'─'.repeat(40)}\n`;
+                txt += `μsic tools · ranker\n`;
+                const blob = new Blob([txt], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${artistName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-ranking.txt`;
+                link.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const exportToPNG = async () => {
+                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'Rankings';
+                const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+
+                // Derive gradient colors from top-ranked songs' artwork
+                const parseColor = (colorStr) => {
+                    const m = (colorStr || '').match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (m) return [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+                    if (colorStr && colorStr.startsWith('#')) {
+                        const hex = colorStr.slice(1);
+                        return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+                    }
+                    return null;
+                };
+                const col1Raw = state.songData[filteredIndices[0]]?.color || '#ff0080';
+                const col2Raw = state.songData[filteredIndices[1]]?.color || state.songData[filteredIndices[0]]?.color || '#7928ca';
+                const col1 = parseColor(col1Raw) || [255, 0, 128];
+                const col2 = parseColor(col2Raw) || [121, 40, 202];
+                const toHex = ([r,g,b]) => `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+                const darken = ([r,g,b], f) => [Math.round(r*f), Math.round(g*f), Math.round(b*f)];
+
+                // Build an off-screen canvas directly
+                const canvas = document.createElement('canvas');
+                const padding = 40;
+                const rowH = 44;
+                const headerH = 100;
+                const width = 600;
+                const totalH = headerH + filteredIndices.length * rowH + padding * 2;
+                canvas.width = width;
+                canvas.height = totalH;
+                const ctx = canvas.getContext('2d');
+
+                // Background gradient using darkened art colors
+                const grad = ctx.createLinearGradient(0, 0, width, totalH);
+                grad.addColorStop(0, toHex(darken(col1, 0.15)));
+                grad.addColorStop(1, toHex(darken(col2, 0.12)));
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, totalH);
+
+                // Header bar gradient from art colors
+                const headerGrad = ctx.createLinearGradient(0, 0, width, 0);
+                headerGrad.addColorStop(0, toHex(col1));
+                headerGrad.addColorStop(1, toHex(col2));
+                ctx.fillStyle = headerGrad;
+                ctx.fillRect(0, 0, width, headerH);
+
+                // Header text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 26px system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${artistName} Rankings`, width / 2, 38);
+                ctx.font = '14px system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillText(`${filteredIndices.length} songs • ${new Date().toLocaleDateString()}`, width / 2, 62);
+                ctx.font = '11px system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.fillText('μsic tools · ranker', width / 2, 84);
+
+                // Song rows
+                filteredIndices.forEach((songIdx, rank) => {
+                    const y = headerH + padding + rank * rowH;
+                    const isEven = rank % 2 === 0;
+                    ctx.fillStyle = isEven ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)';
+                    ctx.beginPath();
+                    ctx.roundRect(padding / 2, y, width - padding, rowH - 4, 8);
+                    ctx.fill();
+
+                    // Rank number — accent color for top 3
+                    ctx.fillStyle = rank < 3 ? toHex(col1) : 'rgba(255,255,255,0.4)';
+                    ctx.font = `bold 16px system-ui, sans-serif`;
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`#${rank + 1}`, padding + 36, y + rowH / 2 + 6);
+
+                    // Song name
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `${rank < 3 ? 'bold' : 'normal'} 15px system-ui, sans-serif`;
+                    ctx.textAlign = 'left';
+                    const songName = state.songs[songIdx];
+                    const maxWidth = width - padding - 80;
+                    let displayName = songName;
+                    while (ctx.measureText(displayName).width > maxWidth && displayName.length > 0) {
+                        displayName = displayName.slice(0, -1);
+                    }
+                    if (displayName !== songName) displayName += '…';
+                    ctx.fillText(displayName, padding + 48, y + rowH / 2 + 6);
+                });
+
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${artistName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-ranking.png`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                }, 'image/png');
+            };
+
+            const handleTryAnother = () => {
+                // Save final results before resetting, using existing sessionId to overwrite
+                const finalSave = {
+                    sessionId: sessionIdRef.current,
+                    state: {
+                        ...state,
+                        selectedAlbums: Array.from(state.selectedAlbums),
+                        excludedSongs: Array.from(state.excludedSongs)
+                    },
+                    sorting: {
+                        ...sorting,
+                        history: [],
+                        skippedPairs: Array.from(sorting.skippedPairs),
+                        notificationShownFor: Array.from(sorting.notificationShownFor),
+                        pinnedTop: Array.from(sorting.pinnedTop),
+                        pinnedBottom: Array.from(sorting.pinnedBottom)
+                    },
+                    search: { artistName: search.artistName, albumName: search.albumName, albumArtist: search.albumArtist, albumYear: search.albumYear }
+                };
+                saveAutoSave(finalSave);
+
+                // Clear session ID so next ranking gets a fresh one
+                sessionIdRef.current = null;
+
+                // Reset to home
+                setState({
+                    stage: 'selectMode', mode: null, songs: [], songData: {}, albums: [], selectedAlbums: new Set(),
+                    selectedArtist: null, usedAlbums: [], excludedSongs: new Set()
+                });
+                setSorting({
+                    sortedIndices: [], j: 0, comparisons: 0, autoSkipped: 0, estimatedRemaining: 0,
+                    history: [], skippedPairs: new Set(), notificationShownFor: new Set(), pinnedTop: new Set(), pinnedBottom: new Set()
+                });
+                setSearch({ artistName: '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, loading: false, loadingSongs: false, error: '' });
+                setAutoSaves(loadAutoSaves());
             };
 
             const activeSongCount = state.songs.length - state.excludedSongs.size;
@@ -1910,13 +2167,25 @@
                                     </label>
                                 )}
                                 {state.stage === 'sorting' && (
-                                    <button
-                                        onClick={saveData}
-                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2"
-                                    >
-                                        <Save className="w-5 h-5" />
-                                        Save Progress
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className="text-sm font-medium flex items-center gap-1 transition-all duration-500"
+                                            style={{
+                                                opacity: autoSaveStatus === 'saved' ? 1 : 0,
+                                                color: '#86efac'
+                                            }}
+                                        >
+                                            <Check className="w-4 h-4" />
+                                            Autosaved
+                                        </span>
+                                        <button
+                                            onClick={saveData}
+                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2"
+                                        >
+                                            <Save className="w-5 h-5" />
+                                            Save Progress
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1955,48 +2224,85 @@
                                     </div>
 
                                     {autoSaves.length > 0 && (
-                                        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10">
-                                            <h3 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
-                                                <Clock className="w-6 h-6" />
-                                                Continue Recent Rankings
-                                            </h3>
-                                            <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-4 py-3 mb-4">
-                                                <p className="text-yellow-200 text-sm flex items-start gap-2">
-                                                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                                                    <span>Auto-save is not 100% reliable. Always export important rankings to ensure you don't lose your progress!</span>
-                                                </p>
-                                            </div>
-                                            <div className="space-y-3">
-                                                {autoSaves.map(autosave => (
-                                                    <div key={autosave.id} className="bg-white/10 rounded-xl p-4 flex items-center gap-4 border border-white/20">
-                                                        <div className="flex-1">
-                                                            <p className="text-white font-semibold">
-                                                                {autosave.state.selectedArtist?.artistName || autosave.state.selectedArtist?.collectionName || 'Unknown'}
-                                                            </p>
-                                                            <p className="text-gray-300 text-sm mt-1">
-                                                                {autosave.sorting.comparisons} comparisons • {autosave.state.songs?.length || 0} songs
-                                                            </p>
-                                                            <p className="text-gray-400 text-xs mt-1">
-                                                                {new Date(autosave.timestamp).toLocaleString()}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                onClick={() => loadFromAutoSave(autosave)}
-                                                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium"
-                                                            >
-                                                                Continue
-                                                            </button>
-                                                            <button
-                                                                onClick={() => removeAutoSave(autosave.id)}
-                                                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
-                                                            >
-                                                                <X className="w-5 h-5" />
-                                                            </button>
-                                                        </div>
+                                        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/10 overflow-hidden">
+                                            <button
+                                                onClick={() => setAutoSaveCollapsed(c => !c)}
+                                                className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-colors"
+                                            >
+                                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                                    <Clock className="w-5 h-5" />
+                                                    Continue Recent Rankings
+                                                    <span className="text-sm font-normal text-gray-400 ml-1">({autoSaves.length})</span>
+                                                </h3>
+                                                <div className="flex items-center gap-3">
+                                                    <span
+                                                        className="text-sm font-medium flex items-center gap-1 transition-all duration-500"
+                                                        style={{
+                                                            opacity: autoSaveStatus === 'saved' ? 1 : 0,
+                                                            color: '#86efac'
+                                                        }}
+                                                    >
+                                                        <Check className="w-4 h-4" />
+                                                        Saved
+                                                    </span>
+                                                    <ChevronDown
+                                                        className="w-5 h-5 text-gray-400 transition-transform duration-300"
+                                                        style={{ transform: autoSaveCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                                                    />
+                                                </div>
+                                            </button>
+
+                                            {!autoSaveCollapsed && (
+                                                <div className="px-6 pb-6">
+                                                    <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg px-4 py-3 mb-4">
+                                                        <p className="text-blue-200 text-sm flex items-start gap-2">
+                                                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                                            <span>Sessions are auto-saved every 5 comparisons. For extra safety, use Save Progress to export a JSON file.</span>
+                                                        </p>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                    <div className="space-y-3">
+                                                        {autoSaves.map(autosave => {
+                                                            const isCompleted = autosave.state.stage === 'results';
+                                                            return (
+                                                            <div key={autosave.id} className={`rounded-xl p-4 flex items-center gap-4 border ${isCompleted ? 'bg-white/5 border-white/10' : 'bg-white/10 border-white/20'}`}>
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <p className="text-white font-semibold">
+                                                                            {autosave.state.selectedArtist?.artistName || autosave.state.selectedArtist?.collectionName || 'Unknown'}
+                                                                        </p>
+                                                                        {isCompleted && (
+                                                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background: 'rgba(134,239,172,0.15)', color: '#86efac', border: '1px solid rgba(134,239,172,0.3)'}}>
+                                                                                ✓ Completed
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-gray-300 text-sm mt-1">
+                                                                        {autosave.sorting.comparisons} comparisons • {autosave.state.songs?.length || 0} songs
+                                                                    </p>
+                                                                    <p className="text-gray-400 text-xs mt-1">
+                                                                        {new Date(autosave.timestamp).toLocaleString()}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => loadFromAutoSave(autosave)}
+                                                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium"
+                                                                    >
+                                                                        {isCompleted ? 'View' : 'Continue'}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => removeAutoSave(autosave.id)}
+                                                                        className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
+                                                                    >
+                                                                        <X className="w-5 h-5" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </>
@@ -2496,13 +2802,39 @@
                                             </div>
                                         )}
 
-                                        <button
-                                            onClick={exportToPDF}
-                                            className="w-full px-6 py-4 bg-white text-black hover:bg-gray-200 rounded-xl font-semibold flex items-center justify-center gap-2"
-                                        >
-                                            <Download className="w-5 h-5" />
-                                            Export as PDF
-                                        </button>
+                                        <div className="flex flex-col gap-3">
+                                            <p className="text-gray-400 text-sm text-center">Export your ranking</p>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <button
+                                                    onClick={exportToPDF}
+                                                    className="px-4 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20 flex flex-col items-center justify-center gap-1 transition-all"
+                                                >
+                                                    <Download className="w-5 h-5" />
+                                                    <span className="text-sm">PDF</span>
+                                                </button>
+                                                <button
+                                                    onClick={exportToTXT}
+                                                    className="px-4 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20 flex flex-col items-center justify-center gap-1 transition-all"
+                                                >
+                                                    <Download className="w-5 h-5" />
+                                                    <span className="text-sm">TXT</span>
+                                                </button>
+                                                <button
+                                                    onClick={exportToPNG}
+                                                    className="px-4 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20 flex flex-col items-center justify-center gap-1 transition-all"
+                                                >
+                                                    <Download className="w-5 h-5" />
+                                                    <span className="text-sm">PNG</span>
+                                                </button>
+                                            </div>
+                                            <button
+                                                onClick={handleTryAnother}
+                                                className="w-full px-6 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-semibold border border-white/20 flex items-center justify-center gap-2 transition-all"
+                                            >
+                                                <Music className="w-5 h-5" />
+                                                Try Another Artist / Album
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -2679,11 +3011,11 @@
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Saving & Exporting</h4>
                             <ul class="space-y-2 text-gray-300">
-                                <li><strong>Save Progress:</strong> save mid-ranking as a JSON file — useful for large
-                                    discographies</li>
+                                <li><strong>Auto-save:</strong> your session saves automatically every 5 comparisons</li>
+                                <li><strong>Save Progress:</strong> export mid-ranking as a JSON file for safekeeping</li>
                                 <li><strong>Load Save:</strong> resume a previous session from a saved file</li>
-                                <li><strong>Export PDF:</strong> when you're done, download a formatted PDF of your
-                                    ranked list</li>
+                                <li><strong>Export PDF / TXT / PNG:</strong> download your ranked list in your preferred format</li>
+                                <li><strong>Try Another:</strong> rank something new — your current results are saved first</li>
                             </ul>
                         </div>
                         <div class="rounded-xl p-4"
