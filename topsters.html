@@ -42,6 +42,10 @@
             }
         }
 
+        html, body {
+            background: #000;
+        }
+
         .grain {
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
             pointer-events: none;
@@ -1070,6 +1074,24 @@
                 }
             }, []);
 
+            const LASTFM_API_KEY = '33866e12a02528e0bb9211bd2f351c28';
+
+            // Fetch from Last.fm album.search (returns JSON via CORS-friendly endpoint)
+            const searchLastFm = useCallback(async (albumTerm, artistTerm) => {
+                try {
+                    const query = artistTerm ? `${albumTerm} ${artistTerm}` : albumTerm;
+                    const url = `https://ws.audioscrobbler.com/2.0/?method=album.search&album=${encodeURIComponent(query)}&api_key=${LASTFM_API_KEY}&format=json&limit=30`;
+                    const resp = await fetch(url);
+                    if (!resp.ok) return [];
+                    const data = await resp.json();
+                    const matches = data?.results?.albummatches?.album || [];
+                    return matches;
+                } catch (e) {
+                    console.error('Last.fm search failed:', e);
+                    return [];
+                }
+            }, []);
+
             const searchAlbums = useCallback(async () => {
                 const query = searchMode === 'album' ? advSearch.album : advSearch.artist;
                 if (!query.trim()) return;
@@ -1117,23 +1139,29 @@
                         // Build query: combine album + artist for better iTunes relevance
                         const combinedTerm = artistTerm ? `${albumTerm} ${artistTerm}` : albumTerm;
 
-                        // Run two parallel searches: one by albumTerm, one combined
-                        const [byAlbum, byCombined] = await Promise.allSettled([
+                        // Run iTunes and Last.fm searches in parallel
+                        const [byAlbum, byCombined, lastFmResults] = await Promise.allSettled([
                             jsonpRequest(`https://itunes.apple.com/search?term=${encodeURIComponent(albumTerm)}&entity=album&attribute=albumTerm&limit=50`),
                             artistTerm
                                 ? jsonpRequest(`https://itunes.apple.com/search?term=${encodeURIComponent(combinedTerm)}&entity=album&limit=50`)
-                                : Promise.resolve({ results: [] })
+                                : Promise.resolve({ results: [] }),
+                            searchLastFm(albumTerm, artistTerm)
                         ]);
 
-                        const allItems = [
+                        const itunesItems = [
                             ...((byAlbum.status === 'fulfilled' ? byAlbum.value.results : null) || []),
                             ...((byCombined.status === 'fulfilled' ? byCombined.value.results : null) || [])
                         ].filter(item => item.wrapperType === 'collection');
 
+                        // Helper: normalize for dedup comparison
+                        const normKey = (title, artist) =>
+                            `${title.toLowerCase().replace(/[^a-z0-9]/g, '')}||${artist.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
                         const seen = new Set();
                         const scored = [];
 
-                        for (const item of allItems) {
+                        // Process iTunes results first
+                        for (const item of itunesItems) {
                             const key = `itunes-${item.collectionId}`;
                             if (seen.has(key)) continue;
                             seen.add(key);
@@ -1154,26 +1182,25 @@
                             else if (albumLower.startsWith(searchAlbumLower)) score += 100;
                             else if (albumLower.includes(searchAlbumLower)) score += 50;
                             else {
-                                // Word-level fuzzy match
                                 const qWords = searchAlbumLower.split(/\s+/).filter(w => w.length > 1);
                                 const aWords = albumLower.split(/\s+/);
                                 const matchCount = qWords.filter(w => aWords.some(aw => aw === w || aw.startsWith(w))).length;
                                 score += matchCount * 15;
-                                if (matchCount === 0) continue; // no match at all
+                                if (matchCount === 0) continue;
                             }
 
                             // Artist scoring
                             if (searchArtistLower) {
                                 if (artistLower === searchArtistLower) score += 100;
                                 else if (artistLower.includes(searchArtistLower) || searchArtistLower.includes(artistLower)) score += 50;
-                                else score -= 20; // penalise wrong artist
+                                else score -= 20;
                             }
 
-                            // Year filter
                             if (searchYear && year && year !== searchYear) continue;
-
-                            // Prefer albums that are actually labelled as albums (not singles/EPs)
                             if (item.collectionType === 'Album') score += 10;
+
+                            const normDedupKey = normKey(albumName, artistName);
+                            seen.add(normDedupKey);
 
                             scored.push({
                                 id: key,
@@ -1181,7 +1208,70 @@
                                 artist: artistName,
                                 image: item.artworkUrl100.replace('100x100', '600x600'),
                                 year,
-                                score
+                                score,
+                                source: 'itunes'
+                            });
+                        }
+
+                        // Process Last.fm results, skipping duplicates already found via iTunes
+                        const lfmAlbums = lastFmResults.status === 'fulfilled' ? (lastFmResults.value || []) : [];
+                        const searchAlbumLower = albumTerm.toLowerCase();
+                        const searchArtistLower = artistTerm.toLowerCase();
+
+                        for (const item of lfmAlbums) {
+                            const albumName = item.name || '';
+                            const artistName = typeof item.artist === 'string' ? item.artist : (item.artist?.name || '');
+                            if (!albumName || !artistName) continue;
+
+                            // Skip if we already have a matching iTunes result
+                            const normDedupKey = normKey(albumName, artistName);
+                            if (seen.has(normDedupKey)) continue;
+                            seen.add(normDedupKey);
+
+                            // Get the best available image from Last.fm (extralarge or mega preferred)
+                            const images = Array.isArray(item.image) ? item.image : [];
+                            const imgEntry = images.find(i => i.size === 'mega') ||
+                                             images.find(i => i.size === 'extralarge') ||
+                                             images.find(i => i.size === 'large') ||
+                                             images[images.length - 1];
+                            const imageUrl = imgEntry && imgEntry['#text'] ? imgEntry['#text'] : null;
+                            if (!imageUrl) continue; // skip entries with no artwork
+
+                            const albumLower = albumName.toLowerCase();
+                            const artistLower = artistName.toLowerCase();
+
+                            let score = 0;
+
+                            // Album title scoring (same logic as iTunes)
+                            if (albumLower === searchAlbumLower) score += 200;
+                            else if (albumLower.startsWith(searchAlbumLower)) score += 100;
+                            else if (albumLower.includes(searchAlbumLower)) score += 50;
+                            else {
+                                const qWords = searchAlbumLower.split(/\s+/).filter(w => w.length > 1);
+                                const aWords = albumLower.split(/\s+/);
+                                const matchCount = qWords.filter(w => aWords.some(aw => aw === w || aw.startsWith(w))).length;
+                                score += matchCount * 15;
+                                if (matchCount === 0) continue;
+                            }
+
+                            if (searchArtistLower) {
+                                if (artistLower === searchArtistLower) score += 100;
+                                else if (artistLower.includes(searchArtistLower) || searchArtistLower.includes(artistLower)) score += 50;
+                                else score -= 20;
+                            }
+
+                            // Last.fm doesn't provide year in search results so no year filter here
+                            // Slightly lower base score vs iTunes since no year/type metadata
+                            score -= 5;
+
+                            scored.push({
+                                id: `lastfm-${albumName}-${artistName}`.replace(/\s+/g, '_'),
+                                title: albumName,
+                                artist: artistName,
+                                image: imageUrl,
+                                year: 0,
+                                score,
+                                source: 'lastfm'
                             });
                         }
 
@@ -1194,7 +1284,7 @@
                 } finally {
                     setLoading(false);
                 }
-            }, [searchMode, advSearch, normalizeString]);
+            }, [searchMode, advSearch, normalizeString, searchLastFm]);
 
             // Track current drag Y for scroll loop — updated on every dragover
             const dragYRef = useRef(null);
@@ -3001,8 +3091,7 @@
                         <div>
                             <h4 class="text-xl font-semibold text-white mb-2">Using This Tool</h4>
                             <ul class="space-y-2 text-gray-300">
-                                <li><strong>Search albums:</strong> search by album name or browse by artist. Pulls from
-                                    iTunes</li>
+                                <li><strong>Search albums:</strong> search by album name or browse by artist. Pulls from iTunes and Last.fm, with duplicate results automatically merged</li>
                                 <li><strong>Drag & drop:</strong> arrange albums however you like. Drag one onto another
                                     to swap them</li>
                                 <li><strong>Right-click an album:</strong> rename or remove it from the grid</li>
