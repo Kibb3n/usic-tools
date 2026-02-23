@@ -59,6 +59,29 @@
             background: rgba(255, 255, 255, 0.5);
             color: #6b7280 !important;
         }
+
+        .horizontal-scroll {
+            display: flex;
+            gap: 0.75rem;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+            scroll-snap-type: x mandatory;
+        }
+        .horizontal-scroll::-webkit-scrollbar {
+            height: 4px;
+        }
+        .horizontal-scroll::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+        }
+        .horizontal-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+        .horizontal-scroll > * {
+            flex: 0 0 260px;
+            scroll-snap-align: start;
+        }
     </style>
 </head>
 
@@ -457,6 +480,12 @@
             const saveRecentGame = useCallback((config) => {
                 const randomAlbumArt = config.albums[Math.floor(Math.random() * config.albums.length)]?.artworkUrl100;
 
+                // Create a fingerprint for deduplication: sorted artist IDs + sorted album IDs
+                const fingerprint = [
+                    ...config.artists.map(a => a.artistId).sort(),
+                    ...config.albums.map(a => a.collectionId).sort()
+                ].join('|');
+
                 const newGame = {
                     id: Date.now(),
                     timestamp: new Date().toISOString(),
@@ -464,10 +493,13 @@
                     albums: config.albums,
                     artistNames: config.artists.map(a => a.artistName).join(', '),
                     albumArt: randomAlbumArt,
-                    isPinned: false
+                    isPinned: false,
+                    fingerprint
                 };
 
-                const updated = [newGame, ...recentGames.filter(g => !g.isPinned)].slice(0, MAX_RECENT);
+                // Deduplicate: remove any existing recent game with the same fingerprint
+                const deduped = recentGames.filter(g => g.fingerprint !== fingerprint);
+                const updated = [newGame, ...deduped].slice(0, MAX_RECENT);
                 setRecentGames(updated);
                 storage.set('guesser_recent_games', updated);
 
@@ -512,6 +544,12 @@
                     storage.set('guesser_recent_games', updatedRecent);
                 }
             }, [pinnedGames, recentGames]);
+
+            const deleteRecentGame = useCallback((game) => {
+                const updated = recentGames.filter(g => g.id !== game.id);
+                setRecentGames(updated);
+                storage.set('guesser_recent_games', updated);
+            }, [recentGames]);
 
             const togglePinnedCollapsed = () => {
                 const newValue = !pinnedCollapsed;
@@ -1033,7 +1071,7 @@
 
             const displayedPinnedGames = showAllPinned ? pinnedGames : pinnedGames.slice(0, 4);
 
-            const GameCard = useCallback(({ game, isPinned, onPin, onLoad, onEdit, onExpand, isExpanded }) => (
+            const GameCard = useCallback(({ game, isPinned, onPin, onLoad, onEdit, onExpand, isExpanded, onDelete }) => (
                 <div className="bg-white/10 rounded-xl border border-white/20 hover:bg-white/15 transition-all">
                     <div className="p-4">
                         <div className="flex items-center gap-3 mb-3">
@@ -1044,16 +1082,30 @@
                                 <p className="text-white font-semibold truncate">{game.artistNames}</p>
                                 <p className="text-gray-400 text-sm">{game.albums.length} album{game.albums.length !== 1 ? 's' : ''}</p>
                             </div>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onPin(game);
-                                }}
-                                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                                title={isPinned ? 'Unpin' : 'Pin'}
-                            >
-                                {isPinned ? <PinFilled className="w-5 h-5 text-yellow-400" /> : <Pin className="w-5 h-5 text-white" />}
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onPin(game);
+                                    }}
+                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                    title={isPinned ? 'Unsave' : 'Save'}
+                                >
+                                    {isPinned ? <PinFilled className="w-5 h-5 text-yellow-400" /> : <Pin className="w-5 h-5 text-white" />}
+                                </button>
+                                {!isPinned && onDelete && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete(game);
+                                        }}
+                                        className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                                        title="Delete"
+                                    >
+                                        <X className="w-4 h-4 text-gray-400 hover:text-red-400" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div className="flex gap-2">
                             <button
@@ -1200,14 +1252,14 @@
                                                             onClick={togglePinnedCollapsed}
                                                             className="flex items-center justify-between w-full mb-3 hover:opacity-80 transition-opacity"
                                                         >
-                                                            <h3 className="text-lg font-bold text-white">Pinned Games ({pinnedGames.length})</h3>
+                                                            <h3 className="text-lg font-bold text-white">Saved Games ({pinnedGames.length})</h3>
                                                             <ChevronDown className={`w-5 h-5 text-white transition-transform ${pinnedCollapsed ? '' : 'rotate-180'}`} />
                                                         </button>
 
                                                         {!pinnedCollapsed && (
                                                             <>
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                    {displayedPinnedGames.map((game) => (
+                                                                <div className="horizontal-scroll">
+                                                                    {pinnedGames.map((game) => (
                                                                         <GameCard
                                                                             key={game.id}
                                                                             game={game}
@@ -1245,7 +1297,7 @@
                                                         </button>
 
                                                         {!recentCollapsed && (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            <div className="horizontal-scroll">
                                                                 {recentGames.map((game) => (
                                                                     <GameCard
                                                                         key={game.id}
@@ -1256,6 +1308,7 @@
                                                                         onEdit={editGame}
                                                                         onExpand={() => setExpandedGame(expandedGame === game.id ? null : game.id)}
                                                                         isExpanded={expandedGame === game.id}
+                                                                        onDelete={deleteRecentGame}
                                                                     />
                                                                 ))}
                                                             </div>
@@ -1411,7 +1464,7 @@
                                         </div>
                                     </div>
 
-                                    {gameState.selectedAlbums.length > 0 && (
+                                    {gameState.stage === 'selectAlbums' && (
                                         <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-white/95 backdrop-blur-xl border-t border-white/30 shadow-lg">
                                             <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                                                 <div className="flex-1">
@@ -1424,8 +1477,8 @@
                                                 </div>
                                                 <button
                                                     onClick={startGame}
-                                                    disabled={searchState.loadingSongs}
-                                                    className="px-6 py-3 bg-black text-white hover:bg-gray-800 disabled:bg-gray-400 rounded-xl font-semibold flex items-center gap-2 shadow-md"
+                                                    disabled={searchState.loadingSongs || gameState.selectedAlbums.length === 0}
+                                                    className="px-6 py-3 bg-black text-white hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-xl font-semibold flex items-center gap-2 shadow-md"
                                                 >
                                                     {searchState.loadingSongs ? (
                                                         <>
@@ -1540,13 +1593,14 @@
 
                                         {!gameState.gameOver ? (
                                             <>
-                                                <div className="relative mb-6">
+                                                <div className="max-w-md mx-auto">
+                                                <div className="relative mb-4">
                                                     <input
                                                         type="text"
                                                         value={currentGuess}
                                                         onChange={(e) => setCurrentGuess(e.target.value)}
                                                         placeholder="Type a song name..."
-                                                        className="w-full px-8 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                        className="w-full px-6 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                                                         autoFocus
                                                         disabled={isSubmittingGuess}
                                                     />
@@ -1583,6 +1637,7 @@
                                                 >
                                                     Give Up & Show Answer
                                                 </button>
+                                                </div>
                                             </>
                                         ) : (
                                             <div className="text-center space-y-4">
@@ -1637,15 +1692,16 @@
                                         )}
 
                                         {gameState.guesses.length > 0 && (
-                                            <div className="space-y-3 mt-8">
+                                            <div className="mt-8">
                                                 <h3 className="text-white font-semibold text-lg mb-4">Your Guesses:</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                                 {gameState.guesses.map((guess, idx) => (
                                                     <div key={idx} className="bg-white/10 rounded-xl p-4 border border-white/20">
-                                                        <div className="flex items-center gap-4 mb-3">
-                                                            <img src={guess.song.artwork} alt="" className="w-16 h-16 rounded-lg object-cover" />
-                                                            <div className="flex-1">
-                                                                <p className="text-white font-semibold">{guess.song.name}</p>
-                                                                <p className="text-gray-300 text-sm">{guess.song.albumName}</p>
+                                                        <div className="flex items-center gap-3 mb-3">
+                                                            <img src={guess.song.artwork} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-white font-semibold text-sm truncate">{guess.song.name}</p>
+                                                                <p className="text-gray-300 text-xs truncate">{guess.song.albumName}</p>
                                                             </div>
                                                         </div>
                                                         <div className={`grid ${gameState.selectedArtists.length > 1 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`}>
@@ -1688,6 +1744,7 @@
                                                         </div>
                                                     </div>
                                                 ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
