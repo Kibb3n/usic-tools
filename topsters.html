@@ -450,6 +450,8 @@
             const [replaceOnDrop, setReplaceOnDrop] = useState(false);
             const [gridGap, setGridGap] = useState(2);
             const [renamingChartId, setRenamingChartId] = useState(null);
+            // Snapshots of each layout's grid so switching layouts restores exact state
+            const [layoutSnapshots, setLayoutSnapshots] = useState({});
 
             const gridRef = useRef(null);
             const fileInputRef = useRef(null);
@@ -797,6 +799,8 @@
 
                 // Allow auto-save and resize effect to resume after React flushes these updates
                 setTimeout(() => { isLoadingChartRef.current = false; }, 150);
+                // Reset layout snapshots when loading a chart so each chart starts fresh
+                setLayoutSnapshots({});
             };
 
             const createNewChart = () => {
@@ -1447,42 +1451,53 @@
                 const getTargetSize = (l) => l === 'classic' ? TOP42_GRID_SIZE : (l === 'classic2' ? TOP100_GRID_SIZE : (gridWidth * gridHeight));
                 const isGridLayout = (l) => l === 'standard' || l === 'classic' || l === 'classic2';
 
-                if (newLayout === 'aboutYou' && isGridLayout(layout)) {
-                    // Grid → About You: carry over albums as cells, always build a full 24-cell grid
+                if (newLayout === 'aboutYou') {
+                    // Always seed About You fresh from the current grid's albums.
+                    // This ensures Last.fm images and current positions are always correct.
                     const filledAlbums = grid.filter(a => a);
-                    // Merge with the existing aboutYouGrid (keep user's existing placements if any)
                     const newAboutYouGrid = aboutYouLabels.map((label, i) => {
-                        // Prefer existing aboutYouGrid cell if it has an album
-                        const existing = aboutYouGrid[i];
-                        if (existing && typeof existing === 'object' && existing.album) return existing;
                         return { album: filledAlbums[i] || null, label };
                     });
-                    // Set grid and layout atomically in the same React batch
                     setAboutYouGrid(newAboutYouGrid);
+                    // Save current grid layout into snapshot so we can restore it when leaving About You
+                    setLayoutSnapshots(prev => ({ ...prev, [layout]: grid }));
                     setLayout('aboutYou');
-                    // Don't change gridWidth/gridHeight here — avoids triggering grid useEffect
+
                 } else if (layout === 'aboutYou' && isGridLayout(newLayout)) {
-                    // About You → Grid: extract albums in order
-                    const filledAlbums = aboutYouGrid
-                        .map(cell => (cell && typeof cell === 'object' ? cell : null))
-                        .filter(cell => cell?.album)
-                        .map(cell => cell.album);
-                    const targetSize = getTargetSize(newLayout);
-                    const newGrid = Array(targetSize).fill(null);
-                    filledAlbums.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
-                    setGrid(newGrid);
+                    // Leaving About You → restore the exact grid snapshot we saved when we entered
+                    const savedSnapshot = layoutSnapshots[newLayout];
+                    if (savedSnapshot && Array.isArray(savedSnapshot) && savedSnapshot.length > 0) {
+                        const targetSize = getTargetSize(newLayout);
+                        const restoredGrid = Array(targetSize).fill(null);
+                        for (let i = 0; i < Math.min(savedSnapshot.length, targetSize); i++) {
+                            restoredGrid[i] = savedSnapshot[i] || null;
+                        }
+                        setGrid(restoredGrid);
+                    } else {
+                        // No snapshot (user switched to About You before having a grid) — extract albums in order
+                        const filledAlbums = aboutYouGrid
+                            .map(cell => (cell && typeof cell === 'object' ? cell : null))
+                            .filter(cell => cell?.album)
+                            .map(cell => cell.album);
+                        const targetSize = getTargetSize(newLayout);
+                        const newGrid = Array(targetSize).fill(null);
+                        filledAlbums.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
+                        setGrid(newGrid);
+                    }
                     setLayout(newLayout);
+
                 } else if (isGridLayout(layout) && isGridLayout(newLayout)) {
-                    // Grid → Grid: resize, preserving as many albums as possible
+                    // Grid → different grid: preserve as many albums as possible
                     const targetSize = getTargetSize(newLayout);
                     const newGrid = Array(targetSize).fill(null);
                     grid.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
                     setGrid(newGrid);
                     setLayout(newLayout);
+
                 } else {
                     setLayout(newLayout);
                 }
-            }, [layout, grid, aboutYouGrid, gridWidth, gridHeight]);
+            }, [layout, grid, aboutYouGrid, gridWidth, gridHeight, layoutSnapshots]);
 
             const getTimestamp = () => {
                 const now = new Date();
@@ -2215,10 +2230,10 @@
                         </div>
 
                         <div className="p-4 md:p-6 max-w-7xl mx-auto">
-                            <div className={`grid gap-4 md:gap-6 transition-all duration-300 ${leftPanelCollapsed ? 'lg:grid-cols-[48px_1fr]' : 'lg:grid-cols-[320px_1fr]'}`}>
+                            <div className={`grid gap-4 md:gap-6 transition-all duration-300 items-start ${leftPanelCollapsed ? 'lg:grid-cols-[48px_1fr]' : 'lg:grid-cols-[320px_1fr]'}`}>
 
                                 {/* Left Panel with Tabs */}
-                                <div className="space-y-4 transition-all duration-300">
+                                <div className="space-y-4 transition-all duration-300 sticky top-20">
                                     {leftPanelCollapsed && (
                                         <button
                                             onClick={() => setLeftPanelCollapsed(false)}
@@ -2249,7 +2264,7 @@
 
                                         {/* Search Panel */}
                                         {leftPanelTab === 'search' && (
-                                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/10 flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                                            <div className="bg-white/5 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/10 flex flex-col" style={{ maxHeight: 'calc(100vh - 120px)' }}>
 
                                                 {/* Search Header & Inputs */}
                                                 <div className="flex-none p-4 md:p-6 pb-3 space-y-3">
@@ -2520,7 +2535,7 @@
 
                                         {/* Options Panel */}
                                         {leftPanelTab === 'options' && (
-                                            <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                                            <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white/10 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
 
                                                 <div className="space-y-4">
                                                     {/* LAYOUT section */}
