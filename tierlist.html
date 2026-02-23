@@ -10,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
+        html, body { background: #000; }
         @keyframes blob1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(150px,100px) scale(1.2)} 66%{transform:translate(-100px,150px) scale(0.9)} }
         @keyframes blob2 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-150px,-100px) scale(0.9)} 66%{transform:translate(100px,-150px) scale(1.2)} }
         .grain { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E"); pointer-events:none; }
