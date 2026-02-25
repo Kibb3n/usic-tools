@@ -1451,50 +1451,66 @@
                 const getTargetSize = (l) => l === 'classic' ? TOP42_GRID_SIZE : (l === 'classic2' ? TOP100_GRID_SIZE : (gridWidth * gridHeight));
                 const isGridLayout = (l) => l === 'standard' || l === 'classic' || l === 'classic2';
 
+                // Always snapshot the current layout before leaving it, so we can
+                // restore exact positions when the user comes back to it later.
+                const snapshotKey = layout === 'standard' ? `standard_${gridWidth}x${gridHeight}` : layout;
+                const updatedSnapshots = {
+                    ...layoutSnapshots,
+                    [snapshotKey]: layout === 'aboutYou' ? aboutYouGrid : grid,
+                };
+
                 if (newLayout === 'aboutYou') {
-                    // Always seed About You fresh from the current grid's albums.
-                    // This ensures Last.fm images and current positions are always correct.
-                    const filledAlbums = grid.filter(a => a);
-                    const newAboutYouGrid = aboutYouLabels.map((label, i) => {
-                        return { album: filledAlbums[i] || null, label };
-                    });
-                    setAboutYouGrid(newAboutYouGrid);
-                    // Save current grid layout into snapshot so we can restore it when leaving About You
-                    setLayoutSnapshots(prev => ({ ...prev, [layout]: grid }));
+                    // Restore a previously saved aboutYou snapshot if one exists,
+                    // otherwise seed from the current grid albums for the first visit.
+                    const savedAboutYou = updatedSnapshots['aboutYou'];
+                    const savedHasData = Array.isArray(savedAboutYou) && savedAboutYou.some(cell => cell && cell.album);
+                    if (savedHasData) {
+                        setAboutYouGrid(savedAboutYou);
+                    } else {
+                        const aboutYouHasData = aboutYouGrid.some(cell => cell && cell.album);
+                        if (!aboutYouHasData) {
+                            const filledAlbums = grid.filter(a => a);
+                            const newAboutYouGrid = aboutYouLabels.map((label, i) => ({
+                                album: filledAlbums[i] || null, label
+                            }));
+                            setAboutYouGrid(newAboutYouGrid);
+                        }
+                        // else aboutYouGrid already has data, keep it
+                    }
+                    setLayoutSnapshots(updatedSnapshots);
                     setLayout('aboutYou');
 
-                } else if (layout === 'aboutYou' && isGridLayout(newLayout)) {
-                    // Leaving About You → restore the exact grid snapshot we saved when we entered
-                    const savedSnapshot = layoutSnapshots[newLayout];
-                    if (savedSnapshot && Array.isArray(savedSnapshot) && savedSnapshot.length > 0) {
-                        const targetSize = getTargetSize(newLayout);
+                } else {
+                    // Switching to a grid layout — restore snapshot if available
+                    const targetKey = newLayout === 'standard' ? `standard_${gridWidth}x${gridHeight}` : newLayout;
+                    const savedSnapshot = updatedSnapshots[targetKey];
+                    const targetSize = getTargetSize(newLayout);
+
+                    if (Array.isArray(savedSnapshot) && savedSnapshot.length === targetSize) {
+                        // Perfect match — restore exactly
+                        setGrid(savedSnapshot);
+                    } else if (Array.isArray(savedSnapshot) && savedSnapshot.length > 0) {
+                        // Snapshot exists but different size — fit into target size preserving positions
                         const restoredGrid = Array(targetSize).fill(null);
                         for (let i = 0; i < Math.min(savedSnapshot.length, targetSize); i++) {
                             restoredGrid[i] = savedSnapshot[i] || null;
                         }
                         setGrid(restoredGrid);
+                    } else if (isGridLayout(layout)) {
+                        // No snapshot — carry over albums from current grid preserving positions
+                        const newGrid = Array(targetSize).fill(null);
+                        grid.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
+                        setGrid(newGrid);
                     } else {
-                        // No snapshot (user switched to About You before having a grid) — extract albums in order
+                        // Coming from aboutYou with no snapshot — fill from aboutYou albums in order
                         const filledAlbums = aboutYouGrid
-                            .map(cell => (cell && typeof cell === 'object' ? cell : null))
-                            .filter(cell => cell?.album)
+                            .filter(cell => cell && cell.album)
                             .map(cell => cell.album);
-                        const targetSize = getTargetSize(newLayout);
                         const newGrid = Array(targetSize).fill(null);
                         filledAlbums.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
                         setGrid(newGrid);
                     }
-                    setLayout(newLayout);
-
-                } else if (isGridLayout(layout) && isGridLayout(newLayout)) {
-                    // Grid → different grid: preserve as many albums as possible
-                    const targetSize = getTargetSize(newLayout);
-                    const newGrid = Array(targetSize).fill(null);
-                    grid.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
-                    setGrid(newGrid);
-                    setLayout(newLayout);
-
-                } else {
+                    setLayoutSnapshots(updatedSnapshots);
                     setLayout(newLayout);
                 }
             }, [layout, grid, aboutYouGrid, gridWidth, gridHeight, layoutSnapshots]);
@@ -1576,7 +1592,7 @@
                 function drawAndDownload() {
                     try {
                         var PAD = 48, GAP = gridGap;
-                        var TITLE_H = (layout !== 'aboutYou' && title) ? 64 : 0;
+                        var TITLE_H = title ? 64 : 0;
 
                         var tmp = document.createElement('div');
                         tmp.style.color = bgColor; document.body.appendChild(tmp);
@@ -1625,7 +1641,7 @@
                         } else {
                             cellStd = 110;
                             canvasW = PAD * 2 + cellStd * 6 + GAP * 5;
-                            canvasH = PAD * 2 + 4 * (cellStd + 30 + GAP);
+                            canvasH = PAD * 2 + TITLE_H + 4 * (cellStd + 30 + GAP);
                         }
 
                         var SCALE = 2;
@@ -1756,7 +1772,7 @@
                         } else {
                             var cs2 = cellStd, lH = 30;
                             aboutYouGrid.map(function (c) { return c && typeof c === 'object' ? c : { album: null, label: '' }; }).forEach(function (raw, idx) {
-                                var col = idx % 6, row = Math.floor(idx / 6), x = PAD + col * (cs2 + GAP), y = PAD + row * (cs2 + lH + GAP);
+                                var col = idx % 6, row = Math.floor(idx / 6), x = PAD + col * (cs2 + GAP), y = yStart + row * (cs2 + lH + GAP);
                                 drawCell(raw.album && raw.album.image, x, y, cs2, null);
                                 ctx.fillStyle = titleColor; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
                                 var words = (raw.label || '').split(' '), line = '', ly = y + cs2 + 5;
@@ -2618,7 +2634,7 @@
                                                             </>
                                                         )}
 
-                                                        {(layout === 'classic' || layout === 'classic2') && (
+                                                        {(layout === 'classic' || layout === 'classic2' || layout === 'aboutYou') && (
                                                             <div>
                                                                 <label className="block text-white text-sm font-medium mb-2">Title</label>
                                                                 <input
@@ -2793,6 +2809,11 @@
 
                                         {layout === 'aboutYou' && (
                                             <div className="max-w-[800px] mx-auto">
+                                                {title && (
+                                                    <h2 style={{ color: titleColor }} className="text-2xl md:text-3xl font-bold text-center mb-4">
+                                                        {title}
+                                                    </h2>
+                                                )}
                                                 <div className="grid grid-cols-6 gap-x-2 gap-y-3 w-full">
                                                     {aboutYouGrid.map((rawCell, index) => {
                                                         const cell = rawCell && typeof rawCell === 'object'
@@ -2804,10 +2825,10 @@
                                                                 onDragOver={(e) => handleDragOver(e, index)}
                                                                 onDragLeave={handleDragLeave}
                                                                 onDrop={(e) => handleDrop(e, index)}
-                                                                className={`relative group transition-all flex flex-col ${dragOverIndex === index ? 'drag-over' : ''}`}
+                                                                className={`relative group transition-all flex flex-col`}
                                                             >
                                                                 {/* Square image slot */}
-                                                                <div className={`relative w-full aspect-square grid-slot ${cell.album ? 'hidden-guides' : ''}`}>
+                                                                <div className={`relative w-full aspect-square grid-slot ${cell.album ? 'hidden-guides' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}>
                                                                     {cell.album ? (
                                                                         <>
                                                                             <img
