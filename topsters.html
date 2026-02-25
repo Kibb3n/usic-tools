@@ -450,6 +450,11 @@
             const [replaceOnDrop, setReplaceOnDrop] = useState(false);
             const [gridGap, setGridGap] = useState(2);
             const [renamingChartId, setRenamingChartId] = useState(null);
+            const [showAboutYouLabels, setShowAboutYouLabels] = useState(true);
+            const [renameAboutYouIndex, setRenameAboutYouIndex] = useState(null);
+            const [renameAboutYouLabel, setRenameAboutYouLabel] = useState('');
+            const [renameAboutYouTitle, setRenameAboutYouTitle] = useState('');
+            const [renameAboutYouArtist, setRenameAboutYouArtist] = useState('');
             // Snapshots of each layout's grid so switching layouts restores exact state
             const [layoutSnapshots, setLayoutSnapshots] = useState({});
 
@@ -696,7 +701,7 @@
                 const currentChartData = {
                     id: currentChartId,
                     name: charts[currentChartId]?.name || title,
-                    layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, grid, aboutYouGrid, showNumbers, replaceOnDrop, gridGap,
+                    layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, grid, aboutYouGrid, showNumbers, replaceOnDrop, gridGap, showAboutYouLabels,
                     lastModified: Date.now()
                 };
                 currentStateRef.current = currentChartData;
@@ -722,7 +727,7 @@
                     console.warn('localStorage quota exceeded even after stripping images:', quotaErr);
                 }
 
-            }, [layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, grid, aboutYouGrid, showNumbers, replaceOnDrop, gridGap, currentChartId]);
+            }, [layout, gridWidth, gridHeight, title, titleColor, bgColor, showTitles, grid, aboutYouGrid, showNumbers, replaceOnDrop, gridGap, showAboutYouLabels, currentChartId]);
 
             // Helper to load a chart into state
             const loadChart = (chart) => {
@@ -771,6 +776,7 @@
                 setShowNumbers(chart.showNumbers !== undefined ? chart.showNumbers : true);
                 setReplaceOnDrop(chart.replaceOnDrop || false);
                 setGridGap(chart.gridGap !== undefined ? chart.gridGap : 2);
+                setShowAboutYouLabels(chart.showAboutYouLabels !== undefined ? chart.showAboutYouLabels : true);
 
                 // Build correctly-sized grid array
                 const targetSize = targetLayout === 'classic' ? TOP42_GRID_SIZE
@@ -1444,6 +1450,37 @@
                 }
             }, [confirmRename]);
 
+            const openAboutYouRenameModal = useCallback((index) => {
+                const cell = aboutYouGrid[index];
+                const currentLabel = (cell && typeof cell === 'object' ? cell.label : null) || aboutYouLabels[index] || '';
+                const currentTitle = (cell && cell.album && cell.album.title) || '';
+                const currentArtist = (cell && cell.album && cell.album.artist) || '';
+                setRenameAboutYouIndex(index);
+                setRenameAboutYouLabel(currentLabel);
+                setRenameAboutYouTitle(currentTitle);
+                setRenameAboutYouArtist(currentArtist);
+            }, [aboutYouGrid]);
+
+            const confirmAboutYouRename = useCallback(() => {
+                if (renameAboutYouIndex !== null) {
+                    saveToHistory();
+                    const newGrid = aboutYouGrid.map((cell, i) =>
+                        cell && typeof cell === 'object' ? cell : { album: null, label: aboutYouLabels[i] || '' }
+                    );
+                    const cell = newGrid[renameAboutYouIndex];
+                    newGrid[renameAboutYouIndex] = {
+                        ...cell,
+                        label: renameAboutYouLabel,
+                        album: cell.album ? { ...cell.album, title: renameAboutYouTitle, artist: renameAboutYouArtist } : cell.album,
+                    };
+                    setAboutYouGrid(newGrid);
+                }
+                setRenameAboutYouIndex(null);
+                setRenameAboutYouLabel('');
+                setRenameAboutYouTitle('');
+                setRenameAboutYouArtist('');
+            }, [renameAboutYouIndex, renameAboutYouLabel, renameAboutYouTitle, renameAboutYouArtist, aboutYouGrid, saveToHistory]);
+
             const switchLayout = useCallback((newLayout) => {
                 // No-op if already on this layout
                 if (newLayout === layout) return;
@@ -1604,6 +1641,8 @@
                         var canvasW, canvasH, cellStd;
                         var LIST_W = (showTitles && grid.some(Boolean)) ? 220 : 0;
                         var LIST_PAD = LIST_W > 0 ? 24 : 0;
+                        var AY_LIST_W = (layout === 'aboutYou' && showTitles && aboutYouGrid.some(function(c){ return c && c.album; })) ? 500 : 0;
+                        var AY_LIST_PAD = AY_LIST_W > 0 ? 28 : 0;
                         if (layout === 'standard') {
                             var tW = Math.max(1, gridWidth);
                             var tRows = Math.max(1, Math.ceil(grid.length / tW));
@@ -1640,7 +1679,7 @@
                             cellStd = Math.round((c2BaseW - GAP * 13) / 14);
                         } else {
                             cellStd = 110;
-                            canvasW = PAD * 2 + cellStd * 6 + GAP * 5;
+                            canvasW = PAD * 2 + cellStd * 6 + GAP * 5 + AY_LIST_PAD + AY_LIST_W;
                             canvasH = PAD * 2 + TITLE_H + 4 * (cellStd + 30 + GAP);
                         }
 
@@ -1779,6 +1818,51 @@
                                 words.forEach(function (w) { var t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > cs2 - 4 && line) { ctx.fillText(line, x + cs2 / 2, ly); ly += 12; line = w; } else line = t; });
                                 if (line) ctx.fillText(line, x + cs2 / 2, ly);
                             });
+                            if (AY_LIST_W > 0) {
+                                var aylx = PAD + cellStd * 6 + GAP * 5 + AY_LIST_PAD;
+                                ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+                                var ayLineH = 13;
+                                var colW = Math.floor(AY_LIST_W / 2) - 8;
+                                var filledCells = aboutYouGrid.filter(function(c){ return c && typeof c === 'object' && c.album; });
+                                var colSize = Math.ceil(filledCells.length / 2);
+                                filledCells.forEach(function(cell, fi) {
+                                    var col = fi < colSize ? 0 : 1;
+                                    var row = col === 0 ? fi : fi - colSize;
+                                    var cx = aylx + col * (colW + 16);
+                                    var cy = yStart + row * ayLineH;
+                                    ctx.font = '9px "Courier New",monospace';
+                                    ctx.fillStyle = titleColor;
+
+                                    if (showAboutYouLabels) {
+                                        // Dimmed label part
+                                        var labelPart = (cell.label || '') + ' \u2014 ';
+                                        ctx.globalAlpha = 0.7;
+                                        var labelW = ctx.measureText(labelPart).width;
+                                        // Only draw label if it fits
+                                        if (labelW < colW) {
+                                            ctx.fillText(labelPart, cx, cy);
+                                            // Album part at full opacity in remaining space
+                                            ctx.globalAlpha = 1;
+                                            var albumPart = cell.album.title;
+                                            var remaining = colW - labelW;
+                                            while (albumPart.length > 2 && ctx.measureText(albumPart).width > remaining) albumPart = albumPart.slice(0, -1);
+                                            ctx.fillText(albumPart, cx + labelW, cy);
+                                        } else {
+                                            // Label alone is too long — just show truncated label
+                                            ctx.globalAlpha = 0.7;
+                                            var truncLabel = cell.label || '';
+                                            while (truncLabel.length > 2 && ctx.measureText(truncLabel).width > colW) truncLabel = truncLabel.slice(0, -1);
+                                            ctx.fillText(truncLabel, cx, cy);
+                                        }
+                                    } else {
+                                        ctx.globalAlpha = 1;
+                                        var entryTxt = cell.album.title + ' \u2014 ' + cell.album.artist;
+                                        while (entryTxt.length > 2 && ctx.measureText(entryTxt).width > colW) entryTxt = entryTxt.slice(0, -1);
+                                        ctx.fillText(entryTxt, cx, cy);
+                                    }
+                                    ctx.globalAlpha = 1;
+                                });
+                            }
                         }
 
                         // Revoke all blob URLs now we're done drawing
@@ -1995,6 +2079,68 @@
                                         className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"
                                     >
                                         Rename
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {renameAboutYouIndex !== null && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md mx-4 shadow-2xl w-full">
+                                <h3 className="text-xl font-bold text-white mb-4">Edit Slot</h3>
+                                <div className="space-y-3 mb-6">
+                                    <div>
+                                        <label className="block text-white text-sm font-medium mb-2">List Descriptor</label>
+                                        <input
+                                            type="text"
+                                            value={renameAboutYouLabel}
+                                            onChange={(e) => setRenameAboutYouLabel(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') confirmAboutYouRename(); if (e.key === 'Escape') { setRenameAboutYouIndex(null); setRenameAboutYouLabel(''); setRenameAboutYouTitle(''); setRenameAboutYouArtist(''); } }}
+                                            placeholder="Enter descriptor label"
+                                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    {renameAboutYouIndex !== null && aboutYouGrid[renameAboutYouIndex]?.album && (
+                                        <>
+                                            <div>
+                                                <label className="block text-white text-sm font-medium mb-2">Album Title</label>
+                                                <input
+                                                    type="text"
+                                                    value={renameAboutYouTitle}
+                                                    onChange={(e) => setRenameAboutYouTitle(e.target.value)}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter') confirmAboutYouRename(); }}
+                                                    placeholder="Enter album title"
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-white text-sm font-medium mb-2">Artist</label>
+                                                <input
+                                                    type="text"
+                                                    value={renameAboutYouArtist}
+                                                    onChange={(e) => setRenameAboutYouArtist(e.target.value)}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter') confirmAboutYouRename(); }}
+                                                    placeholder="Enter artist name"
+                                                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => { setRenameAboutYouIndex(null); setRenameAboutYouLabel(''); setRenameAboutYouTitle(''); setRenameAboutYouArtist(''); }}
+                                        className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={confirmAboutYouRename}
+                                        className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"
+                                    >
+                                        Save
                                     </button>
                                 </div>
                             </div>
@@ -2682,7 +2828,7 @@
                                                         </div>
                                                     </div>
 
-                                                    {(layout === 'standard' || layout === 'classic' || layout === 'classic2') && (
+                                                    {(layout === 'standard' || layout === 'classic' || layout === 'classic2' || layout === 'aboutYou') && (
                                                         <>
                                                             <hr className="border-white/10" />
                                                             {/* MORE OPTIONS section */}
@@ -2693,16 +2839,27 @@
                                                                     <span className="toggle-track"><span className="toggle-thumb"></span></span>
                                                                     <span className="toggle-label">Show album list</span>
                                                                 </label>
-                                                                <label className="toggle-switch">
-                                                                    <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
-                                                                    <span className="toggle-track"><span className="toggle-thumb"></span></span>
-                                                                    <span className="toggle-label">Show numbers</span>
-                                                                </label>
-                                                                <label className="toggle-switch">
-                                                                    <input type="checkbox" checked={replaceOnDrop} onChange={(e) => setReplaceOnDrop(e.target.checked)} />
-                                                                    <span className="toggle-track"><span className="toggle-thumb"></span></span>
-                                                                    <span className="toggle-label">Replace album on drop</span>
-                                                                </label>
+                                                                {layout !== 'aboutYou' && (
+                                                                    <label className="toggle-switch">
+                                                                        <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
+                                                                        <span className="toggle-track"><span className="toggle-thumb"></span></span>
+                                                                        <span className="toggle-label">Show numbers</span>
+                                                                    </label>
+                                                                )}
+                                                                {layout !== 'aboutYou' && (
+                                                                    <label className="toggle-switch">
+                                                                        <input type="checkbox" checked={replaceOnDrop} onChange={(e) => setReplaceOnDrop(e.target.checked)} />
+                                                                        <span className="toggle-track"><span className="toggle-thumb"></span></span>
+                                                                        <span className="toggle-label">Replace album on drop</span>
+                                                                    </label>
+                                                                )}
+                                                                {layout === 'aboutYou' && (
+                                                                    <label className={`toggle-switch ${!showTitles ? 'opacity-40 pointer-events-none' : ''}`}>
+                                                                        <input type="checkbox" checked={showAboutYouLabels} onChange={(e) => setShowAboutYouLabels(e.target.checked)} disabled={!showTitles} />
+                                                                        <span className="toggle-track"><span className="toggle-thumb"></span></span>
+                                                                        <span className="toggle-label">Show list descriptors</span>
+                                                                    </label>
+                                                                )}
                                                             </div>
                                                         </>
                                                     )}
@@ -2761,9 +2918,11 @@
                                                                                 className="album-cover w-full h-full object-cover pointer-events-none"
                                                                             />
                                                                             <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                                                                                <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(index); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
-                                                                                    <Pencil className="w-3 h-3" />
-                                                                                </button>
+                                                                                {showTitles && (
+                                                                                    <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(index); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
+                                                                                        <Pencil className="w-3 h-3" />
+                                                                                    </button>
+                                                                                )}
                                                                                 <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(index); }} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded">
                                                                                     <Trash className="w-3 h-3" />
                                                                                 </button>
@@ -2808,12 +2967,14 @@
                                         )}
 
                                         {layout === 'aboutYou' && (
-                                            <div className="max-w-[800px] mx-auto">
+                                            <div className="max-w-[900px] mx-auto">
                                                 {title && (
                                                     <h2 style={{ color: titleColor }} className="text-2xl md:text-3xl font-bold text-center mb-4">
                                                         {title}
                                                     </h2>
                                                 )}
+                                                <div className="flex gap-6">
+                                                <div className="flex-1">
                                                 <div className="grid grid-cols-6 gap-x-2 gap-y-3 w-full">
                                                     {aboutYouGrid.map((rawCell, index) => {
                                                         const cell = rawCell && typeof rawCell === 'object'
@@ -2839,15 +3000,25 @@
                                                                                 onDragEnd={handleDragEnd}
                                                                                 className="album-cover w-full h-full object-cover"
                                                                             />
-                                                                            <button
-                                                                                onClick={() => removeFromGrid(index)}
-                                                                                className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-all z-10"
-                                                                            >
-                                                                                <Trash className="w-3 h-3" />
-                                                                            </button>
+                                                                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                                                                                {showTitles && (
+                                                                                    <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openAboutYouRenameModal(index); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
+                                                                                        <Pencil className="w-3 h-3" />
+                                                                                    </button>
+                                                                                )}
+                                                                                <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(index); }} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded">
+                                                                                    <Trash className="w-3 h-3" />
+                                                                                </button>
+                                                                            </div>
                                                                         </>
                                                                     ) : (
-                                                                        <div className="w-full h-full"></div>
+                                                                        <div className="w-full h-full flex items-center justify-center">
+                                                                            {showTitles && (
+                                                                                <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openAboutYouRenameModal(index); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-all">
+                                                                                    <Pencil className="w-3 h-3" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                                 {/* Label — wraps freely, never clipped */}
@@ -2863,6 +3034,24 @@
                                                             </div>
                                                         );
                                                     })}
+                                                </div>
+                                                </div>
+                                                {showTitles && aboutYouGrid.some(c => c && c.album) && (
+                                                    <div className="w-48 hidden lg:block flex-shrink-0 self-start" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
+                                                        {aboutYouGrid
+                                                            .map((rawCell, i) => {
+                                                                const cell = rawCell && typeof rawCell === 'object' ? rawCell : { album: null, label: aboutYouLabels[i] || '' };
+                                                                return cell.album ? { album: cell.album, label: cell.label || aboutYouLabels[i] || '', idx: i } : null;
+                                                            })
+                                                            .filter(Boolean)
+                                                            .map(({ album, label, idx }) => (
+                                                                <div key={idx} onClick={() => openAboutYouRenameModal(idx)} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '3px', opacity: 0.85, cursor: 'pointer' }} className="truncate hover:opacity-100 transition-opacity">
+                                                                    {showAboutYouLabels && <span style={{ opacity: 0.55 }}>{label}: </span>}{album.title} — {album.artist}
+                                                                </div>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                )}
                                                 </div>
                                             </div>
                                         )}
@@ -2899,9 +3088,11 @@
                                                                                 className="w-full h-full object-cover pointer-events-none"
                                                                             />
                                                                             <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 z-10">
-                                                                                <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(i); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
-                                                                                    <Pencil className="w-3 h-3" />
-                                                                                </button>
+                                                                                {showTitles && (
+                                                                                    <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(i); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
+                                                                                        <Pencil className="w-3 h-3" />
+                                                                                    </button>
+                                                                                )}
                                                                                 <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(i); }} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded">
                                                                                     <Trash className="w-3 h-3" />
                                                                                 </button>
@@ -2948,9 +3139,11 @@
                                                                                         className="w-full h-full object-cover pointer-events-none"
                                                                                     />
                                                                                     <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 z-10">
-                                                                                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="bg-blue-500 text-white p-0.5 rounded">
-                                                                                            <Pencil className="w-2 h-2" />
-                                                                                        </button>
+                                                                                        {showTitles && (
+                                                                                            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="bg-blue-500 text-white p-0.5 rounded">
+                                                                                                <Pencil className="w-2 h-2" />
+                                                                                            </button>
+                                                                                        )}
                                                                                         <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(idx); }} className="bg-red-500 text-white p-0.5 rounded">
                                                                                             <Trash className="w-2 h-2" />
                                                                                         </button>
@@ -3023,9 +3216,11 @@
                                                                                         className="w-full h-full object-cover pointer-events-none"
                                                                                     />
                                                                                     <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 z-10">
-                                                                                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="bg-blue-500 text-white p-0.5 rounded">
-                                                                                            <Pencil className="w-2 h-2" />
-                                                                                        </button>
+                                                                                        {showTitles && (
+                                                                                            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="bg-blue-500 text-white p-0.5 rounded">
+                                                                                                <Pencil className="w-2 h-2" />
+                                                                                            </button>
+                                                                                        )}
                                                                                         <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(idx); }} className="bg-red-500 text-white p-0.5 rounded">
                                                                                             <Trash className="w-2 h-2" />
                                                                                         </button>
