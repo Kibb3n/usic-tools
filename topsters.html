@@ -87,6 +87,7 @@
         .classic-slot {
             border: 2px dashed rgba(255, 255, 255, 0.3);
             transition: border-color 0.2s, background 0.2s, transform 0.2s;
+            container-type: size;
         }
 
         .classic-slot.hidden-guides {
@@ -97,6 +98,58 @@
             border-color: #60a5fa !important;
             background: rgba(96, 165, 250, 0.2);
             transform: scale(1.05);
+        }
+
+        /* Scalable overlay elements — size relative to the cell */
+        .classic-slot .slot-number {
+            position: absolute;
+            bottom: 5cqh;
+            left: 5cqw;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 2px;
+            font-weight: bold;
+            pointer-events: none;
+            font-size: clamp(7px, 14cqw, 13px);
+            padding: 0 2px;
+            line-height: 1.3;
+        }
+        .classic-slot .slot-actions {
+            position: absolute;
+            top: 5cqh;
+            right: 5cqw;
+            display: flex;
+            gap: 3cqw;
+            opacity: 0;
+            z-index: 10;
+            transition: opacity 0.15s;
+        }
+        .classic-slot:hover .slot-actions {
+            opacity: 1;
+        }
+        .classic-slot .slot-action-btn {
+            border: none;
+            cursor: pointer;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: clamp(12px, 22cqw, 22px);
+            height: clamp(12px, 22cqw, 22px);
+            padding: 0;
+        }
+        .classic-slot .slot-action-btn svg {
+            width: 65%;
+            height: 65%;
+        }
+        .classic-slot .slot-empty-num {
+            color: rgba(255,255,255,0.5);
+            font-size: clamp(7px, 14cqw, 13px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
         }
 
         .album-cover {
@@ -139,6 +192,18 @@
         .editable-label:focus {
             background: rgba(255, 255, 255, 0.15);
             border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .sidebar-title-row {
+            border-radius: 2px;
+            padding: 1px 3px;
+            margin: 0 -3px;
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        .sidebar-title-row:hover {
+            background: rgba(255, 255, 255, 0.12);
+            opacity: 1 !important;
         }
 
         .empty-state {
@@ -402,9 +467,9 @@
             const [currentChartId, setCurrentChartId] = useState(null);
 
             // Grid state (now derived/managed alongside charts)
-            const [layout, setLayout] = useState('standard');
-            const [gridWidth, setGridWidth] = useState(5);
-            const [gridHeight, setGridHeight] = useState(5);
+            const [layout, setLayoutState] = useState('standard');
+            const [gridWidth, setGridWidthState] = useState(5);
+            const [gridHeight, setGridHeightState] = useState(5);
             const [title, setTitle] = useState('My Top Albums');
             const [titleColor, setTitleColor] = useState('#ffffff');
             const [bgColor, setBgColor] = useState('#000000');
@@ -418,8 +483,109 @@
 
             const [searchResults, setSearchResults] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [grid, setGrid] = useState([]);
-            const [aboutYouGrid, setAboutYouGrid] = useState([]);
+            const [grid, setGridState] = useState([]);
+            const [aboutYouGrid, setAboutYouGridState] = useState([]);
+
+            // ── Live-state refs ──────────────────────────────────────────────────────
+            // Mirror state but updated synchronously so switchLayout is never stale.
+            const liveLayoutRef   = useRef('standard');
+            const liveGridRef     = useRef([]);
+            const liveAboutYouRef = useRef([]);
+            const liveGridW       = useRef(5);
+            const liveGridH       = useRef(5);
+            // Per-layout snapshots: written on leave, read on enter.
+            const layoutSnapshotsRef = useRef({});
+
+            // Wrappers: update live ref then state atomically
+            const setGrid = useCallback((val) => {
+                const next = typeof val === 'function' ? val(liveGridRef.current) : val;
+                liveGridRef.current = next;
+                setGridState(next);
+                // Keep ALL layout snapshots in sync so switching layouts never loses position info.
+                // We always sync the other two grid-based layouts from the current grid.
+                const curLayout = liveLayoutRef.current;
+                if (curLayout !== 'aboutYou') {
+                    // Update the current layout's snapshot
+                    const curKey = curLayout === 'standard'
+                        ? `standard_${liveGridW.current}x${liveGridH.current}`
+                        : curLayout;
+                    layoutSnapshotsRef.current[curKey] = next;
+                    // Sync other grid layouts by overlaying positions into their sizes
+                    const otherLayouts = ['classic', 'classic2'];
+                    otherLayouts.forEach(otherLayout => {
+                        if (otherLayout === curLayout) return;
+                        const otherSize = otherLayout === 'classic' ? TOP42_GRID_SIZE : TOP100_GRID_SIZE;
+                        // Preserve existing snapshot for slots beyond current grid, copy from current for overlap
+                        const existing = Array.isArray(layoutSnapshotsRef.current[otherLayout])
+                            ? [...layoutSnapshotsRef.current[otherLayout]]
+                            : Array(otherSize).fill(null);
+                        const overlap = Math.min(next.length, otherSize);
+                        for (let i = 0; i < overlap; i++) {
+                            existing[i] = next[i] ?? null;
+                        }
+                        layoutSnapshotsRef.current[otherLayout] = existing;
+                    });
+                    // Sync standard layout snapshot for current dimensions
+                    const stdKey = `standard_${liveGridW.current}x${liveGridH.current}`;
+                    if (curLayout !== 'standard') {
+                        const stdSize = liveGridW.current * liveGridH.current;
+                        const stdGrid = Array(stdSize).fill(null);
+                        for (let i = 0; i < Math.min(next.length, stdSize); i++) stdGrid[i] = next[i] ?? null;
+                        layoutSnapshotsRef.current[stdKey] = stdGrid;
+                    }
+                    // Sync aboutYou snapshot: overlay grid albums into aboutYou slots,
+                    // preserving existing labels and any aboutYou-only entries beyond grid range.
+                    const existingAY = Array.isArray(layoutSnapshotsRef.current['aboutYou'])
+                        ? layoutSnapshotsRef.current['aboutYou']
+                        : aboutYouLabels.map((label, i) => ({ album: null, label }));
+                    const updatedAY = existingAY.map((cell, i) => {
+                        if (i < next.length) {
+                            return { ...(cell || { label: aboutYouLabels[i] || '' }), album: next[i] ?? null };
+                        }
+                        return cell;
+                    });
+                    layoutSnapshotsRef.current['aboutYou'] = updatedAY;
+                }
+            }, []);
+            const setAboutYouGrid = useCallback((val) => {
+                const next = typeof val === 'function' ? val(liveAboutYouRef.current) : val;
+                liveAboutYouRef.current = next;
+                setAboutYouGridState(next);
+                // Keep grid layout snapshots in sync so switching from aboutYou to any grid layout
+                // preserves album positions exactly as they appear in aboutYou.
+                if (liveLayoutRef.current === 'aboutYou') {
+                    layoutSnapshotsRef.current['aboutYou'] = next;
+                    const albums = next.map(c => c?.album || null);
+                    // Update all grid snapshots to reflect aboutYou slot positions
+                    ['classic', 'classic2'].forEach(otherLayout => {
+                        const otherSize = otherLayout === 'classic' ? TOP42_GRID_SIZE : TOP100_GRID_SIZE;
+                        const existing = Array.isArray(layoutSnapshotsRef.current[otherLayout])
+                            ? [...layoutSnapshotsRef.current[otherLayout]]
+                            : Array(otherSize).fill(null);
+                        for (let i = 0; i < Math.min(albums.length, otherSize); i++) {
+                            existing[i] = albums[i] ?? null;
+                        }
+                        layoutSnapshotsRef.current[otherLayout] = existing;
+                    });
+                    const stdSize = liveGridW.current * liveGridH.current;
+                    const stdKey = `standard_${liveGridW.current}x${liveGridH.current}`;
+                    const stdGrid = Array(stdSize).fill(null);
+                    for (let i = 0; i < Math.min(albums.length, stdSize); i++) stdGrid[i] = albums[i] ?? null;
+                    layoutSnapshotsRef.current[stdKey] = stdGrid;
+                }
+            }, []);
+            const setLayout = useCallback((val) => {
+                liveLayoutRef.current = val;
+                setLayoutState(val);
+            }, []);
+            const setGridWidth = useCallback((val) => {
+                liveGridW.current = val;
+                setGridWidthState(val);
+            }, []);
+            const setGridHeight = useCallback((val) => {
+                liveGridH.current = val;
+                setGridHeightState(val);
+            }, []);
             const [draggedItem, setDraggedItem] = useState(null);
             const [draggedFrom, setDraggedFrom] = useState(null);
             const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -455,9 +621,6 @@
             const [renameAboutYouLabel, setRenameAboutYouLabel] = useState('');
             const [renameAboutYouTitle, setRenameAboutYouTitle] = useState('');
             const [renameAboutYouArtist, setRenameAboutYouArtist] = useState('');
-            // Snapshots of each layout's grid so switching layouts restores exact state
-            const [layoutSnapshots, setLayoutSnapshots] = useState({});
-
             const gridRef = useRef(null);
             const fileInputRef = useRef(null);
             const scrollIntervalRef = useRef(null);
@@ -805,8 +968,26 @@
 
                 // Allow auto-save and resize effect to resume after React flushes these updates
                 setTimeout(() => { isLoadingChartRef.current = false; }, 150);
-                // Reset layout snapshots when loading a chart so each chart starts fresh
-                setLayoutSnapshots({});
+
+                // Reset layout snapshots and seed ALL layouts so switching to any layout
+                // for the first time restores correctly rather than re-packing in order.
+                layoutSnapshotsRef.current = {};
+                liveLayoutRef.current = targetLayout;
+                liveGridRef.current = restoredGrid;
+                liveAboutYouRef.current = restoredAboutYou;
+                liveGridW.current = w;
+                liveGridH.current = h;
+                // Seed all layout keys from the saved data so first visit to any layout
+                // preserves positions rather than re-packing albums to the front.
+                const padTo = (src, size) => {
+                    const g = Array(size).fill(null);
+                    for (let i = 0; i < Math.min(src.length, size); i++) g[i] = src[i] ?? null;
+                    return g;
+                };
+                layoutSnapshotsRef.current[`standard_${w}x${h}`] = padTo(restoredGrid, w * h);
+                layoutSnapshotsRef.current['classic']  = padTo(restoredGrid, TOP42_GRID_SIZE);
+                layoutSnapshotsRef.current['classic2'] = padTo(restoredGrid, TOP100_GRID_SIZE);
+                layoutSnapshotsRef.current['aboutYou'] = restoredAboutYou;
             };
 
             const createNewChart = () => {
@@ -1482,75 +1663,77 @@
             }, [renameAboutYouIndex, renameAboutYouLabel, renameAboutYouTitle, renameAboutYouArtist, aboutYouGrid, saveToHistory]);
 
             const switchLayout = useCallback((newLayout) => {
-                // No-op if already on this layout
-                if (newLayout === layout) return;
+                const curLayout = liveLayoutRef.current;
+                if (newLayout === curLayout) return;
 
-                const getTargetSize = (l) => l === 'classic' ? TOP42_GRID_SIZE : (l === 'classic2' ? TOP100_GRID_SIZE : (gridWidth * gridHeight));
+                const curGrid      = liveGridRef.current;
+                const curAboutYou  = liveAboutYouRef.current;
+                const curW         = liveGridW.current;
+                const curH         = liveGridH.current;
+
+                const getTargetSize = (l) =>
+                    l === 'classic' ? TOP42_GRID_SIZE :
+                    l === 'classic2' ? TOP100_GRID_SIZE :
+                    curW * curH;
                 const isGridLayout = (l) => l === 'standard' || l === 'classic' || l === 'classic2';
 
-                // Always snapshot the current layout before leaving it, so we can
-                // restore exact positions when the user comes back to it later.
-                const snapshotKey = layout === 'standard' ? `standard_${gridWidth}x${gridHeight}` : layout;
-                const updatedSnapshots = {
-                    ...layoutSnapshots,
-                    [snapshotKey]: layout === 'aboutYou' ? aboutYouGrid : grid,
-                };
+                // Save snapshot of current layout
+                const fromKey = curLayout === 'standard' ? `standard_${curW}x${curH}` : curLayout;
+                layoutSnapshotsRef.current[fromKey] = curLayout === 'aboutYou' ? curAboutYou : curGrid;
 
                 if (newLayout === 'aboutYou') {
-                    // Restore a previously saved aboutYou snapshot if one exists,
-                    // otherwise seed from the current grid albums for the first visit.
-                    const savedAboutYou = updatedSnapshots['aboutYou'];
-                    const savedHasData = Array.isArray(savedAboutYou) && savedAboutYou.some(cell => cell && cell.album);
-                    if (savedHasData) {
-                        setAboutYouGrid(savedAboutYou);
+                    const saved = layoutSnapshotsRef.current['aboutYou'];
+                    if (Array.isArray(saved) && saved.some(c => c?.album)) {
+                        // Use the aboutYou snapshot directly — it is kept in sync with grid edits
+                        // via setAboutYouGrid's sync logic. Do NOT merge with curGrid here because
+                        // curGrid may be stale (it doesn't update when aboutYou is edited).
+                        setAboutYouGrid(saved);
                     } else {
-                        const aboutYouHasData = aboutYouGrid.some(cell => cell && cell.album);
-                        if (!aboutYouHasData) {
-                            const filledAlbums = grid.filter(a => a);
-                            const newAboutYouGrid = aboutYouLabels.map((label, i) => ({
-                                album: filledAlbums[i] || null, label
-                            }));
-                            setAboutYouGrid(newAboutYouGrid);
-                        }
-                        // else aboutYouGrid already has data, keep it
+                        // No aboutYou snapshot yet — seed from current grid positions
+                        setAboutYouGrid(aboutYouLabels.map((label, i) => ({
+                            album: curGrid[i] || null, label
+                        })));
                     }
-                    setLayoutSnapshots(updatedSnapshots);
                     setLayout('aboutYou');
 
                 } else {
-                    // Switching to a grid layout — restore snapshot if available
-                    const targetKey = newLayout === 'standard' ? `standard_${gridWidth}x${gridHeight}` : newLayout;
-                    const savedSnapshot = updatedSnapshots[targetKey];
                     const targetSize = getTargetSize(newLayout);
 
-                    if (Array.isArray(savedSnapshot) && savedSnapshot.length === targetSize) {
-                        // Perfect match — restore exactly
-                        setGrid(savedSnapshot);
-                    } else if (Array.isArray(savedSnapshot) && savedSnapshot.length > 0) {
-                        // Snapshot exists but different size — fit into target size preserving positions
-                        const restoredGrid = Array(targetSize).fill(null);
-                        for (let i = 0; i < Math.min(savedSnapshot.length, targetSize); i++) {
-                            restoredGrid[i] = savedSnapshot[i] || null;
-                        }
-                        setGrid(restoredGrid);
-                    } else if (isGridLayout(layout)) {
-                        // No snapshot — carry over albums from current grid preserving positions
-                        const newGrid = Array(targetSize).fill(null);
-                        grid.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
-                        setGrid(newGrid);
+                    // Always use the current grid as source of truth for position-consistent layouts.
+                    // If coming from aboutYou, extract albums in slot order.
+                    let sourceGrid;
+                    if (isGridLayout(curLayout)) {
+                        // Coming from another grid layout — current grid IS the source of truth.
+                        // We already have all positions in curGrid; just resize.
+                        sourceGrid = curGrid;
                     } else {
-                        // Coming from aboutYou with no snapshot — fill from aboutYou albums in order
-                        const filledAlbums = aboutYouGrid
-                            .filter(cell => cell && cell.album)
-                            .map(cell => cell.album);
-                        const newGrid = Array(targetSize).fill(null);
-                        filledAlbums.forEach((album, i) => { if (i < targetSize) newGrid[i] = album; });
-                        setGrid(newGrid);
+                        // Coming from aboutYou — extract albums in slot order
+                        sourceGrid = curAboutYou.map(c => c?.album || null);
                     }
-                    setLayoutSnapshots(updatedSnapshots);
+
+                    const g = Array(targetSize).fill(null);
+                    if (isGridLayout(curLayout)) {
+                        // Coming from a grid layout — use the snapshot for extra slots beyond sourceGrid,
+                        // then overlay sourceGrid as the source of truth for overlapping range.
+                        const saved = layoutSnapshotsRef.current[newLayout === 'standard' ? `standard_${curW}x${curH}` : newLayout];
+                        if (Array.isArray(saved)) {
+                            for (let i = 0; i < Math.min(saved.length, targetSize); i++) g[i] = saved[i] ?? null;
+                        }
+                        for (let i = 0; i < Math.min(sourceGrid.length, targetSize); i++) {
+                            g[i] = sourceGrid[i] ?? null;
+                        }
+                    } else {
+                        // Coming from aboutYou — use only the aboutYou-derived slot order.
+                        // Do NOT apply the saved grid snapshot: setAboutYouGrid already kept it in sync,
+                        // so using it would cause duplication if albums were added/moved in aboutYou.
+                        for (let i = 0; i < Math.min(sourceGrid.length, targetSize); i++) {
+                            g[i] = sourceGrid[i] ?? null;
+                        }
+                    }
+                    setGrid(g);
                     setLayout(newLayout);
                 }
-            }, [layout, grid, aboutYouGrid, gridWidth, gridHeight, layoutSnapshots]);
+            }, [setGrid, setAboutYouGrid, setLayout]);
 
             const getTimestamp = () => {
                 const now = new Date();
@@ -2953,7 +3136,7 @@
                                                                 return rows.map((rowItems, gi) => (
                                                                     <div key={gi} className={gi > 0 ? 'mt-2' : ''}>
                                                                         {rowItems.map(({ album, idx }) => (
-                                                                            <div key={idx} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '1px', cursor: 'pointer', opacity: 0.85 }} onClick={() => openRenameModal(idx)} className="hover:opacity-100 transition-opacity truncate">
+                                                                            <div key={idx} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '1px', opacity: 0.85 }} onClick={() => openRenameModal(idx)} className="sidebar-title-row truncate">
                                                                                 {showNumbers && <span style={{ opacity: 0.55, marginRight: '3px' }}>{idx + 1}.</span>}{album.title} — {album.artist}
                                                                             </div>
                                                                         ))}
@@ -3013,11 +3196,6 @@
                                                                         </>
                                                                     ) : (
                                                                         <div className="w-full h-full flex items-center justify-center">
-                                                                            {showTitles && (
-                                                                                <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openAboutYouRenameModal(index); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-all">
-                                                                                    <Pencil className="w-3 h-3" />
-                                                                                </button>
-                                                                            )}
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -3044,8 +3222,20 @@
                                                                 return cell.album ? { album: cell.album, label: cell.label || aboutYouLabels[i] || '', idx: i } : null;
                                                             })
                                                             .filter(Boolean)
-                                                            .map(({ album, label, idx }) => (
-                                                                <div key={idx} onClick={() => openAboutYouRenameModal(idx)} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '3px', opacity: 0.85, cursor: 'pointer' }} className="truncate hover:opacity-100 transition-opacity">
+                                                            .map(({ album, label, idx }, listPos) => (
+                                                                <div
+                                                                    key={idx}
+                                                                    onClick={() => openAboutYouRenameModal(idx)}
+                                                                    style={{
+                                                                        color: titleColor,
+                                                                        fontSize: '9px',
+                                                                        lineHeight: '1.35',
+                                                                        marginBottom: '3px',
+                                                                        marginTop: listPos > 0 && listPos % 6 === 0 ? '8px' : '0',
+                                                                        opacity: 0.85,
+                                                                    }}
+                                                                    className="sidebar-title-row truncate"
+                                                                >
                                                                     {showAboutYouLabels && <span style={{ opacity: 0.55 }}>{label}: </span>}{album.title} — {album.artist}
                                                                 </div>
                                                             ))
@@ -3065,57 +3255,16 @@
                                                 )}
                                                 <div className="flex gap-6">
                                                     <div className={`flex-1 max-w-[600px] mx-auto${gridGap === 0 ? ' zero-gap' : ''}`}>
-                                                        {/* Row 1: 5 albums */}
-                                                        <div className="grid grid-cols-5" style={{ gap: `${gridGap}px` }}>
-                                                            {grid.slice(0, 5).map((album, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    draggable={!!album}
-                                                                    onDragStart={(e) => { if (album) handleDragStart(e, album, i); else e.preventDefault(); }}
-                                                                    onDragEnd={handleDragEnd}
-                                                                    onDragOver={(e) => handleDragOver(e, i)}
-                                                                    onDragLeave={handleDragLeave}
-                                                                    onDrop={(e) => handleDrop(e, i)}
-                                                                    className={`aspect-square relative group ${album ? 'grid-slot hidden-guides' : 'grid-slot'} ${dragOverIndex === i ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                                                                >
-                                                                    {album ? (
-                                                                        <>
-                                                                            <img
-                                                                                src={album.image}
-                                                                                alt={album.title}
-                                                                                draggable={false}
-                                                                                onContextMenu={(e) => { e.preventDefault(); openRenameModal(i); }}
-                                                                                className="w-full h-full object-cover pointer-events-none"
-                                                                            />
-                                                                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 z-10">
-                                                                                {showTitles && (
-                                                                                    <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(i); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded">
-                                                                                        <Pencil className="w-3 h-3" />
-                                                                                    </button>
-                                                                                )}
-                                                                                <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(i); }} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded">
-                                                                                    <Trash className="w-3 h-3" />
-                                                                                </button>
-                                                                            </div>
-                                                                            {showNumbers && (
-                                                                                <div className="absolute bottom-1 left-1 bg-black/70 text-white px-1.5 py-0.5 rounded text-xs font-bold pointer-events-none">
-                                                                                    {i + 1}
-                                                                                </div>
-                                                                            )}
-                                                                        </>
-                                                                    ) : <div className="text-white text-center text-xs flex items-center justify-center h-full">{showNumbers ? i + 1 : ''}</div>}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        {/* Rows 2-6 */}
+                                                        {/* All rows: unified classic-slot rendering */}
                                                         {[
+                                                            { start: 0, end: 5, cols: 5 },
                                                             { start: 5, end: 10, cols: 5 },
                                                             { start: 10, end: 16, cols: 6 },
                                                             { start: 16, end: 22, cols: 6 },
                                                             { start: 22, end: 32, cols: 10 },
                                                             { start: 32, end: 42, cols: 10 }
-                                                        ].map(({ start, end, cols }) => (
-                                                            <div key={start} className={`grid`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${gridGap}px`, marginTop: `${gridGap}px` }}>
+                                                        ].map(({ start, end, cols }, rowIdx) => (
+                                                            <div key={start} className="grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${gridGap}px`, marginTop: rowIdx > 0 ? `${gridGap}px` : '0' }}>
                                                                 {grid.slice(start, end).map((album, i) => {
                                                                     const idx = start + i;
                                                                     return (
@@ -3127,34 +3276,24 @@
                                                                             onDragOver={(e) => handleDragOver(e, idx)}
                                                                             onDragLeave={handleDragLeave}
                                                                             onDrop={(e) => handleDrop(e, idx)}
-                                                                            className={`aspect-square relative group ${album ? 'classic-slot hidden-guides' : 'classic-slot'} ${dragOverIndex === idx ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                                                            className={`aspect-square relative ${album ? 'classic-slot hidden-guides' : 'classic-slot'} ${dragOverIndex === idx ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                                                         >
                                                                             {album ? (
                                                                                 <>
-                                                                                    <img
-                                                                                        src={album.image}
-                                                                                        alt={album.title}
-                                                                                        draggable={false}
-                                                                                        onContextMenu={(e) => { e.preventDefault(); openRenameModal(idx); }}
-                                                                                        className="w-full h-full object-cover pointer-events-none"
-                                                                                    />
-                                                                                    <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 z-10">
+                                                                                    <img src={album.image} alt={album.title} draggable={false} onContextMenu={(e) => { e.preventDefault(); openRenameModal(idx); }} className="w-full h-full object-cover pointer-events-none" />
+                                                                                    <div className="slot-actions">
                                                                                         {showTitles && (
-                                                                                            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="bg-blue-500 text-white p-0.5 rounded">
-                                                                                                <Pencil className="w-2 h-2" />
+                                                                                            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="slot-action-btn bg-blue-500 text-white">
+                                                                                                <Pencil className="w-full h-full" />
                                                                                             </button>
                                                                                         )}
-                                                                                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(idx); }} className="bg-red-500 text-white p-0.5 rounded">
-                                                                                            <Trash className="w-2 h-2" />
+                                                                                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(idx); }} className="slot-action-btn bg-red-500 text-white">
+                                                                                            <Trash className="w-full h-full" />
                                                                                         </button>
                                                                                     </div>
-                                                                                    {showNumbers && (
-                                                                                        <div className="absolute bottom-0.5 left-0.5 bg-black/70 text-white px-1 py-0.5 rounded text-[10px] font-bold pointer-events-none">
-                                                                                            {idx + 1}
-                                                                                        </div>
-                                                                                    )}
+                                                                                    {showNumbers && <div className="slot-number">{idx + 1}</div>}
                                                                                 </>
-                                                                            ) : <div className="text-white text-center text-[8px] flex items-center justify-center h-full">{showNumbers ? idx + 1 : ''}</div>}
+                                                                            ) : <div className="slot-empty-num">{showNumbers ? idx + 1 : ''}</div>}
                                                                         </div>
                                                                     );
                                                                 })}
@@ -3169,7 +3308,7 @@
                                                                 return (
                                                                     <div key={gi} className={gi > 0 ? 'mt-2' : ''}>
                                                                         {items.map(({ album, idx }) => (
-                                                                            <div key={idx} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '1px', cursor: 'pointer', opacity: 0.85 }} onClick={() => openRenameModal(idx)} className="hover:opacity-100 transition-opacity truncate">
+                                                                            <div key={idx} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '1px', opacity: 0.85 }} onClick={() => openRenameModal(idx)} className="sidebar-title-row truncate">
                                                                                 {showNumbers && <span style={{ opacity: 0.55, marginRight: '3px' }}>{idx + 1}.</span>}{album.title} — {album.artist}
                                                                             </div>
                                                                         ))}
@@ -3192,7 +3331,7 @@
                                                 <div className="flex gap-6">
                                                     <div className={`flex-1 max-w-[600px] mx-auto${gridGap === 0 ? ' zero-gap' : ''}`}>
                                                         {TOP100_ROW_CONFIG.map(({ start, end, cols }, rowIdx) => (
-                                                            <div key={start} className={`grid`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${gridGap}px`, marginTop: rowIdx > 0 ? `${gridGap}px` : '0' }}>
+                                                            <div key={start} className="grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: `${gridGap}px`, marginTop: rowIdx > 0 ? `${gridGap}px` : '0' }}>
                                                                 {grid.slice(start, end).map((album, i) => {
                                                                     const idx = start + i;
                                                                     return (
@@ -3204,34 +3343,24 @@
                                                                             onDragOver={(e) => handleDragOver(e, idx)}
                                                                             onDragLeave={handleDragLeave}
                                                                             onDrop={(e) => handleDrop(e, idx)}
-                                                                            className={`aspect-square relative group ${album ? 'grid-slot hidden-guides' : 'grid-slot'} ${dragOverIndex === idx ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                                                                            className={`aspect-square relative ${album ? 'classic-slot hidden-guides' : 'classic-slot'} ${dragOverIndex === idx ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                                                         >
                                                                             {album ? (
                                                                                 <>
-                                                                                    <img
-                                                                                        src={album.image}
-                                                                                        alt={album.title}
-                                                                                        draggable={false}
-                                                                                        onContextMenu={(e) => { e.preventDefault(); openRenameModal(idx); }}
-                                                                                        className="w-full h-full object-cover pointer-events-none"
-                                                                                    />
-                                                                                    <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 z-10">
+                                                                                    <img src={album.image} alt={album.title} draggable={false} onContextMenu={(e) => { e.preventDefault(); openRenameModal(idx); }} className="w-full h-full object-cover pointer-events-none" />
+                                                                                    <div className="slot-actions">
                                                                                         {showTitles && (
-                                                                                            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="bg-blue-500 text-white p-0.5 rounded">
-                                                                                                <Pencil className="w-2 h-2" />
+                                                                                            <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openRenameModal(idx); }} className="slot-action-btn bg-blue-500 text-white">
+                                                                                                <Pencil className="w-full h-full" />
                                                                                             </button>
                                                                                         )}
-                                                                                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(idx); }} className="bg-red-500 text-white p-0.5 rounded">
-                                                                                            <Trash className="w-2 h-2" />
+                                                                                        <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); removeFromGrid(idx); }} className="slot-action-btn bg-red-500 text-white">
+                                                                                            <Trash className="w-full h-full" />
                                                                                         </button>
                                                                                     </div>
-                                                                                    {showNumbers && (
-                                                                                        <div className="absolute bottom-0.5 left-0.5 bg-black/70 text-white px-1 py-0.5 rounded text-[8px] font-bold pointer-events-none">
-                                                                                            {idx + 1}
-                                                                                        </div>
-                                                                                    )}
+                                                                                    {showNumbers && <div className="slot-number">{idx + 1}</div>}
                                                                                 </>
-                                                                            ) : <div className="text-white text-center text-[8px] flex items-center justify-center h-full">{showNumbers ? idx + 1 : ''}</div>}
+                                                                            ) : <div className="slot-empty-num">{showNumbers ? idx + 1 : ''}</div>}
                                                                         </div>
                                                                     );
                                                                 })}
@@ -3246,7 +3375,7 @@
                                                                 return (
                                                                     <div key={gi} className={gi > 0 ? 'mt-2' : ''}>
                                                                         {items.map(({ album, idx }) => (
-                                                                            <div key={idx} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '1px', cursor: 'pointer', opacity: 0.85 }} onClick={() => openRenameModal(idx)} className="hover:opacity-100 transition-opacity truncate">
+                                                                            <div key={idx} style={{ color: titleColor, fontSize: '9px', lineHeight: '1.35', marginBottom: '1px', opacity: 0.85 }} onClick={() => openRenameModal(idx)} className="sidebar-title-row truncate">
                                                                                 {showNumbers && <span style={{ opacity: 0.55, marginRight: '3px' }}>{idx + 1}.</span>}{album.title} — {album.artist}
                                                                             </div>
                                                                         ))}
