@@ -179,6 +179,79 @@
             transition: none;
         }
 
+        /* Prevent text selection and page scroll during touch drag */
+        body.touch-dragging {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            overflow: hidden;
+        }
+
+        /* Stop iOS long-press context menu and text selection on draggable items */
+        .album-cover,
+        [data-drop-index] {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* Custom stepper control */
+        .num-stepper {
+            display: flex;
+            align-items: center;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            height: 40px;
+        }
+        .num-stepper input[type=number] {
+            -moz-appearance: textfield;
+            appearance: textfield;
+            background: transparent;
+            border: none;
+            color: white;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            width: 0;
+            flex: 1;
+            outline: none;
+            padding: 0;
+            min-width: 0;
+        }
+        .num-stepper input[type=number]::-webkit-outer-spin-button,
+        .num-stepper input[type=number]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .num-stepper-btn {
+            flex-shrink: 0;
+            width: 36px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            transition: background 0.15s, color 0.15s;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .num-stepper-btn:active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .num-stepper-btn:first-child {
+            border-right: 1px solid rgba(255,255,255,0.12);
+        }
+        .num-stepper-btn:last-child {
+            border-left: 1px solid rgba(255,255,255,0.12);
+        }
+
         .about-you-cell {
             display: flex;
             flex-direction: column;
@@ -1594,7 +1667,6 @@
             const handleTouchStart = useCallback((e, album, fromIndex) => {
                 if (!album) return;
                 const t = touchDragRef.current;
-                // Clear any existing long-press timer
                 if (t.longPressTimer) clearTimeout(t.longPressTimer);
 
                 const touch = e.touches[0];
@@ -1602,7 +1674,10 @@
                 const rect = el.getBoundingClientRect();
                 const size = Math.round(rect.width);
 
-                // Use a short delay so normal scrolling still works; drag activates after ~120ms hold
+                // Store initial touch position to detect movement
+                t.startX = touch.clientX;
+                t.startY = touch.clientY;
+
                 t.longPressTimer = setTimeout(() => {
                     t.item = album;
                     t.fromIndex = fromIndex;
@@ -1610,35 +1685,39 @@
                     setDraggedItem(album);
                     setDraggedFrom(fromIndex);
                     isDraggingRef.current = true;
+                    // Prevent scroll and text selection for the duration of the drag
+                    document.body.classList.add('touch-dragging');
                     el.style.opacity = '0.4';
                     el.style.transform = 'scale(0.9)';
                     t.sourceEl = el;
                     createGhost(album.image, touch.clientX, touch.clientY, size);
-                    // Haptic feedback if available
                     if (navigator.vibrate) navigator.vibrate(30);
-                }, 120);
+                }, 180);
             }, [createGhost, setDraggedItem, setDraggedFrom]);
 
             const handleTouchMove = useCallback((e) => {
                 const t = touchDragRef.current;
-                const lpt = t.longPressTimer;
-                if (lpt && !t.active) {
-                    // Finger moved before long-press threshold — cancel, allow scroll
-                    clearTimeout(lpt);
-                    t.longPressTimer = null;
+                if (t.longPressTimer && !t.active) {
+                    // If finger moved more than 8px before threshold, cancel long press — allow scroll
+                    const touch = e.touches[0];
+                    const dx = touch.clientX - (t.startX || 0);
+                    const dy = touch.clientY - (t.startY || 0);
+                    if (Math.sqrt(dx * dx + dy * dy) > 8) {
+                        clearTimeout(t.longPressTimer);
+                        t.longPressTimer = null;
+                    }
                     return;
                 }
                 if (!t.active) return;
-                e.preventDefault(); // prevent scroll while dragging
+                e.preventDefault();
+                e.stopPropagation();
                 const touch = e.touches[0];
                 dragYRef.current = touch.clientY;
-                // Move ghost
                 const ghost = document.getElementById('touch-drag-ghost');
                 if (ghost) {
                     ghost.style.left = touch.clientX + 'px';
                     ghost.style.top = touch.clientY + 'px';
                 }
-                // Highlight drop target
                 const dropEl = getTouchTarget(touch.clientX, touch.clientY);
                 if (dropEl) {
                     const idx = parseInt(dropEl.getAttribute('data-drop-index'), 10);
@@ -1650,7 +1729,6 @@
                     if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
                     setDragOverIndex(null);
                 }
-                // Edge scroll
                 const threshold = 80, maxSpeed = 14;
                 const y = touch.clientY;
                 if (y < threshold) window.scrollBy(0, -Math.round(maxSpeed * (1 - y / threshold)));
@@ -1664,17 +1742,16 @@
 
                 const touch = e.changedTouches[0];
                 removeGhost();
+                document.body.classList.remove('touch-dragging');
                 if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
                 if (t.sourceEl) { t.sourceEl.style.opacity = ''; t.sourceEl.style.transform = ''; t.sourceEl = null; }
                 setDragOverIndex(null);
                 isDraggingRef.current = false;
 
-                // Find drop target
                 const dropEl = getTouchTarget(touch.clientX, touch.clientY);
                 if (dropEl) {
                     const toIndex = parseInt(dropEl.getAttribute('data-drop-index'), 10);
                     if (!isNaN(toIndex)) {
-                        // Synthesise a drop — reuse the same handleDrop logic via direct call
                         saveToHistory();
                         const item = t.item;
                         const fromIdx = t.fromIndex;
@@ -3113,25 +3190,31 @@
                                                                 <div className="grid grid-cols-2 gap-3">
                                                                     <div>
                                                                         <label className="block text-white text-sm font-medium mb-2">Width</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            min="1"
-                                                                            max="12"
-                                                                            value={gridWidth}
-                                                                            onChange={(e) => setGridWidth(Math.min(12, Math.max(1, parseInt(e.target.value) || 1)))}
-                                                                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                                        />
+                                                                        <div className="num-stepper">
+                                                                            <button className="num-stepper-btn" onPointerDown={(e) => { e.preventDefault(); setGridWidth(Math.max(1, gridWidth - 1)); }}>−</button>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                max="12"
+                                                                                value={gridWidth}
+                                                                                onChange={(e) => setGridWidth(Math.min(12, Math.max(1, parseInt(e.target.value) || 1)))}
+                                                                            />
+                                                                            <button className="num-stepper-btn" onPointerDown={(e) => { e.preventDefault(); setGridWidth(Math.min(12, gridWidth + 1)); }}>+</button>
+                                                                        </div>
                                                                     </div>
                                                                     <div>
                                                                         <label className="block text-white text-sm font-medium mb-2">Height</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            min="1"
-                                                                            max="12"
-                                                                            value={gridHeight}
-                                                                            onChange={(e) => setGridHeight(Math.min(12, Math.max(1, parseInt(e.target.value) || 1)))}
-                                                                            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                                        />
+                                                                        <div className="num-stepper">
+                                                                            <button className="num-stepper-btn" onPointerDown={(e) => { e.preventDefault(); setGridHeight(Math.max(1, gridHeight - 1)); }}>−</button>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                max="12"
+                                                                                value={gridHeight}
+                                                                                onChange={(e) => setGridHeight(Math.min(12, Math.max(1, parseInt(e.target.value) || 1)))}
+                                                                            />
+                                                                            <button className="num-stepper-btn" onPointerDown={(e) => { e.preventDefault(); setGridHeight(Math.min(12, gridHeight + 1)); }}>+</button>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </>
