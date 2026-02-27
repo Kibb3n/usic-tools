@@ -1428,9 +1428,11 @@
 
                 const remaining = Math.max(0, totalPossible - made - skipped);
                 const estimatedSkipRate = made > 0 ? skipped / made : 0.3;
-                const estimatedRemaining = Math.ceil(remaining * (1 - estimatedSkipRate));
+                const estimatedRemainingManual = Math.ceil(remaining * (1 - estimatedSkipRate));
+                // Store estimated TOTAL (done + still to do), never less than comparisons already made
+                const estimatedTotal = Math.max(made + 1, made + estimatedRemainingManual);
 
-                setSorting(s => ({ ...s, estimatedRemaining, lastEstimateUpdate: made }));
+                setSorting(s => ({ ...s, estimatedRemaining: estimatedTotal, lastEstimateUpdate: made }));
             }, [state.songs.length, state.excludedSongs.size, sorting.comparisons, sorting.autoSkipped]);
 
             const moveToNextComparison = useCallback((indices, newI, newJ, newPrefs, newWinCounts, newLossCounts) => {
