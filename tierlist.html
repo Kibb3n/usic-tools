@@ -39,15 +39,15 @@
         .song-bg { position: absolute; inset: 0; object-fit: cover; filter: blur(8px); transform: scale(1.1); }
         .song-title { position: relative; z-index: 1; background: rgba(0,0,0,0.7); padding: 4px 8px; border-radius: 4px; }
 
-        .mode-switch { position: relative; width: 200px; height: 44px; background: rgba(255,255,255,0.1); border-radius: 22px; cursor: pointer; border: 2px solid rgba(255,255,255,0.2); }
-        .mode-switch-slider { position: absolute; top: 2px; left: 2px; width: 96px; height: 36px; background: white; border-radius: 18px; transition: transform 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-        .mode-switch.songs .mode-switch-slider { transform: translateX(96px); }
-        .mode-label { position: absolute; top: 50%; transform: translateY(-50%); font-size: 14px; font-weight: 600; transition: color 0.3s ease; width: 100px; text-align: center; }
-        .mode-label.left { left: 0; }
-        .mode-label.right { right: 0; }
+        .mode-switch { position: relative; width: 158px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
+        .mode-switch-slider { position: absolute; top: 3px; left: 3px; width: 76px; height: 32px; background: white; border-radius: 5px; transition: transform 0.25s ease; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+        .mode-switch.songs .mode-switch-slider { transform: translateX(76px); }
+        .mode-label { position: absolute; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 600; transition: color 0.25s ease; width: 82px; text-align: center; }
+        .mode-label.left { left: -3px; }
+        .mode-label.right { right: -3px; }
         .mode-switch .mode-label.left { color: black; }
-        .mode-switch .mode-label.right { color: white; }
-        .mode-switch.songs .mode-label.left { color: white; }
+        .mode-switch .mode-label.right { color: rgba(255,255,255,0.75); }
+        .mode-switch.songs .mode-label.left { color: rgba(255,255,255,0.75); }
         .mode-switch.songs .mode-label.right { color: black; }
 
         .editable-title { cursor: text; transition: all 0.2s; display: inline-block; min-width: 200px; text-align: center; }
@@ -118,6 +118,7 @@
     const Search = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>;
     const Download = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>;
     const ImageIcon = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>;
+    const Photo = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>;
     const Trash = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>;
     const Pencil = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>;
     const Upload = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>;
@@ -126,6 +127,7 @@
     const Music = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>;
     const ChevronLeft = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>;
     const ChevronRight = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>;
+    const ChevronDown = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>;
     const Settings = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>;
     const Plus = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>;
     const Square = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}/></svg>;
@@ -230,6 +232,8 @@
         const [bulkMoveTo, setBulkMoveTo] = useState('');
         const [showReorderButtons, setShowReorderButtons] = useState(true);
         const [modeWarningOpen, setModeWarningOpen] = useState(false);
+        const [showExportMenu, setShowExportMenu] = useState(false);
+        const exportMenuRef = useRef(null);
 
         const tierListRef = useRef(null);
         const scrollIntervalRef = useRef(null);
@@ -289,6 +293,15 @@
                 setTimeout(() => setUndoToast(null), 2000);
             }
         }, [history, historyIndex]);
+
+        useEffect(() => {
+            if (!showExportMenu) return;
+            const handler = (e) => {
+                if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setShowExportMenu(false);
+            };
+            document.addEventListener('mousedown', handler);
+            return () => document.removeEventListener('mousedown', handler);
+        }, [showExportMenu]);
 
         useEffect(() => {
             const handle = (e) => {
@@ -1083,37 +1096,41 @@
 
                 {/* Top bar */}
                 <div className="relative z-10">
-                    <div className="flex flex-wrap justify-between items-center gap-3 pt-5 px-4 md:px-6 pb-4">
-                        <a href="µsic.html" className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg hover:opacity-80 transition-opacity">µsic tools</a>
+                    <div className="flex flex-wrap justify-between items-center gap-3 py-4 px-4 md:px-8 sticky top-0 z-20 bg-black/30 backdrop-blur-md border-b border-white/5">
+                        <div className="flex items-center gap-4">
+                            <a href="µsic.html" className="hover:opacity-80 transition-opacity">
+                                <h1 className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg">µsic tools</h1>
+                            </a>
+                        </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={undo} disabled={historyIndex<=0} className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Undo (Ctrl+Z)">
-                                <RotateCcw className="w-4 h-4"/><span className="hidden sm:inline">Undo</span>
+                            <button onClick={undo} disabled={historyIndex<=0} className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Undo (Ctrl+Z)">
+                                <RotateCcw className="w-4 h-4"/>
                             </button>
-                            <button onClick={redo} disabled={historyIndex>=history.length-1} className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Redo">
-                                <RotateCcw className="w-4 h-4 transform scale-x-[-1]"/><span className="hidden sm:inline">Redo</span>
+                            <button onClick={redo} disabled={historyIndex>=history.length-1} className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Redo">
+                                <RotateCcw className="w-4 h-4 transform scale-x-[-1]"/>
                             </button>
+
+                            <div className="h-6 w-px bg-white/10 mx-1"></div>
+
                             <div className={`mode-switch ${songsMode?'songs':''}`} onClick={toggleSongsMode}>
                                 <div className="mode-switch-slider"></div>
                                 <span className="mode-label left">Albums</span>
                                 <span className="mode-label right">Songs</span>
                             </div>
-                            <button onClick={exportAsImage} className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors" title="Export Image (Ctrl+E)">
-                                <ImageIcon className="w-4 h-4"/><span className="hidden sm:inline">Image</span>
+
+                            <div className="h-6 w-px bg-white/10 mx-1"></div>
+
+                            <button onClick={exportAsImage} className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors" title="Save as Image">
+                                <Photo className="w-4 h-4"/><span className="hidden sm:inline">Image</span>
                             </button>
-                            <div className="relative group">
-                                <button className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors">
-                                    <SaveIcon className="w-4 h-4"/><span className="hidden sm:inline">Export</span>
-                                </button>
-                                <div className="absolute right-0 mt-1 w-40 bg-gray-900 border border-white/20 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-30">
-                                    <button onClick={exportData} className="w-full px-4 py-2 text-left text-white hover:bg-white/10 rounded-t-lg text-sm flex items-center gap-2"><FileDown className="w-4 h-4"/>JSON</button>
-                                    <button onClick={exportToCSV} className="w-full px-4 py-2 text-left text-white hover:bg-white/10 rounded-b-lg text-sm flex items-center gap-2"><FileDown className="w-4 h-4"/>CSV</button>
-                                </div>
-                            </div>
-                            <label className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer transition-colors">
-                                <Upload className="w-4 h-4"/><span className="hidden sm:inline">Import</span>
+                            <button onClick={exportData} className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors" title="Export data">
+                                <Upload className="w-4 h-4"/><span className="hidden sm:inline">Export</span>
+                            </button>
+                            <label className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 cursor-pointer transition-colors" title="Import data">
+                                <Download className="w-4 h-4"/><span className="hidden sm:inline">Import</span>
                                 <input type="file" accept=".json" onChange={importData} className="hidden"/>
                             </label>
-                            <button onClick={clearAll} className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg border border-red-500/50 flex items-center gap-2 transition-colors">
+                            <button onClick={clearAll} className="px-3 md:px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg border border-red-500/50 flex items-center gap-2 transition-colors">
                                 <Trash className="w-4 h-4"/><span className="hidden sm:inline">Clear</span>
                             </button>
                         </div>
