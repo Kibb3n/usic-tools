@@ -548,13 +548,31 @@
             if (scrollIntervalRef.current) { clearInterval(scrollIntervalRef.current); scrollIntervalRef.current=null; }
         }, []);
 
-        // Called on the tier container (background) — sets insert to end
+        // Called on the tier container (background) — computes insert index from child positions
         const handleTierDragOver = useCallback((e, tier) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             setDragOverTier(tier);
-            setDropInsertIndex(null); // append
-            dropInsertIndexRef.current = null;
+
+            // Compute insert position by scanning child draggable-item elements
+            const container = e.currentTarget;
+            const children = Array.from(container.querySelectorAll(':scope > .draggable-item'));
+            let insertIdx = null;
+            if (children.length > 0) {
+                let found = false;
+                for (let i = 0; i < children.length; i++) {
+                    const rect = children[i].getBoundingClientRect();
+                    if (e.clientX < rect.left + rect.width / 2) {
+                        insertIdx = i;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) insertIdx = children.length; // after last child
+            }
+            setDropInsertIndex(insertIdx);
+            dropInsertIndexRef.current = insertIdx;
+
             const y = e.clientY;
             if (scrollIntervalRef.current) { clearInterval(scrollIntervalRef.current); scrollIntervalRef.current=null; }
             if (y<100) scrollIntervalRef.current=setInterval(()=>window.scrollBy(0,-10),16);
@@ -1514,7 +1532,7 @@
                                         {/* Tiers */}
                                         {tierNames.map(tn => (
                                             <div key={tn} className="flex mb-2">
-                                                <div className="w-14 md:w-16 flex items-center justify-center text-xl md:text-2xl font-bold text-black rounded-l-lg shrink-0" style={{backgroundColor:tierColors[tn]}}>{tn}</div>
+                                                <div className="w-14 md:w-16 flex items-center justify-center font-bold text-black rounded-l-lg shrink-0 overflow-hidden p-1" style={{backgroundColor:tierColors[tn], fontSize: tn.length > 4 ? (tn.length > 8 ? '9px' : '11px') : tn.length > 2 ? '13px' : undefined, wordBreak:'break-word', textAlign:'center', lineHeight:'1.1', minHeight:'56px'}}>{tn}</div>
                                                 <div
                                                     onDragOver={(e) => handleTierDragOver(e, tn)}
                                                     onDragLeave={handleDragLeave}
