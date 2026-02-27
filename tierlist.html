@@ -138,6 +138,7 @@
     const ArrowRight = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>;
     const FileDown = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>;
     const Move = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>;
+    const Layers = ({className}) => <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>;
 
     const jsonpRequest = (url) => new Promise((resolve, reject) => {
         const cbName = 'jsonp_' + Math.round(1e6 * Math.random());
@@ -153,11 +154,11 @@
     const TIER_COLORS = { S:'#ff7f7f', A:'#ffbf7f', B:'#ffdf7f', C:'#ffff7f', D:'#bfff7f', E:'#7fff7f', F:'#7fbfff' };
     const DEFAULT_TIERS = ['S','A','B','C','D','E','F'];
 
-    function AnimatedBackground({ colors }) {
+    function AnimatedBackground({ colors, hasItems }) {
         return (
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl will-change-transform" style={{ background:`radial-gradient(circle, ${colors[0]} 0%, transparent 70%)`, animation:'blob1 12s ease-in-out infinite', top:'50%', left:'33%', transform:'translate(-50%,-50%)' }}/>
-                <div className="absolute w-[900px] h-[900px] rounded-full opacity-70 blur-3xl will-change-transform" style={{ background:`radial-gradient(circle, ${colors[1]} 0%, transparent 70%)`, animation:'blob2 12s ease-in-out infinite', top:'50%', right:'33%', transform:'translate(50%,-50%)' }}/>
+            <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{transition:'opacity 1.2s ease'}}>
+                <div className="absolute w-[900px] h-[900px] rounded-full blur-3xl will-change-transform" style={{ background:`radial-gradient(circle, ${colors[0]} 0%, transparent 70%)`, animation:'blob1 12s ease-in-out infinite', top:'50%', left:'33%', transform:'translate(-50%,-50%)', opacity: hasItems ? 0.7 : 0, transition:'opacity 1.5s ease' }}/>
+                <div className="absolute w-[900px] h-[900px] rounded-full blur-3xl will-change-transform" style={{ background:`radial-gradient(circle, ${colors[1]} 0%, transparent 70%)`, animation:'blob2 12s ease-in-out infinite', top:'50%', right:'33%', transform:'translate(50%,-50%)', opacity: hasItems ? 0.7 : 0, transition:'opacity 1.5s ease' }}/>
                 <div className="absolute inset-0 grain opacity-30"/>
             </div>
         );
@@ -171,6 +172,7 @@
         const [albumBackup, setAlbumBackup] = useState(null);
         const [title, setTitle] = useState('My Music Tier List');
         const [bgColors, setBgColors] = useState(['#ff0080','#7928ca']);
+        const [bgHasItems, setBgHasItems] = useState(false);
         const [editingTitle, setEditingTitle] = useState(false);
         const [tempTitle, setTempTitle] = useState('My Music Tier List');
 
@@ -234,6 +236,15 @@
         const [modeWarningOpen, setModeWarningOpen] = useState(false);
         const [showExportMenu, setShowExportMenu] = useState(false);
         const exportMenuRef = useRef(null);
+
+        // ── MULTI-CHART STATE ──
+        const [charts, setCharts] = useState({});
+        const [currentChartId, setCurrentChartId] = useState(null);
+        const [showChartsMenu, setShowChartsMenu] = useState(false);
+        const [renamingChartId, setRenamingChartId] = useState(null);
+        const chartsMenuRef = useRef(null);
+        const isLoadingChartRef = useRef(false);
+        const currentStateRef = useRef({});
 
         const tierListRef = useRef(null);
         const scrollIntervalRef = useRef(null);
@@ -304,6 +315,15 @@
         }, [showExportMenu]);
 
         useEffect(() => {
+            if (!showChartsMenu) return;
+            const handler = (e) => {
+                if (chartsMenuRef.current && !chartsMenuRef.current.contains(e.target)) setShowChartsMenu(false);
+            };
+            document.addEventListener('mousedown', handler);
+            return () => document.removeEventListener('mousedown', handler);
+        }, [showChartsMenu]);
+
+        useEffect(() => {
             const handle = (e) => {
                 if ((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey) { e.preventDefault(); undo(); }
                 if (((e.ctrlKey||e.metaKey) && e.shiftKey && e.key==='z') || ((e.ctrlKey||e.metaKey) && e.key==='y')) { e.preventDefault(); redo(); }
@@ -316,32 +336,145 @@
             return () => window.removeEventListener('keydown', handle);
         }, [undo, redo]);
 
+        // ── CHART MANAGEMENT FUNCTIONS ──
+        const loadChartData = useCallback((chart) => {
+            if (!chart) return;
+            isLoadingChartRef.current = true;
+            const rt = { ...(chart.tiers || {S:[],A:[],B:[],C:[],D:[],E:[],F:[],unranked:[]}) };
+            if (chart.tierNames) chart.tierNames.forEach(n => { if (!rt[n]) rt[n]=[]; });
+            if (!rt.unranked) rt.unranked=[];
+            setTiers(rt);
+            saveToHistory(rt);
+            setTitle(chart.title || 'My Music Tier List');
+            setTempTitle(chart.title || 'My Music Tier List');
+            if (chart.tierNames) setTierNames(chart.tierNames);
+            if (chart.tierColors) setTierColors(chart.tierColors);
+            if (chart.showReorderButtons !== undefined) setShowReorderButtons(chart.showReorderButtons);
+            if (chart.songsMode !== undefined) setSongsMode(chart.songsMode);
+            if (chart.albumBackup) setAlbumBackup(chart.albumBackup);
+            setTimeout(() => { isLoadingChartRef.current = false; }, 100);
+        }, [saveToHistory]);
+
+        const createNewChart = useCallback(() => {
+            const newId = Date.now().toString();
+            const defaultTiers = { S:[],A:[],B:[],C:[],D:[],E:[],F:[],unranked:[] };
+            const newChart = {
+                id: newId, name: 'New List',
+                tiers: defaultTiers, tierNames: ['S','A','B','C','D','E','F'],
+                tierColors: { S:'#ff7f7f',A:'#ffbf7f',B:'#ffdf7f',C:'#ffff7f',D:'#bfff7f',E:'#7fff7f',F:'#7fbfff' },
+                title: 'My Music Tier List', songsMode: false, albumBackup: null,
+                showReorderButtons: true, lastModified: Date.now()
+            };
+            setCharts(prev => {
+                const updated = { ...prev, [newId]: newChart };
+                setCurrentChartId(newId);
+                loadChartData(newChart);
+                try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId: newId, charts: updated })); } catch(e){}
+                return updated;
+            });
+        }, [loadChartData]);
+
+        const switchChart = useCallback((id) => {
+            if (id === currentChartId) return;
+            setCharts(prev => {
+                const fresh = currentStateRef.current;
+                const savedCurrent = {
+                    ...prev[currentChartId],
+                    tiers: fresh.tiers || prev[currentChartId]?.tiers,
+                    title: fresh.title || prev[currentChartId]?.title,
+                    tierNames: fresh.tierNames || prev[currentChartId]?.tierNames,
+                    tierColors: fresh.tierColors || prev[currentChartId]?.tierColors,
+                    songsMode: fresh.songsMode !== undefined ? fresh.songsMode : prev[currentChartId]?.songsMode,
+                    albumBackup: fresh.albumBackup !== undefined ? fresh.albumBackup : prev[currentChartId]?.albumBackup,
+                    showReorderButtons: fresh.showReorderButtons !== undefined ? fresh.showReorderButtons : prev[currentChartId]?.showReorderButtons,
+                    lastModified: Date.now()
+                };
+                const updated = { ...prev, [currentChartId]: savedCurrent };
+                setCurrentChartId(id);
+                loadChartData(updated[id]);
+                try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId: id, charts: updated })); } catch(e){}
+                return updated;
+            });
+        }, [currentChartId, loadChartData]);
+
+        const deleteChart = useCallback((id) => {
+            setCharts(prev => {
+                const newCharts = { ...prev };
+                delete newCharts[id];
+                let nextId = currentChartId;
+                if (id === currentChartId) {
+                    const remaining = Object.keys(newCharts);
+                    if (remaining.length > 0) {
+                        nextId = remaining[0];
+                        setCurrentChartId(nextId);
+                        loadChartData(newCharts[nextId]);
+                    } else {
+                        // Will create a new one after
+                        nextId = null;
+                    }
+                }
+                try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId: nextId, charts: newCharts })); } catch(e){}
+                if (!nextId) { setTimeout(createNewChart, 0); }
+                return newCharts;
+            });
+        }, [currentChartId, loadChartData, createNewChart]);
+
+        const updateChartName = useCallback((id, newName) => {
+            setCharts(prev => {
+                const updated = { ...prev, [id]: { ...prev[id], name: newName } };
+                try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId, charts: updated })); } catch(e){}
+                return updated;
+            });
+        }, [currentChartId]);
+
+        // On mount: load from localStorage (chart-aware with migration)
         useEffect(() => {
             try {
                 const saved = localStorage.getItem('tierListData');
                 if (saved) {
                     const data = JSON.parse(saved);
-                    if (data.tiers) {
-                        const rt = { ...data.tiers };
-                        if (data.tierNames) data.tierNames.forEach(n => { if (!rt[n]) rt[n]=[]; });
-                        if (!rt.unranked) rt.unranked=[];
-                        setTiers(rt);
-                        saveToHistory(rt);
+                    if (data.charts && data.currentChartId) {
+                        // New multi-chart format
+                        setCharts(data.charts);
+                        setCurrentChartId(data.currentChartId);
+                        loadChartData(data.charts[data.currentChartId]);
+                    } else if (data.tiers) {
+                        // Migrate old single-chart format
+                        const newId = Date.now().toString();
+                        const migratedChart = {
+                            id: newId, name: 'My List',
+                            tiers: data.tiers, tierNames: data.tierNames || ['S','A','B','C','D','E','F'],
+                            tierColors: data.tierColors || { S:'#ff7f7f',A:'#ffbf7f',B:'#ffdf7f',C:'#ffff7f',D:'#bfff7f',E:'#7fff7f',F:'#7fbfff' },
+                            title: data.title || 'My Music Tier List', songsMode: data.songsMode || false,
+                            albumBackup: data.albumBackup || null, showReorderButtons: data.showReorderButtons !== undefined ? data.showReorderButtons : true,
+                            lastModified: Date.now()
+                        };
+                        const newCharts = { [newId]: migratedChart };
+                        setCharts(newCharts);
+                        setCurrentChartId(newId);
+                        loadChartData(migratedChart);
+                        localStorage.setItem('tierListData', JSON.stringify({ currentChartId: newId, charts: newCharts }));
+                    } else {
+                        createNewChart();
                     }
-                    setTitle(data.title||'My Music Tier List');
-                    setTempTitle(data.title||'My Music Tier List');
-                    if (data.tierNames) setTierNames(data.tierNames);
-                    if (data.tierColors) setTierColors(data.tierColors);
-                    if (data.showReorderButtons!==undefined) setShowReorderButtons(data.showReorderButtons);
-                    if (data.songsMode) setSongsMode(data.songsMode);
-                    if (data.albumBackup) setAlbumBackup(data.albumBackup);
+                } else {
+                    createNewChart();
                 }
-            } catch(e) {}
+            } catch(e) { createNewChart(); }
         }, []);
 
+        // Auto-save current chart state
         useEffect(() => {
-            try { localStorage.setItem('tierListData', JSON.stringify({tiers,title,tierNames,tierColors,showReorderButtons,songsMode,albumBackup})); } catch(e) {}
-        }, [tiers,title,songsMode,albumBackup,tierNames,tierColors,showReorderButtons]);
+            if (!currentChartId || isLoadingChartRef.current) return;
+            const currentChartData = { tiers, title, tierNames, tierColors, showReorderButtons, songsMode, albumBackup };
+            currentStateRef.current = currentChartData;
+            setCharts(prev => {
+                if (!prev[currentChartId]) return prev;
+                const updated = { ...prev, [currentChartId]: { ...prev[currentChartId], ...currentChartData, lastModified: Date.now() }};
+                try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId, charts: updated })); } catch(e){}
+                return updated;
+            });
+        }, [tiers, title, tierNames, tierColors, showReorderButtons, songsMode, albumBackup, currentChartId]);
 
         useEffect(() => {
             if (editingTitle && titleInputRef.current) { titleInputRef.current.focus(); titleInputRef.current.select(); }
@@ -349,7 +482,8 @@
 
         useEffect(() => {
             const allItems = Object.values(tiers).flat().filter(Boolean);
-            if (allItems.length===0) { setBgColors(['#ff0080','#7928ca']); return; }
+            if (allItems.length===0) { setBgHasItems(false); return; }
+            setBgHasItems(true);
             const extract = async () => {
                 const colors = [];
                 for (const item of allItems.slice(-2)) {
@@ -1044,7 +1178,7 @@
 
         return (
             <div className="min-h-screen bg-black relative overflow-hidden">
-                <AnimatedBackground colors={bgColors}/>
+                <AnimatedBackground colors={bgColors} hasItems={bgHasItems}/>
 
                 {undoToast && (
                     <div className="fixed bottom-4 right-4 z-50 undo-toast">
@@ -1121,6 +1255,67 @@
                             </a>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
+                            {/* ── Charts Dropdown ── */}
+                            <div className="relative" ref={chartsMenuRef}>
+                                <button
+                                    onClick={() => setShowChartsMenu(v => !v)}
+                                    className={`px-3 md:px-4 py-2 text-white rounded-lg border flex items-center gap-2 transition-colors ${showChartsMenu ? 'bg-white/20 border-white/30' : 'bg-white/10 hover:bg-white/20 border-white/20'}`}
+                                >
+                                    <Layers className="w-4 h-4"/>
+                                    <span className="hidden sm:inline text-sm font-medium max-w-[120px] truncate">{charts[currentChartId]?.name || 'Lists'}</span>
+                                    <ChevronDown className={`w-3 h-3 transition-transform ${showChartsMenu ? 'rotate-180' : ''}`}/>
+                                </button>
+                                {showChartsMenu && (
+                                    <div className="absolute top-full mt-2 left-0 w-72 bg-gray-950/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50">
+                                        <div className="px-4 pt-4 pb-3 border-b border-white/10 flex items-center justify-between">
+                                            <span className="text-white/60 text-xs font-semibold uppercase tracking-wider">Your Lists</span>
+                                            <button onClick={() => { createNewChart(); setShowChartsMenu(false); }} className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-white/10">
+                                                <Plus className="w-3 h-3"/> New
+                                            </button>
+                                        </div>
+                                        <div className="max-h-72 overflow-y-auto p-2 space-y-1">
+                                            {Object.entries(charts).sort(([,a],[,b]) => b.lastModified - a.lastModified).map(([id, chart]) => {
+                                                const isActive = currentChartId === id;
+                                                const isRenaming = renamingChartId === id;
+                                                return (
+                                                    <div key={id}
+                                                        className={`group flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all ${isActive ? 'bg-white/15 border border-white/20' : 'hover:bg-white/8 border border-transparent cursor-pointer'}`}
+                                                        onClick={() => { if (!isActive && !isRenaming) { switchChart(id); setShowChartsMenu(false); } }}
+                                                    >
+                                                        <div className="flex-1 min-w-0">
+                                                            {isRenaming ? (
+                                                                <input autoFocus type="text" defaultValue={chart.name}
+                                                                    onClick={e => e.stopPropagation()}
+                                                                    onBlur={e => { updateChartName(id, e.target.value || chart.name); setRenamingChartId(null); }}
+                                                                    onKeyDown={e => { e.stopPropagation(); if (e.key==='Enter'){updateChartName(id,e.target.value||chart.name);setRenamingChartId(null);} if(e.key==='Escape')setRenamingChartId(null); }}
+                                                                    className="w-full bg-white/10 text-white text-sm font-medium rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-white/40 border border-white/20"
+                                                                />
+                                                            ) : (
+                                                                <div className="text-white text-sm font-medium truncate">{chart.name}</div>
+                                                            )}
+                                                            <div className="text-white/40 text-xs mt-0.5">{new Date(chart.lastModified).toLocaleDateString()}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-0.5 flex-none">
+                                                            <button onClick={e => { e.stopPropagation(); setRenamingChartId(isRenaming ? null : id); }} className={`p-1 rounded transition-colors ${isRenaming ? 'text-white bg-white/20' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'}`} title="Rename">
+                                                                <Pencil className="w-3 h-3"/>
+                                                            </button>
+                                                            {Object.keys(charts).length > 1 && (
+                                                                <button onClick={e => { e.stopPropagation(); if(confirm(`Delete "${chart.name}"?`)) deleteChart(id); }} className="p-1 text-white/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 rounded" title="Delete">
+                                                                    <Trash className="w-3 h-3"/>
+                                                                </button>
+                                                            )}
+                                                            {isActive && <span className="w-1.5 h-1.5 rounded-full bg-green-400 ml-1 flex-none"></span>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="h-6 w-px bg-white/10 mx-1"></div>
+
                             <button onClick={undo} disabled={historyIndex<=0} className="px-3 md:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Undo (Ctrl+Z)">
                                 <RotateCcw className="w-4 h-4"/>
                             </button>
