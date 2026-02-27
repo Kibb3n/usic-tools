@@ -1069,6 +1069,26 @@
             const hintLevel = getHintLevel();
             const remainingGuesses = MAX_GUESSES - gameState.guesses.length;
 
+            // Sync state to window so the external Play Game button can read it
+            useEffect(() => {
+                window.__guesserStartGame = startGame;
+                window.__guesserStage = gameState.stage;
+                window.__guesserAlbumCount = gameState.selectedAlbums.length;
+                window.__guesserLoadingSongs = searchState.loadingSongs;
+                const btn = document.getElementById('playGameBtn');
+                const label = document.getElementById('playGameLabel');
+                if (!btn) return;
+                if (gameState.stage === 'selectAlbums') {
+                    btn.style.display = 'flex';
+                    const count = gameState.selectedAlbums.length;
+                    if (label) label.textContent = count > 0 ? `Play Game · ${count} album${count !== 1 ? 's' : ''}` : 'Play Game · select albums first';
+                    btn.style.opacity = (count === 0 || searchState.loadingSongs) ? '0.45' : '1';
+                    btn.style.cursor = (count === 0 || searchState.loadingSongs) ? 'not-allowed' : 'pointer';
+                } else {
+                    btn.style.display = 'none';
+                }
+            });
+
             const displayedPinnedGames = showAllPinned ? pinnedGames : pinnedGames.slice(0, 4);
 
             const GameCard = useCallback(({ game, isPinned, onPin, onLoad, onEdit, onExpand, isExpanded, onDelete }) => (
@@ -1174,7 +1194,7 @@
 
                         <div className="p-8 max-w-7xl mx-auto">
                             {gameState.stage === 'recentGames' && (
-                                <div className="mt-8">
+                                <div className="mt-2">
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                         {/* Left Column - Stats */}
                                         <div className="lg:col-span-1">
@@ -1405,14 +1425,16 @@
                             )}
 
                             {gameState.stage === 'selectAlbums' && (
-                                <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10 mt-8">
+                                <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 pb-24 shadow-2xl border border-white/10 mt-4">
+
+                                    {/* Header row: back + title */}
                                     <div className="flex items-center gap-3 mb-6">
-                                        <button onClick={() => setGameState(s => ({ ...s, stage: 'recentGames' }))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                                        <button onClick={() => setGameState(s => ({ ...s, stage: 'recentGames' }))} className="p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0">
                                             <ArrowLeft className="w-6 h-6 text-white" />
                                         </button>
                                         <div className="flex-1">
                                             <h2 className="text-2xl font-bold text-white">Select Albums</h2>
-                                            <p className="text-gray-300 text-sm mt-1">Choose which albums to include in the game</p>
+                                            <p className="text-gray-400 text-sm mt-0.5">Choose which albums to include in the game</p>
                                         </div>
                                     </div>
 
@@ -1455,7 +1477,7 @@
                                                 </button>
                                             ))}
                                             <button
-                                                onClick={() => setGameState(s => ({ ...s, stage: 'recentGames' }))}
+                                                onClick={() => { setSearchState(s => ({ ...s, artistName: '', suggestions: [], error: '', page: 0 })); setGameState(s => ({ ...s, stage: 'addArtist' })); }}
                                                 className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg flex items-center gap-2 border-2 border-white/20 text-white"
                                             >
                                                 <Plus className="w-4 h-4" />
@@ -1463,38 +1485,6 @@
                                             </button>
                                         </div>
                                     </div>
-
-                                    {gameState.stage === 'selectAlbums' && (
-                                        <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-white/95 backdrop-blur-xl border-t border-white/30 shadow-lg">
-                                            <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <p className="text-gray-900 font-semibold">
-                                                        {gameState.selectedAlbums.length} album{gameState.selectedAlbums.length !== 1 ? 's' : ''} selected
-                                                    </p>
-                                                    <p className="text-gray-600 text-sm">
-                                                        from {gameState.selectedArtists.length} artist{gameState.selectedArtists.length !== 1 ? 's' : ''}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    onClick={startGame}
-                                                    disabled={searchState.loadingSongs || gameState.selectedAlbums.length === 0}
-                                                    className="px-6 py-3 bg-black text-white hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-xl font-semibold flex items-center gap-2 shadow-md"
-                                                >
-                                                    {searchState.loadingSongs ? (
-                                                        <>
-                                                            <Loader2 className="w-5 h-5" />
-                                                            Loading...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            Start Game
-                                                            <ChevronRight className="w-5 h-5" />
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {(() => {
                                         let albums = [];
@@ -1564,6 +1554,129 @@
                                             </div>
                                         );
                                     })()}
+                                </div>
+                            )}
+
+                            {gameState.stage === 'addArtist' && (
+                                <div className="mt-4">
+                                    <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/10">
+                                        {/* Header */}
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <button onClick={() => setGameState(s => ({ ...s, stage: 'selectAlbums' }))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                                                <ArrowLeft className="w-6 h-6 text-white" />
+                                            </button>
+                                            <div className="flex-1">
+                                                <h2 className="text-2xl font-bold text-white">Add Another Artist</h2>
+                                                <p className="text-gray-300 text-sm mt-1">Search for an artist to add to your game</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Currently added artists chips */}
+                                        <div className="mb-6">
+                                            <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-3">Already added</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {gameState.selectedArtists.map((artist, idx) => (
+                                                    <div key={artist.artistId} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+                                                        style={{ background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.3)' }}>
+                                                        <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">{idx + 1}</span>
+                                                        <span className="text-white">{artist.artistName}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border-2 border-dashed border-white/30 text-gray-400">
+                                                    <Plus className="w-4 h-4" />
+                                                    <span>Adding new artist</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Search */}
+                                        <div className="space-y-4">
+                                            <div className="flex gap-3">
+                                                <input
+                                                    type="text"
+                                                    value={searchState.artistName}
+                                                    onChange={(e) => setSearchState(s => ({ ...s, artistName: e.target.value }))}
+                                                    onKeyPress={(e) => e.key === 'Enter' && searchArtist()}
+                                                    placeholder="Search for an artist..."
+                                                    className="flex-1 px-5 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                                    disabled={searchState.loading}
+                                                    autoFocus
+                                                />
+                                                <button
+                                                    onClick={searchArtist}
+                                                    disabled={searchState.loading}
+                                                    className="px-6 py-3 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center gap-2"
+                                                >
+                                                    {searchState.loading ? <Loader2 className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                                    {searchState.loading ? 'Searching...' : 'Search'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {searchState.error && (
+                                            <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mt-4">
+                                                <p className="text-red-200">{searchState.error}</p>
+                                            </div>
+                                        )}
+
+                                        {searchState.suggestions.length > 0 && (
+                                            <div className="space-y-3 mt-6">
+                                                <h3 className="text-white font-semibold text-lg">Select an artist ({searchState.suggestions.length} results):</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                    {paginatedSuggestions.map((artist) => (
+                                                        <button
+                                                            key={artist.artistId}
+                                                            onClick={() => selectArtist(artist)}
+                                                            disabled={!!gameState.selectedArtists.find(a => a.artistId === artist.artistId)}
+                                                            className="w-full bg-white/10 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl p-4 text-left transition-all border border-white/20"
+                                                        >
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <div className="flex-1">
+                                                                    <p className="text-white font-semibold text-base">{artist.artistName}</p>
+                                                                    {artist.primaryGenreName && (
+                                                                        <p className="text-gray-300 text-sm mt-1">{artist.primaryGenreName}</p>
+                                                                    )}
+                                                                    {gameState.selectedArtists.find(a => a.artistId === artist.artistId) && (
+                                                                        <p className="text-green-400 text-xs mt-1">Already added</p>
+                                                                    )}
+                                                                </div>
+                                                                <ChevronRight className="w-5 h-5 text-gray-300" />
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {searchState.suggestions.length > ITEMS_PER_PAGE && (
+                                                    <div className="flex justify-center gap-3 mt-4">
+                                                        <button
+                                                            onClick={() => setSearchState(s => ({ ...s, page: Math.max(0, s.page - 1) }))}
+                                                            disabled={searchState.page === 0}
+                                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg"
+                                                        >
+                                                            Previous
+                                                        </button>
+                                                        <span className="px-4 py-2 text-white">
+                                                            Page {searchState.page + 1} of {Math.ceil(searchState.suggestions.length / ITEMS_PER_PAGE)}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => setSearchState(s => ({ ...s, page: Math.min(Math.ceil(s.suggestions.length / ITEMS_PER_PAGE) - 1, s.page + 1) }))}
+                                                            disabled={searchState.page >= Math.ceil(searchState.suggestions.length / ITEMS_PER_PAGE) - 1}
+                                                            className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg"
+                                                        >
+                                                            Next
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {searchState.loadingSongs && (
+                                            <div className="flex items-center justify-center gap-3 py-8">
+                                                <Loader2 className="w-8 h-8 text-white" />
+                                                <p className="text-white text-lg">Loading albums...</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
@@ -1758,6 +1871,21 @@
 
         ReactDOM.render(<GuesserMode />, document.getElementById('root'));
     </script>
+    <!-- Play Game Button (shown only on selectAlbums stage, truly fixed to viewport) -->
+    <button id="playGameBtn"
+        onclick="if(window.__guesserAlbumCount > 0 && !window.__guesserLoadingSongs) window.__guesserStartGame();"
+        style="display:none; position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); z-index:40;
+               background:rgba(255,255,255,0.95); color:#000; border:1px solid rgba(255,255,255,0.3);
+               backdrop-filter:blur(20px); box-shadow:0 8px 32px rgba(0,0,0,0.5);
+               padding:1rem 2rem; border-radius:1rem; font-size:1.125rem; font-weight:700;
+               align-items:center; gap:0.75rem; white-space:nowrap;
+               transition:transform 0.2s, opacity 0.2s;">
+        <span id="playGameLabel">Play Game</span>
+        <svg style="width:1.5rem;height:1.5rem;flex-shrink:0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+    </button>
+
     <!-- Help Button -->
     <button id="helpBtn"
         onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
