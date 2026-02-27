@@ -1692,25 +1692,42 @@
                     t.sourceEl = el;
                     createGhost(album.image, touch.clientX, touch.clientY, size);
                     if (navigator.vibrate) navigator.vibrate(30);
-                }, 180);
+
+                    // Install a non-passive document-level touchmove listener so that
+                    // e.preventDefault() actually suppresses scroll while dragging.
+                    // React attaches passive listeners by default, so inline onTouchMove
+                    // cannot call preventDefault() — we must do it here at the document level.
+                    if (docTouchMoveRef.current) {
+                        document.removeEventListener('touchmove', docTouchMoveRef.current);
+                    }
+                    const preventScroll = (ev) => {
+                        if (touchDragRef.current.active) ev.preventDefault();
+                    };
+                    docTouchMoveRef.current = preventScroll;
+                    document.addEventListener('touchmove', preventScroll, { passive: false });
+                }, 250);
             }, [createGhost, setDraggedItem, setDraggedFrom]);
+
+            // Non-passive document-level touchmove handler — must be added via addEventListener
+            // with { passive: false } so that e.preventDefault() actually suppresses scroll.
+            const docTouchMoveRef = useRef(null);
 
             const handleTouchMove = useCallback((e) => {
                 const t = touchDragRef.current;
                 if (t.longPressTimer && !t.active) {
-                    // If finger moved more than 8px before threshold, cancel long press — allow scroll
+                    // If finger moved more than 10px before long-press fires, cancel — allow scroll
                     const touch = e.touches[0];
                     const dx = touch.clientX - (t.startX || 0);
                     const dy = touch.clientY - (t.startY || 0);
-                    if (Math.sqrt(dx * dx + dy * dy) > 8) {
+                    if (Math.sqrt(dx * dx + dy * dy) > 10) {
                         clearTimeout(t.longPressTimer);
                         t.longPressTimer = null;
                     }
                     return;
                 }
                 if (!t.active) return;
-                e.preventDefault();
-                e.stopPropagation();
+                // Note: e.preventDefault() here is a no-op because React attaches passive listeners.
+                // Scroll is prevented by the non-passive document listener installed in handleTouchStart.
                 const touch = e.touches[0];
                 dragYRef.current = touch.clientY;
                 const ghost = document.getElementById('touch-drag-ghost');
@@ -1743,6 +1760,12 @@
                 const touch = e.changedTouches[0];
                 removeGhost();
                 document.body.classList.remove('touch-dragging');
+
+                // Remove the non-passive scroll-prevention listener
+                if (docTouchMoveRef.current) {
+                    document.removeEventListener('touchmove', docTouchMoveRef.current);
+                    docTouchMoveRef.current = null;
+                }
                 if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
                 if (t.sourceEl) { t.sourceEl.style.opacity = ''; t.sourceEl.style.transform = ''; t.sourceEl = null; }
                 setDragOverIndex(null);
