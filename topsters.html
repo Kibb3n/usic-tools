@@ -167,6 +167,18 @@
             transform: scale(0.9);
         }
 
+        /* Touch drag ghost */
+        #touch-drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.85;
+            transform: translate(-50%, -50%) scale(1.08);
+            border-radius: 4px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            transition: none;
+        }
+
         .about-you-cell {
             display: flex;
             flex-direction: column;
@@ -1536,6 +1548,169 @@
                 // The loop only stops in handleDragEnd.
             }, []);
 
+            // ── Touch drag-and-drop ──────────────────────────────────────────────
+            // HTML5 drag events don't fire on iOS/iPadOS. We implement a custom
+            // touch-based drag system that reuses the same handleDrop / handleDragOver
+            // state so the grid logic is identical for both input methods.
+            const touchDragRef = useRef({
+                item: null, fromIndex: null, ghost: null, lastTarget: null, longPressTimer: null, active: false
+            });
+
+            const getTouchTarget = useCallback((x, y) => {
+                // Find the topmost drop-capable element at the touch point
+                const el = document.elementFromPoint(x, y);
+                if (!el) return null;
+                return el.closest('[data-drop-index]');
+            }, []);
+
+            const createGhost = useCallback((imgSrc, x, y, size) => {
+                let ghost = document.getElementById('touch-drag-ghost');
+                if (!ghost) {
+                    ghost = document.createElement('div');
+                    ghost.id = 'touch-drag-ghost';
+                    document.body.appendChild(ghost);
+                }
+                ghost.innerHTML = '';
+                if (imgSrc) {
+                    const img = document.createElement('img');
+                    img.src = imgSrc;
+                    img.style.width = size + 'px';
+                    img.style.height = size + 'px';
+                    img.style.display = 'block';
+                    img.style.objectFit = 'cover';
+                    ghost.appendChild(img);
+                }
+                ghost.style.left = x + 'px';
+                ghost.style.top = y + 'px';
+                ghost.style.display = 'block';
+                return ghost;
+            }, []);
+
+            const removeGhost = useCallback(() => {
+                const ghost = document.getElementById('touch-drag-ghost');
+                if (ghost) ghost.style.display = 'none';
+            }, []);
+
+            const handleTouchStart = useCallback((e, album, fromIndex) => {
+                if (!album) return;
+                const t = touchDragRef.current;
+                // Clear any existing long-press timer
+                if (t.longPressTimer) clearTimeout(t.longPressTimer);
+
+                const touch = e.touches[0];
+                const el = e.currentTarget;
+                const rect = el.getBoundingClientRect();
+                const size = Math.round(rect.width);
+
+                // Use a short delay so normal scrolling still works; drag activates after ~120ms hold
+                t.longPressTimer = setTimeout(() => {
+                    t.item = album;
+                    t.fromIndex = fromIndex;
+                    t.active = true;
+                    setDraggedItem(album);
+                    setDraggedFrom(fromIndex);
+                    isDraggingRef.current = true;
+                    el.style.opacity = '0.4';
+                    el.style.transform = 'scale(0.9)';
+                    t.sourceEl = el;
+                    createGhost(album.image, touch.clientX, touch.clientY, size);
+                    // Haptic feedback if available
+                    if (navigator.vibrate) navigator.vibrate(30);
+                }, 120);
+            }, [createGhost, setDraggedItem, setDraggedFrom]);
+
+            const handleTouchMove = useCallback((e) => {
+                const t = touchDragRef.current;
+                const lpt = t.longPressTimer;
+                if (lpt && !t.active) {
+                    // Finger moved before long-press threshold — cancel, allow scroll
+                    clearTimeout(lpt);
+                    t.longPressTimer = null;
+                    return;
+                }
+                if (!t.active) return;
+                e.preventDefault(); // prevent scroll while dragging
+                const touch = e.touches[0];
+                dragYRef.current = touch.clientY;
+                // Move ghost
+                const ghost = document.getElementById('touch-drag-ghost');
+                if (ghost) {
+                    ghost.style.left = touch.clientX + 'px';
+                    ghost.style.top = touch.clientY + 'px';
+                }
+                // Highlight drop target
+                const dropEl = getTouchTarget(touch.clientX, touch.clientY);
+                if (dropEl) {
+                    const idx = parseInt(dropEl.getAttribute('data-drop-index'), 10);
+                    if (!isNaN(idx)) setDragOverIndex(idx);
+                    if (t.lastTarget && t.lastTarget !== dropEl) t.lastTarget.classList.remove('drag-over');
+                    dropEl.classList.add('drag-over');
+                    t.lastTarget = dropEl;
+                } else {
+                    if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
+                    setDragOverIndex(null);
+                }
+                // Edge scroll
+                const threshold = 80, maxSpeed = 14;
+                const y = touch.clientY;
+                if (y < threshold) window.scrollBy(0, -Math.round(maxSpeed * (1 - y / threshold)));
+                else if (y > window.innerHeight - threshold) window.scrollBy(0, Math.round(maxSpeed * (1 - (window.innerHeight - y) / threshold)));
+            }, [getTouchTarget, setDragOverIndex]);
+
+            const handleTouchEnd = useCallback((e) => {
+                const t = touchDragRef.current;
+                if (t.longPressTimer) { clearTimeout(t.longPressTimer); t.longPressTimer = null; }
+                if (!t.active) return;
+
+                const touch = e.changedTouches[0];
+                removeGhost();
+                if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
+                if (t.sourceEl) { t.sourceEl.style.opacity = ''; t.sourceEl.style.transform = ''; t.sourceEl = null; }
+                setDragOverIndex(null);
+                isDraggingRef.current = false;
+
+                // Find drop target
+                const dropEl = getTouchTarget(touch.clientX, touch.clientY);
+                if (dropEl) {
+                    const toIndex = parseInt(dropEl.getAttribute('data-drop-index'), 10);
+                    if (!isNaN(toIndex)) {
+                        // Synthesise a drop — reuse the same handleDrop logic via direct call
+                        saveToHistory();
+                        const item = t.item;
+                        const fromIdx = t.fromIndex;
+                        if (layout === 'aboutYou') {
+                            setAboutYouGrid(prev => {
+                                const newGrid = prev.map((cell, i) =>
+                                    cell && typeof cell === 'object' ? cell : { album: null, label: aboutYouLabels[i] || '' }
+                                );
+                                if (fromIdx !== null && fromIdx >= 0) newGrid[fromIdx] = { ...newGrid[fromIdx], album: null };
+                                newGrid[toIndex] = { ...newGrid[toIndex], album: item };
+                                return newGrid;
+                            });
+                        } else if (replaceOnDrop) {
+                            setGrid(prev => {
+                                const ng = [...prev];
+                                if (fromIdx !== null && fromIdx >= 0) ng[fromIdx] = null;
+                                ng[toIndex] = item;
+                                return ng;
+                            });
+                        } else {
+                            setGrid(prev => {
+                                const ng = [...prev];
+                                const displaced = ng[toIndex];
+                                if (fromIdx !== null && fromIdx >= 0) ng[fromIdx] = displaced;
+                                ng[toIndex] = item;
+                                return ng;
+                            });
+                        }
+                    }
+                }
+
+                t.item = null; t.fromIndex = null; t.active = false;
+                setDraggedItem(null);
+                setDraggedFrom(null);
+            }, [getTouchTarget, removeGhost, saveToHistory, layout, replaceOnDrop, setGrid, setAboutYouGrid, setDragOverIndex, setDraggedItem, setDraggedFrom]);
+
             const handleDrop = useCallback((e, toIndex) => {
                 e.preventDefault();
                 setDragOverIndex(null);
@@ -1824,7 +1999,7 @@
                         var canvasW, canvasH, cellStd;
                         var LIST_W = (showTitles && grid.some(Boolean)) ? 220 : 0;
                         var LIST_PAD = LIST_W > 0 ? 24 : 0;
-                        var AY_LIST_W = (layout === 'aboutYou' && showTitles && aboutYouGrid.some(function(c){ return c && c.album; })) ? 500 : 0;
+                        var AY_LIST_W = (layout === 'aboutYou' && showTitles && aboutYouGrid.some(function(c){ return c && c.album; })) ? 220 : 0;
                         var AY_LIST_PAD = AY_LIST_W > 0 ? 28 : 0;
                         if (layout === 'standard') {
                             var tW = Math.max(1, gridWidth);
@@ -2005,43 +2180,33 @@
                                 var aylx = PAD + cellStd * 6 + GAP * 5 + AY_LIST_PAD;
                                 ctx.textAlign = 'left'; ctx.textBaseline = 'top';
                                 var ayLineH = 13;
-                                var colW = Math.floor(AY_LIST_W / 2) - 8;
                                 var filledCells = aboutYouGrid.filter(function(c){ return c && typeof c === 'object' && c.album; });
-                                var colSize = Math.ceil(filledCells.length / 2);
                                 filledCells.forEach(function(cell, fi) {
-                                    var col = fi < colSize ? 0 : 1;
-                                    var row = col === 0 ? fi : fi - colSize;
-                                    var cx = aylx + col * (colW + 16);
-                                    var cy = yStart + row * ayLineH;
+                                    var cy = yStart + fi * ayLineH;
                                     ctx.font = '9px "Courier New",monospace';
                                     ctx.fillStyle = titleColor;
-
                                     if (showAboutYouLabels) {
-                                        // Dimmed label part
                                         var labelPart = (cell.label || '') + ' \u2014 ';
                                         ctx.globalAlpha = 0.7;
                                         var labelW = ctx.measureText(labelPart).width;
-                                        // Only draw label if it fits
-                                        if (labelW < colW) {
-                                            ctx.fillText(labelPart, cx, cy);
-                                            // Album part at full opacity in remaining space
+                                        if (labelW < AY_LIST_W) {
+                                            ctx.fillText(labelPart, aylx, cy);
                                             ctx.globalAlpha = 1;
                                             var albumPart = cell.album.title;
-                                            var remaining = colW - labelW;
+                                            var remaining = AY_LIST_W - labelW;
                                             while (albumPart.length > 2 && ctx.measureText(albumPart).width > remaining) albumPart = albumPart.slice(0, -1);
-                                            ctx.fillText(albumPart, cx + labelW, cy);
+                                            ctx.fillText(albumPart, aylx + labelW, cy);
                                         } else {
-                                            // Label alone is too long — just show truncated label
                                             ctx.globalAlpha = 0.7;
                                             var truncLabel = cell.label || '';
-                                            while (truncLabel.length > 2 && ctx.measureText(truncLabel).width > colW) truncLabel = truncLabel.slice(0, -1);
-                                            ctx.fillText(truncLabel, cx, cy);
+                                            while (truncLabel.length > 2 && ctx.measureText(truncLabel).width > AY_LIST_W) truncLabel = truncLabel.slice(0, -1);
+                                            ctx.fillText(truncLabel, aylx, cy);
                                         }
                                     } else {
                                         ctx.globalAlpha = 1;
                                         var entryTxt = cell.album.title + ' \u2014 ' + cell.album.artist;
-                                        while (entryTxt.length > 2 && ctx.measureText(entryTxt).width > colW) entryTxt = entryTxt.slice(0, -1);
-                                        ctx.fillText(entryTxt, cx, cy);
+                                        while (entryTxt.length > 2 && ctx.measureText(entryTxt).width > AY_LIST_W) entryTxt = entryTxt.slice(0, -1);
+                                        ctx.fillText(entryTxt, aylx, cy);
                                     }
                                     ctx.globalAlpha = 1;
                                 });
@@ -2744,6 +2909,9 @@
                                                                             draggable
                                                                             onDragStart={(e) => handleDragStart(e, album, null)}
                                                                             onDragEnd={handleDragEnd}
+                                                                            onTouchStart={(e) => handleTouchStart(e, album, null)}
+                                                                            onTouchMove={handleTouchMove}
+                                                                            onTouchEnd={handleTouchEnd}
                                                                         />
                                                                         <div className="flex-1 min-w-0">
                                                                             <p className="text-white text-sm font-medium truncate">{album.title}</p>
@@ -2811,6 +2979,9 @@
                                                                         draggable
                                                                         onDragStart={(e) => handleDragStart(e, album, null)}
                                                                         onDragEnd={handleDragEnd}
+                                                                        onTouchStart={(e) => handleTouchStart(e, album, null)}
+                                                                        onTouchMove={handleTouchMove}
+                                                                        onTouchEnd={handleTouchEnd}
                                                                         className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
                                                                     >
                                                                         <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover flex-none" loading="lazy" />
@@ -2836,6 +3007,9 @@
                                                                     draggable
                                                                     onDragStart={(e) => handleDragStart(e, album, null)}
                                                                     onDragEnd={handleDragEnd}
+                                                                    onTouchStart={(e) => handleTouchStart(e, album, null)}
+                                                                    onTouchMove={handleTouchMove}
+                                                                    onTouchEnd={handleTouchEnd}
                                                                     className="album-cover bg-white/10 rounded-lg p-2 flex items-center gap-3 hover:bg-white/20 transition-all border border-white/10 cursor-grab"
                                                                 >
                                                                     <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover" loading="lazy" />
@@ -3079,6 +3253,7 @@
                                                             return (
                                                                 <div
                                                                     key={index}
+                                                                    data-drop-index={index}
                                                                     draggable={!!album}
                                                                     className={`aspect-square relative group ${album ? 'grid-slot hidden-guides' : 'grid-slot'} ${dragOverIndex === index ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                                                     onDragStart={(e) => { if (album) handleDragStart(e, album, index); else e.preventDefault(); }}
@@ -3087,6 +3262,9 @@
                                                                     onDrop={(e) => handleDrop(e, index)}
                                                                     onDragEnter={() => setDragOverIndex(index)}
                                                                     onDragLeave={() => setDragOverIndex(null)}
+                                                                    onTouchStart={(e) => handleTouchStart(e, album, index)}
+                                                                    onTouchMove={handleTouchMove}
+                                                                    onTouchEnd={handleTouchEnd}
                                                                 >
                                                                     {album ? (
                                                                         <>
@@ -3166,9 +3344,12 @@
                                                         return (
                                                             <div
                                                                 key={index}
+                                                                data-drop-index={index}
                                                                 onDragOver={(e) => handleDragOver(e, index)}
                                                                 onDragLeave={handleDragLeave}
                                                                 onDrop={(e) => handleDrop(e, index)}
+                                                                onTouchMove={handleTouchMove}
+                                                                onTouchEnd={handleTouchEnd}
                                                                 className={`relative group transition-all flex flex-col`}
                                                             >
                                                                 {/* Square image slot */}
@@ -3181,6 +3362,7 @@
                                                                                 draggable
                                                                                 onDragStart={(e) => handleDragStart(e, cell.album, index)}
                                                                                 onDragEnd={handleDragEnd}
+                                                                                onTouchStart={(e) => handleTouchStart(e, cell.album, index)}
                                                                                 className="album-cover w-full h-full object-cover"
                                                                             />
                                                                             <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
@@ -3270,12 +3452,16 @@
                                                                     return (
                                                                         <div
                                                                             key={idx}
+                                                                            data-drop-index={idx}
                                                                             draggable={!!album}
                                                                             onDragStart={(e) => { if (album) handleDragStart(e, album, idx); else e.preventDefault(); }}
                                                                             onDragEnd={handleDragEnd}
                                                                             onDragOver={(e) => handleDragOver(e, idx)}
                                                                             onDragLeave={handleDragLeave}
                                                                             onDrop={(e) => handleDrop(e, idx)}
+                                                                            onTouchStart={(e) => handleTouchStart(e, album, idx)}
+                                                                            onTouchMove={handleTouchMove}
+                                                                            onTouchEnd={handleTouchEnd}
                                                                             className={`aspect-square relative ${album ? 'classic-slot hidden-guides' : 'classic-slot'} ${dragOverIndex === idx ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                                                         >
                                                                             {album ? (
@@ -3337,12 +3523,16 @@
                                                                     return (
                                                                         <div
                                                                             key={idx}
+                                                                            data-drop-index={idx}
                                                                             draggable={!!album}
                                                                             onDragStart={(e) => { if (album) handleDragStart(e, album, idx); else e.preventDefault(); }}
                                                                             onDragEnd={handleDragEnd}
                                                                             onDragOver={(e) => handleDragOver(e, idx)}
                                                                             onDragLeave={handleDragLeave}
                                                                             onDrop={(e) => handleDrop(e, idx)}
+                                                                            onTouchStart={(e) => handleTouchStart(e, album, idx)}
+                                                                            onTouchMove={handleTouchMove}
+                                                                            onTouchEnd={handleTouchEnd}
                                                                             className={`aspect-square relative ${album ? 'classic-slot hidden-guides' : 'classic-slot'} ${dragOverIndex === idx ? 'drag-over' : ''} ${album ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                                                         >
                                                                             {album ? (
