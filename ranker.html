@@ -664,6 +664,7 @@
             const [modalConfig, setModalConfig] = useState(null);
             const [autoSaves, setAutoSaves] = useState([]);
             const [showProgress, setShowProgress] = useState(false);
+        const [showTierlistExport, setShowTierlistExport] = useState(false);
             const [viewMode, setViewMode] = useState('grid');
             const [showUrlImport, setShowUrlImport] = useState(false);
             const [urlInput, setUrlInput] = useState('');
@@ -2128,6 +2129,93 @@
                 setAutoSaves(loadAutoSaves());
             };
 
+            const exportToTierlist = () => {
+                // Build ordered list of songs (excluding excluded)
+                const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+                const total = filteredIndices.length;
+                if (total === 0) return;
+
+                // Tier boundary percentiles: S top ~14%, A next ~14%, B, C, D, E, F bottom
+                const tierNames = ['S', 'A', 'B', 'C', 'D', 'E', 'F'];
+                const tierColors = { S:'#ff7f7f', A:'#ffbf7f', B:'#ffdf7f', C:'#ffff7f', D:'#bfff7f', E:'#7fff7f', F:'#7fbfff' };
+
+                // Assign each song a tier based on its rank percentage
+                const tierBuckets = { S:[], A:[], B:[], C:[], D:[], E:[], F:[], unranked:[] };
+
+                filteredIndices.forEach((songIdx, rank) => {
+                    const pct = rank / total; // 0 = best, 1 = worst
+                    let tier;
+                    if (pct < 1/7)      tier = 'S';
+                    else if (pct < 2/7) tier = 'A';
+                    else if (pct < 3/7) tier = 'B';
+                    else if (pct < 4/7) tier = 'C';
+                    else if (pct < 5/7) tier = 'D';
+                    else if (pct < 6/7) tier = 'E';
+                    else                tier = 'F';
+
+                    const songData = state.songData[songIdx] || {};
+                    const songName = state.songs[songIdx];
+
+                    // Build item in tierlist format
+                    const item = {
+                        id: `ranker-import-${songIdx}-${Date.now()}-${Math.random()}`,
+                        title: songName,
+                        artist: state.selectedArtist?.artistName || state.selectedArtist?.collectionName || '',
+                        image: songData.artwork || '',
+                        albumTitle: songData.albumName || '',
+                        trackNumber: songData.trackNumber || null,
+                        collectionId: songData.collectionId || null
+                    };
+
+                    tierBuckets[tier].push(item);
+                });
+
+                // Load existing tierlist data from localStorage to preserve it
+                let existingData = { charts: {}, currentChartId: null };
+                try {
+                    const saved = localStorage.getItem('tierListData');
+                    if (saved) existingData = JSON.parse(saved);
+                    // Migrate old format
+                    if (!existingData.charts && existingData.tiers) {
+                        const oldId = Date.now().toString() + '_old';
+                        existingData = {
+                            currentChartId: oldId,
+                            charts: { [oldId]: { id: oldId, name: 'Previous List', ...existingData, lastModified: Date.now() } }
+                        };
+                    }
+                } catch(e) {}
+
+                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'Ranking';
+                const newId = Date.now().toString();
+                const newChart = {
+                    id: newId,
+                    name: `${artistName} (from Ranker)`,
+                    tiers: tierBuckets,
+                    tierNames: tierNames,
+                    tierColors: tierColors,
+                    title: `${artistName} — Song Tier List`,
+                    songsMode: true,
+                    albumBackup: null,
+                    showReorderButtons: true,
+                    lastModified: Date.now()
+                };
+
+                const updatedData = {
+                    currentChartId: newId,
+                    charts: { ...(existingData.charts || {}), [newId]: newChart }
+                };
+
+                try {
+                    localStorage.setItem('tierListData', JSON.stringify(updatedData));
+                } catch(e) {
+                    console.error('Failed to save tierlist data:', e);
+                }
+
+                // Open tierlist in new tab
+                window.open('tierlist.html', '_blank');
+                setShowTierlistExport(false);
+            };
+
             const activeSongCount = state.songs.length - state.excludedSongs.size;
             const totalComparisons = activeSongCount > 0 ? (activeSongCount * (activeSongCount - 1)) / 2 : 0;
             const progress = totalComparisons > 0 ? ((sorting.comparisons + sorting.autoSkipped) / totalComparisons) * 100 : 0;
@@ -2819,6 +2907,16 @@
                                                 </button>
                                             </div>
                                             <button
+                                                onClick={() => setShowTierlistExport(true)}
+                                                className="w-full px-6 py-4 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all border border-white/30"
+                                                style={{ background: 'linear-gradient(135deg, rgba(255,127,127,0.2), rgba(127,191,255,0.2))', backdropFilter: 'blur(10px)' }}
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h8m-8 4h4" />
+                                                </svg>
+                                                Send to Tier List
+                                            </button>
+                                            <button
                                                 onClick={handleTryAnother}
                                                 className="w-full px-6 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-semibold border border-white/20 flex items-center justify-center gap-2 transition-all"
                                             >
@@ -2884,6 +2982,44 @@
                                         className="flex-1 px-6 py-3 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold"
                                     >
                                         Import
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showTierlistExport && (
+                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-md w-full border border-white/20 shadow-2xl">
+                                <h3 className="text-2xl font-bold text-white mb-3">Send to Tier List</h3>
+                                <p className="text-gray-300 mb-3">
+                                    This will create a new tier list from your ranked results, placing songs into tiers based on their rank percentile.
+                                </p>
+                                <div className="rounded-xl p-4 mb-6" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <p className="text-sm text-gray-400 mb-2 font-semibold">Tier assignment:</p>
+                                    <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                                        {[['S','#ff7f7f'],['A','#ffbf7f'],['B','#ffdf7f'],['C','#ffff7f'],['D','#bfff7f'],['E','#7fff7f'],['F','#7fbfff']].map(([t,c]) => (
+                                            <div key={t} className="rounded-lg py-1 font-bold text-black" style={{ background: c }}>{t}</div>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2 text-center">Top → Bottom, split evenly across 7 tiers</p>
+                                </div>
+                                <p className="text-gray-400 text-sm mb-6">
+                                    Your existing tier lists will be preserved. The new list will open in a new tab in songs mode.
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowTierlistExport(false)}
+                                        className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={exportToTierlist}
+                                        className="flex-1 px-6 py-3 text-white rounded-xl font-semibold"
+                                        style={{ background: 'linear-gradient(135deg, #ff7f7f, #7fbfff)' }}
+                                    >
+                                        Open Tier List
                                     </button>
                                 </div>
                             </div>
