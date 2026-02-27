@@ -497,6 +497,12 @@
                     fingerprint
                 };
 
+                // Don't add to recent if it's already a pinned game
+                if (pinnedGames.find(g => g.fingerprint === fingerprint)) {
+                    saveStats({ ...stats });
+                    return;
+                }
+
                 // Deduplicate: remove any existing recent game with the same fingerprint
                 const deduped = recentGames.filter(g => g.fingerprint !== fingerprint);
                 const updated = [newGame, ...deduped].slice(0, MAX_RECENT);
@@ -515,7 +521,7 @@
                 }
 
                 saveStats(newStats);
-            }, [recentGames, stats, saveStats]);
+            }, [recentGames, pinnedGames, stats, saveStats]);
 
             const togglePin = useCallback((game) => {
                 const isPinned = pinnedGames.find(g => g.id === game.id);
@@ -1175,6 +1181,24 @@
                         title={confirmDialog.title}
                         message={confirmDialog.message}
                     />
+
+                    {searchState.loadingSongs && gameState.stage === 'selectAlbums' && (
+                        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6"
+                            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)' }}>
+                            <div className="relative w-20 h-20">
+                                <svg className="animate-spin w-20 h-20 text-white/20" fill="none" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                </svg>
+                                <svg className="animate-spin w-20 h-20 text-white absolute inset-0" fill="none" viewBox="0 0 24 24" style={{animationDuration:'0.8s'}}>
+                                    <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 2a10 10 0 0 1 10 10"/>
+                                </svg>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-white text-2xl font-bold mb-1">Loading songs…</p>
+                                <p className="text-gray-400 text-sm">Fetching tracks from {gameState.selectedAlbums.length} album{gameState.selectedAlbums.length !== 1 ? 's' : ''}</p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="relative z-10">
                         <div className="flex justify-between items-center pt-8 px-8">
@@ -1877,7 +1901,7 @@
         style="display:none; position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); z-index:40;
                background:rgba(255,255,255,0.95); color:#000; border:1px solid rgba(255,255,255,0.3);
                backdrop-filter:blur(20px); box-shadow:0 8px 32px rgba(0,0,0,0.5);
-               padding:1rem 2rem; border-radius:1rem; font-size:1.125rem; font-weight:700;
+               padding:1rem 3.5rem; border-radius:1rem; font-size:1.125rem; font-weight:700;
                align-items:center; gap:0.75rem; white-space:nowrap;
                transition:transform 0.2s, opacity 0.2s;">
         <span id="playGameLabel">Play Game</span>
@@ -1998,6 +2022,14 @@
                 document.body.style.overflow = 'auto';
             }
         });
+
+        const pgBtn = document.getElementById('playGameBtn');
+        if (pgBtn) {
+            pgBtn.addEventListener('mouseenter', () => { if (pgBtn.style.opacity !== '0.45') pgBtn.style.transform = 'translateX(-50%) scale(1.05)'; });
+            pgBtn.addEventListener('mouseleave', () => { pgBtn.style.transform = 'translateX(-50%) scale(1)'; });
+            pgBtn.addEventListener('mousedown', () => { pgBtn.style.transform = 'translateX(-50%) scale(0.97)'; });
+            pgBtn.addEventListener('mouseup', () => { pgBtn.style.transform = 'translateX(-50%) scale(1)'; });
+        }
     </script>
 </body>
 
