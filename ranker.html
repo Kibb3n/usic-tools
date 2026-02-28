@@ -675,6 +675,20 @@
             const autoSaveStatusTimerRef = useRef(null);
             const sessionIdRef = useRef(null);
 
+            // Returns the display title for the current ranking.
+            // If exactly one album is being ranked, returns "Album Name - Artist Name".
+            // Otherwise returns the artist name (or collection name for album-mode searches).
+            const getRankingTitle = (stateObj) => {
+                const s = stateObj || state;
+                const artistName = s.selectedArtist?.artistName || s.selectedArtist?.collectionName || '';
+                if (s.usedAlbums && s.usedAlbums.length === 1) {
+                    const albumName = s.usedAlbums[0].name || '';
+                    if (albumName && artistName) return `${albumName} - ${artistName}`;
+                    if (albumName) return albumName;
+                }
+                return artistName || 'Unknown';
+            };
+
             useEffect(() => {
                 setAutoSaves(loadAutoSaves());
             }, []);
@@ -1864,7 +1878,7 @@
                 const url = URL.createObjectURL(dataBlob);
                 const link = document.createElement('a');
                 link.href = url;
-                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'unknown';
+                const artistName = getRankingTitle();
                 link.download = `ranker-${artistName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.json`;
                 link.click();
                 URL.revokeObjectURL(url);
@@ -1980,7 +1994,7 @@
                         doc.setFontSize(20);
                         doc.text(`${values.userName}'s Song Rankings`, 105, 13, { align: 'center' });
                         doc.setFontSize(11);
-                        doc.text(`${state.selectedArtist?.artistName || state.selectedArtist?.collectionName}`, 105, 21, { align: 'center' });
+                        doc.text(`${getRankingTitle()}`, 105, 21, { align: 'center' });
                         doc.setFontSize(8);
                         doc.setTextColor(255, 255, 255);
                         doc.text('\u03BCsic tools \u00B7 ranker', 105, 28, { align: 'center' });
@@ -2065,7 +2079,7 @@
             };
 
             const exportToTXT = () => {
-                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'Unknown';
+                const artistName = getRankingTitle();
                 const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
                 let txt = `μsic tools · ranker\n`;
                 txt += `${'─'.repeat(40)}\n`;
@@ -2090,7 +2104,7 @@
             };
 
             const exportToPNG = async () => {
-                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'Rankings';
+                const artistName = getRankingTitle();
                 const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
 
                 // Derive gradient colors from top-ranked songs' artwork
@@ -2135,16 +2149,25 @@
                 ctx.fillStyle = headerGrad;
                 ctx.fillRect(0, 0, width, headerH);
 
+                // Determine if header background is light — use dark text if so
+                // Perceived luminance: average of the two gradient endpoints
+                const luminance = ([r,g,b]) => (0.299*r + 0.587*g + 0.114*b) / 255;
+                const avgLuminance = (luminance(col1) + luminance(col2)) / 2;
+                const headerIsLight = avgLuminance > 0.55;
+                const headerTextColor = headerIsLight ? 'rgba(0,0,0,0.85)' : '#ffffff';
+                const headerSubColor = headerIsLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
+                const headerTinyColor = headerIsLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.55)';
+
                 // Header text
-                ctx.fillStyle = '#ffffff';
+                ctx.fillStyle = headerTextColor;
                 ctx.font = 'bold 26px system-ui, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(`${artistName} Rankings`, width / 2, 38);
                 ctx.font = '14px system-ui, sans-serif';
-                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.fillStyle = headerSubColor;
                 ctx.fillText(`${filteredIndices.length} songs • ${new Date().toLocaleDateString()}`, width / 2, 62);
                 ctx.font = '11px system-ui, sans-serif';
-                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.fillStyle = headerTinyColor;
                 ctx.fillText('μsic tools · ranker', width / 2, 84);
 
                 // Song rows
@@ -2279,7 +2302,7 @@
                     }
                 } catch(e) {}
 
-                const artistName = state.selectedArtist?.artistName || state.selectedArtist?.collectionName || 'Ranking';
+                const artistName = getRankingTitle();
                 const newId = Date.now().toString();
                 const newChart = {
                     id: newId,
@@ -2441,7 +2464,16 @@
                                                                 <div className="flex-1">
                                                                     <div className="flex items-center gap-2 flex-wrap">
                                                                         <p className="text-white font-semibold">
-                                                                            {autosave.state.selectedArtist?.artistName || autosave.state.selectedArtist?.collectionName || 'Unknown'}
+                                                                            {(() => {
+                                                                                const s = autosave.state;
+                                                                                const artist = s.selectedArtist?.artistName || s.selectedArtist?.collectionName || 'Unknown';
+                                                                                if (s.usedAlbums && s.usedAlbums.length === 1) {
+                                                                                    const album = s.usedAlbums[0].name || '';
+                                                                                    if (album && artist) return `${album} - ${artist}`;
+                                                                                    if (album) return album;
+                                                                                }
+                                                                                return artist;
+                                                                            })()}
                                                                         </p>
                                                                         {isCompleted && (
                                                                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{background: 'rgba(134,239,172,0.15)', color: '#86efac', border: '1px solid rgba(134,239,172,0.3)'}}>
@@ -2720,7 +2752,7 @@
                                     <div className="bg-white/5 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/10">
                                         <div className="flex justify-between items-center mb-3">
                                             <span className="text-white font-medium text-lg">
-                                                Ranking {state.selectedArtist?.artistName || state.selectedArtist?.collectionName}
+                                                Ranking {getRankingTitle()}
                                             </span>
                                             <span className="text-gray-300">
                                                 {sorting.comparisons} / {sorting.estimatedRemaining} comparisons
@@ -2899,7 +2931,7 @@
                                     <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
                                         <h2 className="text-4xl font-bold text-white text-center mb-3">Your Ranking</h2>
                                         <p className="text-gray-300 text-center mb-8 text-lg">
-                                            {state.selectedArtist?.artistName || state.selectedArtist?.collectionName} • {activeSongCount} songs
+                                            {getRankingTitle()} • {activeSongCount} songs
                                         </p>
 
                                         <div className="flex justify-center gap-2 mb-6">
