@@ -159,16 +159,16 @@
             font-size: 13px;
             font-weight: 600;
             transition: color 0.25s ease;
-            width: 82px;
+            width: 79px;
             text-align: center;
         }
 
         .mode-label.left {
-            left: -3px;
+            left: 0;
         }
 
         .mode-label.right {
-            right: -3px;
+            right: 0;
         }
 
         .mode-switch .mode-label.left {
@@ -490,6 +490,7 @@
             const [renameItem, setRenameItem] = useState(null);
             const [renameTitle, setRenameTitle] = useState('');
             const [createTileModalOpen, setCreateTileModalOpen] = useState(false);
+            const [showConfirm, setShowConfirm] = useState(false);
             const [newTileTitle, setNewTileTitle] = useState('');
             const [newTileColor, setNewTileColor] = useState('#8b5cf6');
 
@@ -517,7 +518,7 @@
             const [undoToast, setUndoToast] = useState(null);
             const [bulkMoveFrom, setBulkMoveFrom] = useState('');
             const [bulkMoveTo, setBulkMoveTo] = useState('');
-            const [showReorderButtons, setShowReorderButtons] = useState(true);
+            const [showReorderButtons, setShowReorderButtons] = useState(false);
             const [modeWarningOpen, setModeWarningOpen] = useState(false);
             const [showExportMenu, setShowExportMenu] = useState(false);
             const exportMenuRef = useRef(null);
@@ -933,7 +934,7 @@
                     tiers: defaultTiers, tierNames: ['S', 'A', 'B', 'C', 'D', 'E', 'F'],
                     tierColors: { S: '#ff7f7f', A: '#ffbf7f', B: '#ffdf7f', C: '#ffff7f', D: '#bfff7f', E: '#7fff7f', F: '#7fbfff' },
                     title: 'My Music Tier List', songsMode: false, albumBackup: null,
-                    showReorderButtons: true, lastModified: Date.now()
+                    showReorderButtons: false, lastModified: Date.now()
                 };
                 setCharts(prev => {
                     const updated = { ...prev, [newId]: newChart };
@@ -1619,7 +1620,7 @@
             }, [saveToHistory]);
 
             const clearAll = useCallback(() => {
-                if (!confirm('Clear all items? This cannot be undone.')) return;
+                setShowConfirm(false);
                 const nt = {}; tierNames.forEach(n => { nt[n] = []; }); nt.unranked = [];
                 setTiers(nt); setAlbumBackup(null); setSongsMode(false); saveToHistory(nt);
             }, [tierNames, saveToHistory]);
@@ -1803,6 +1804,30 @@
                         </div>
                     )}
 
+                    {/* Clear confirm modal */}
+                    {showConfirm && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
+                                <h3 className="text-xl font-bold text-white mb-3">Clear all items?</h3>
+                                <p className="text-gray-400 mb-6">This will remove all items from every tier.</p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowConfirm(false)}
+                                        className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={clearAll}
+                                        className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Rename modal */}
                     {renameModalOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -1917,7 +1942,7 @@
                                     <Download className="w-4 h-4" /><span className="hidden sm:inline">Import</span>
                                     <input type="file" accept=".json" onChange={importData} className="hidden" />
                                 </label>
-                                <button onClick={clearAll} className="px-3 md:px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg border border-red-500/50 flex items-center gap-2 transition-colors">
+                                <button onClick={() => setShowConfirm(true)} className="px-3 md:px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg border border-red-500/50 flex items-center gap-2 transition-colors">
                                     <Trash className="w-4 h-4" /><span className="hidden sm:inline">Clear</span>
                                 </button>
                             </div>
