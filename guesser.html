@@ -1912,7 +1912,7 @@
 
     <!-- Help Button -->
     <button id="helpBtn"
-        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
+        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden'; window.openHelpInit('helpModal','helpSearch');"
         class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
         style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1926,111 +1926,202 @@
         style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);"
         onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
         <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
-            <div class="rounded-3xl p-8 shadow-2xl"
+            <div class="rounded-3xl p-6 shadow-2xl"
                 style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px);">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-3xl font-bold text-white">Guesser</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold text-white">Guesser — Help</h3>
                     <button
                         onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
-                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0"
                         style="background: rgba(255,255,255,0.1);">
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
-                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height: 60vh;">
-                    <div class="space-y-6">
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">How to Play</h4>
-                            <p class="text-gray-300">It's like Wordle but for music. You've got 6 tries to guess a
-                                random song from whatever artist and albums you pick. After each wrong guess you get
-                                colour-coded clues on how close you were.</p>
-                        </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Getting Started</h4>
-                            <ol class="list-decimal list-inside space-y-2 text-gray-300">
-                                <li>Search for an artist (someone with a big discography is more fun). You can add
-                                    multiple artists to make a larger pool.</li>
-                                <li>Pick which albums to include — or just hit select all</li>
-                                <li>A random song is picked and you start guessing</li>
-                            </ol>
-                        </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Clue Colours</h4>
-                            <ul class="space-y-2 text-gray-300">
-                                <li><span
-                                        class="inline-block w-4 h-4 bg-green-500 rounded mr-2"></span><strong>Green</strong>
-                                    — exact match for that column</li>
-                                <li><span
-                                        class="inline-block w-4 h-4 bg-yellow-500 rounded mr-2"></span><strong>Yellow</strong>
-                                    — you're close (within 30 s for duration, roughly same year, a couple of tracks away
-                                    for position)</li>
-                                <li><span
-                                        class="inline-block w-4 h-4 bg-red-500/40 rounded mr-2"></span><strong>Red</strong>
-                                    — not close at all</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Progressive Hints</h4>
-                            <p class="text-gray-300 mb-2">Hints unlock as guesses go:</p>
-                            <ul class="list-disc list-inside space-y-1 text-gray-300 ml-4">
-                                <li>Guess 2 — first letter of the song title</li>
-                                <li>Guess 3 — character count of the title</li>
-                                <li>Guess 5 — which album it's from</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Stats & Sharing</h4>
-                            <p class="text-gray-300">Your win/loss stats are saved locally. After a game you can share
-                                your result as an emoji grid.</p>
-                        </div>
-                        <div class="rounded-xl p-4"
-                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                </svg>
-                                Keyboard Shortcuts
-                            </h4>
-                            <div class="space-y-2 text-sm text-gray-300">
-                                <div class="flex items-center justify-between"><span>Navigate song dropdown</span><span
-                                        class="flex gap-1"><kbd class="px-2 py-0.5 rounded text-xs"
-                                            style="background:rgba(255,255,255,0.1);">↑</kbd><kbd
-                                            class="px-2 py-0.5 rounded text-xs"
-                                            style="background:rgba(255,255,255,0.1);">↓</kbd></span></div>
-                                <div class="flex items-center justify-between"><span>Submit highlighted guess</span><kbd
-                                        class="px-2 py-0.5 rounded text-xs"
-                                        style="background:rgba(255,255,255,0.1);">Enter</kbd></div>
-                                <div class="flex items-center justify-between"><span>Clear search input</span><kbd
-                                        class="px-2 py-0.5 rounded text-xs"
-                                        style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
+                
+                <div class="relative mb-5">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                    <input id="helpSearch" type="text" placeholder="Search help topics…" class="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);">
+                </div>
+                <div class="space-y-3 overflow-y-auto pr-1" style="max-height: 62vh;">
+
+
+                        <div data-help-section="overview" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    What is Guesser?
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="Guesser is a music Wordle. A random song is chosen from whatever artist and albums you pick, and you have 6 tries to identify it. After each wrong guess you get colour-coded clues telling you how close you were across five different attributes of the song.">Guesser is a music Wordle. A random song is chosen from whatever artist and albums you pick, and you have 6 tries to identify it. After each wrong guess you get colour-coded clues telling you how close you were across five different attributes of the song.</p><p data-help-text="The more artists and albums you include, the larger the song pool — making the game harder and more replayable. Artists with bigger discographies are the most fun.">The more artists and albums you include, the larger the song pool — making the game harder and more replayable. Artists with bigger discographies are the most fun.</p>
                             </div>
                         </div>
-                    </div>
+                        <div data-help-section="setup" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+                                    Setting Up a Game
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Search for an artist</strong> — Type an artist name in the search box and hit Search (or press Enter). A list of matching artists appears — select the one you want. Their discography loads automatically."><strong>Search for an artist</strong> — Type an artist name in the search box and hit Search (or press Enter). A list of matching artists appears — select the one you want. Their discography loads automatically.</p><p data-help-text="<strong>Adding multiple artists</strong> — You can add more than one artist to create a combined song pool from all of them. After adding the first artist, use the search box again to find and add another. The album selection screen shows each artist's albums in separate tabs."><strong>Adding multiple artists</strong> — You can add more than one artist to create a combined song pool from all of them. After adding the first artist, use the search box again to find and add another. The album selection screen shows each artist's albums in separate tabs.</p><p data-help-text="<strong>Selecting albums</strong> — A grid of the artist's albums appears. Click individual albums to include or exclude them, or use Select All / Deselect All for convenience. Albums are sorted by type (Albums first, then EPs, then Singles) and then by release date newest-first."><strong>Selecting albums</strong> — A grid of the artist's albums appears. Click individual albums to include or exclude them, or use Select All / Deselect All for convenience. Albums are sorted by type (Albums first, then EPs, then Singles) and then by release date newest-first.</p><p data-help-text="<strong>Song pool size</strong> — A count of selected songs updates as you toggle albums. More songs = harder game. You need at least one album selected to start."><strong>Song pool size</strong> — A count of selected songs updates as you toggle albums. More songs = harder game. You need at least one album selected to start.</p><p data-help-text="<strong>Start the game</strong> — Once you're happy with the selection, hit the Play Game button (fixed at the bottom of the screen). A random song is chosen from your pool and the game begins."><strong>Start the game</strong> — Once you're happy with the selection, hit the Play Game button (fixed at the bottom of the screen). A random song is chosen from your pool and the game begins.</p><p data-help-text="<strong>Recent & pinned games</strong> — Previously played configurations are saved automatically in a Recent Games list on the home screen. You can pin up to 8 favourite configurations so they stay permanently available at the top of the list without getting pushed out by new recent games."><strong>Recent & pinned games</strong> — Previously played configurations are saved automatically in a Recent Games list on the home screen. You can pin up to 8 favourite configurations so they stay permanently available at the top of the list without getting pushed out by new recent games.</p><p data-help-text="<strong>Edit a saved game</strong> — Click the edit (pencil) icon on any saved game card to go back to the album selection screen for that configuration and tweak which albums are included before playing again."><strong>Edit a saved game</strong> — Click the edit (pencil) icon on any saved game card to go back to the album selection screen for that configuration and tweak which albums are included before playing again.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="playing" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    Playing the Game
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Making a guess</strong> — Start typing a song name in the guess box. A dropdown appears with up to 10 matching songs from your pool — filtered in real time as you type. Songs you have already guessed are excluded from the list."><strong>Making a guess</strong> — Start typing a song name in the guess box. A dropdown appears with up to 10 matching songs from your pool — filtered in real time as you type. Songs you have already guessed are excluded from the list.</p><p data-help-text="<strong>Selecting a song</strong> — Click a song in the dropdown, or use the arrow keys to navigate it and press Enter to confirm. The guess is submitted immediately."><strong>Selecting a song</strong> — Click a song in the dropdown, or use the arrow keys to navigate it and press Enter to confirm. The guess is submitted immediately.</p><p data-help-text="<strong>Already guessed</strong> — Songs you have already guessed are greyed out and won't appear in the dropdown, so you can't accidentally repeat yourself."><strong>Already guessed</strong> — Songs you have already guessed are greyed out and won't appear in the dropdown, so you can't accidentally repeat yourself.</p><p data-help-text="<strong>6 guesses</strong> — You have 6 attempts total. Each wrong guess is added to the guess history below with its clue row visible. If you run out of guesses the answer is revealed."><strong>6 guesses</strong> — You have 6 attempts total. Each wrong guess is added to the guess history below with its clue row visible. If you run out of guesses the answer is revealed.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="clues" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                    Reading the Clues
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="Each guess shows a row of coloured tiles, one for each of the five attributes:">Each guess shows a row of coloured tiles, one for each of the five attributes:</p><p data-help-text="<strong>Duration</strong> — The length of the song in minutes:seconds. Green = exact match. Yellow = within 30 seconds. Red = more than 30 seconds away. An arrow points up if the target song is longer than your guess, down if it is shorter."><strong>Duration</strong> — The length of the song in minutes:seconds. Green = exact match. Yellow = within 30 seconds. Red = more than 30 seconds away. An arrow points up if the target song is longer than your guess, down if it is shorter.</p><p data-help-text="<strong>Release date</strong> — The release date of the song (usually matching its album release). Green = same date. Yellow = within roughly one year. Red = further away. Arrow indicates direction (earlier/later)."><strong>Release date</strong> — The release date of the song (usually matching its album release). Green = same date. Yellow = within roughly one year. Red = further away. Arrow indicates direction (earlier/later).</p><p data-help-text="<strong>Track number</strong> — The track's position on its album. Green = exact match. Yellow = within 2 tracks. Red = further away. Arrow indicates higher/lower."><strong>Track number</strong> — The track's position on its album. Green = exact match. Yellow = within 2 tracks. Red = further away. Arrow indicates higher/lower.</p><p data-help-text="<strong>Album</strong> — Whether the guessed song is on the same album as the target. Green tick = same album. Red cross = different album. No arrow — it's binary."><strong>Album</strong> — Whether the guessed song is on the same album as the target. Green tick = same album. Red cross = different album. No arrow — it's binary.</p><p data-help-text="<strong>Artist (multi-artist mode only)</strong> — Shown only when you have multiple artists in the pool. Green = same artist. Red = different artist. Helps you narrow down which artist the target song belongs to."><strong>Artist (multi-artist mode only)</strong> — Shown only when you have multiple artists in the pool. Green = same artist. Red = different artist. Helps you narrow down which artist the target song belongs to.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="hints" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                    Progressive Hints
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="Additional hints unlock automatically as the game progresses to help you if you're stuck:">Additional hints unlock automatically as the game progresses to help you if you're stuck:</p><p data-help-text="<strong>After guess 2</strong> — The first letter of the song title is revealed."><strong>After guess 2</strong> — The first letter of the song title is revealed.</p><p data-help-text="<strong>After guess 3</strong> — The total character count of the song title is shown (including spaces)."><strong>After guess 3</strong> — The total character count of the song title is shown (including spaces).</p><p data-help-text="<strong>After guess 5</strong> — The name of the album the target song is from is revealed. This is the last hint before your final guess."><strong>After guess 5</strong> — The name of the album the target song is from is revealed. This is the last hint before your final guess.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="endgame" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                                    End of Game
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Win</strong> — If you guess correctly you see a win screen showing how many guesses it took. Your win/loss stats update automatically."><strong>Win</strong> — If you guess correctly you see a win screen showing how many guesses it took. Your win/loss stats update automatically.</p><p data-help-text="<strong>Lose</strong> — After 6 failed guesses the answer is revealed — song name, artist, album, and all clue details."><strong>Lose</strong> — After 6 failed guesses the answer is revealed — song name, artist, album, and all clue details.</p><p data-help-text="<strong>Share</strong> — After any game (win or lose) you can copy your result as an emoji grid — the same colour-coded format used in Wordle shares — to post on social media."><strong>Share</strong> — After any game (win or lose) you can copy your result as an emoji grid — the same colour-coded format used in Wordle shares — to post on social media.</p><p data-help-text="<strong>Play again</strong> — Click Play Again to immediately start a new game using the same artist and album configuration. A different song is picked at random from the same pool."><strong>Play again</strong> — Click Play Again to immediately start a new game using the same artist and album configuration. A different song is picked at random from the same pool.</p><p data-help-text="<strong>Change setup</strong> — Click Change Setup to go back to the album selection screen and adjust which artists or albums are in the pool before starting a new game."><strong>Change setup</strong> — Click Change Setup to go back to the album selection screen and adjust which artists or albums are in the pool before starting a new game.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="stats" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                    Stats & History
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Win/loss tracking</strong> — Your overall win count, loss count, current win streak, and best win streak are tracked and saved locally to your browser."><strong>Win/loss tracking</strong> — Your overall win count, loss count, current win streak, and best win streak are tracked and saved locally to your browser.</p><p data-help-text="<strong>Favourite artist</strong> — The stats panel shows which artist you have played against the most."><strong>Favourite artist</strong> — The stats panel shows which artist you have played against the most.</p><p data-help-text="<strong>Recent games</strong> — The home screen shows your last several game configurations in a scrollable Recent Games row, so you can quickly replay a past setup without searching again. Up to a fixed number of recent games are stored."><strong>Recent games</strong> — The home screen shows your last several game configurations in a scrollable Recent Games row, so you can quickly replay a past setup without searching again. Up to a fixed number of recent games are stored.</p><p data-help-text="<strong>Pinned games</strong> — Any game configuration you pin stays at the top of the home screen permanently — great for your go-to artist. You can pin up to 8 configurations. Pinned games won't be displaced by new recent games."><strong>Pinned games</strong> — Any game configuration you pin stays at the top of the home screen permanently — great for your go-to artist. You can pin up to 8 configurations. Pinned games won't be displaced by new recent games.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="shortcuts" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                                    Keyboard Shortcuts
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span data-help-text="Navigate song dropdown">Navigate song dropdown</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">↑ / ↓ arrow keys</kbd></div><div class="flex items-center justify-between"><span data-help-text="Submit highlighted guess">Submit highlighted guess</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Enter</kbd></div><div class="flex items-center justify-between"><span data-help-text="Clear search / close dropdown">Clear search / close dropdown</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Escape</kbd></div><div class="flex items-center justify-between"><span data-help-text="Close this modal">Close this modal</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
+                            </div>
+                        </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.getElementById('helpModal').classList.add('hidden');
-                document.body.style.overflow = 'auto';
-            }
-        });
 
-        const pgBtn = document.getElementById('playGameBtn');
-        if (pgBtn) {
-            pgBtn.addEventListener('mouseenter', () => { if (pgBtn.style.opacity !== '0.45') pgBtn.style.transform = 'translateX(-50%) scale(1.05)'; });
-            pgBtn.addEventListener('mouseleave', () => { pgBtn.style.transform = 'translateX(-50%) scale(1)'; });
-            pgBtn.addEventListener('mousedown', () => { pgBtn.style.transform = 'translateX(-50%) scale(0.97)'; });
-            pgBtn.addEventListener('mouseup', () => { pgBtn.style.transform = 'translateX(-50%) scale(1)'; });
+<style>
+.help-section { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+.help-section-header { cursor: pointer; user-select: none; }
+.help-section-header:hover { opacity: 0.85; }
+.help-search-highlight { background: rgba(255,255,255,0.18); border-radius: 2px; }
+.help-section.hidden-section { display: none; }
+</style>
+<script>
+(function(){
+  function initHelp(modalId, searchId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) return;
+    var searchInput = document.getElementById(searchId);
+    var sections = modal.querySelectorAll('[data-help-section]');
+
+    // Collapse/expand toggle
+    sections.forEach(function(sec) {
+      var header = sec.querySelector('.help-section-header');
+      var body   = sec.querySelector('.help-section-body');
+      var chevron = sec.querySelector('.help-chevron');
+      if (!header || !body) return;
+      var open = true;
+      header.addEventListener('click', function() {
+        open = !open;
+        body.style.maxHeight = open ? body.scrollHeight + 'px' : '0px';
+        body.style.opacity   = open ? '1' : '0';
+        if (chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+      });
+      // set initial open state
+      body.style.maxHeight = body.scrollHeight + 'px';
+      body.style.opacity = '1';
+      body.style.overflow = 'hidden';
+      body.style.transition = 'max-height 0.3s ease, opacity 0.25s ease';
+    });
+
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+      var q = this.value.trim().toLowerCase();
+      sections.forEach(function(sec) {
+        if (!q) {
+          sec.classList.remove('hidden-section');
+          // restore highlight
+          sec.querySelectorAll('[data-help-text]').forEach(function(el) {
+            el.innerHTML = el.getAttribute('data-help-text');
+          });
+          return;
         }
-    </script>
+        var title = (sec.querySelector('.help-section-title') || {}).textContent || '';
+        var texts = Array.from(sec.querySelectorAll('[data-help-text]'));
+        var allText = title + ' ' + texts.map(function(e){ return e.getAttribute('data-help-text'); }).join(' ');
+        var match = allText.toLowerCase().indexOf(q) !== -1;
+        sec.classList.toggle('hidden-section', !match);
+        if (match) {
+          texts.forEach(function(el) {
+            var raw = el.getAttribute('data-help-text');
+            var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+            el.innerHTML = raw.replace(re, '<mark class="help-search-highlight">$1</mark>');
+          });
+        }
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initHelp('helpModal', 'helpSearch');
+  });
+  // Also init when modal is opened (in case DOMContentLoaded already fired)
+  var _orig = window.openHelp;
+  window.openHelpInit = function(modalId, searchId){ initHelp(modalId, searchId); };
+})();
+</script>
+
 </body>
 
 </html>
