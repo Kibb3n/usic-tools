@@ -54,7 +54,8 @@
         }
 
         .tier-slot {
-            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-left: none;
             transition: border-color 0.2s, background 0.2s;
             min-height: 80px;
             overflow: visible;
@@ -62,7 +63,7 @@
 
         .tier-slot.drag-over {
             border-color: #60a5fa !important;
-            background: rgba(96, 165, 250, 0.2);
+            background: rgba(96, 165, 250, 0.15);
         }
 
         /* Improved drag styles */
@@ -383,6 +384,21 @@
         .tier-slot {
             overflow: visible !important;
         }
+
+        /* Traditional tierlist: flush rows sharing borders */
+        .tier-row {
+            margin-bottom: 0 !important;
+        }
+        .tier-row:not(:last-child) .tier-label {
+            border-bottom: 1px solid rgba(0,0,0,0.2);
+        }
+        .tier-row:not(:last-child) .tier-slot {
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .tier-row:first-child .tier-label { border-radius: 8px 0 0 0; }
+        .tier-row:last-child .tier-label  { border-radius: 0 0 0 8px; }
+        .tier-row:first-child .tier-slot  { border-radius: 0 8px 0 0; }
+        .tier-row:last-child .tier-slot   { border-radius: 0 0 8px 0; }
 
         .tier-row-items {
             display: flex;
@@ -1254,26 +1270,51 @@
             }, []);
 
             // Called on the tier container (background) — computes insert index from child positions
+            // Row-aware: groups children by visual row so wrapped tiers don't produce jittery indices
             const handleTierDragOver = useCallback((e, tier) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 setDragOverTier(tier);
 
-                // Compute insert position by scanning child draggable-item elements
                 const container = e.currentTarget;
                 const children = Array.from(container.querySelectorAll(':scope > .draggable-item'));
                 let insertIdx = null;
                 if (children.length > 0) {
+                    // Group children into visual rows by their top offset
+                    const rows = [];
+                    children.forEach((child, i) => {
+                        const rect = child.getBoundingClientRect();
+                        const existing = rows.find(r => Math.abs(r.top - rect.top) < rect.height * 0.5);
+                        if (existing) {
+                            existing.items.push({ idx: i, rect });
+                        } else {
+                            rows.push({ top: rect.top, bottom: rect.bottom, items: [{ idx: i, rect }] });
+                        }
+                    });
+                    rows.sort((a, b) => a.top - b.top);
+
+                    // Find the row closest to the cursor Y
+                    let bestRow = rows[0];
+                    let bestDist = Infinity;
+                    for (const row of rows) {
+                        const mid = (row.top + row.bottom) / 2;
+                        const dist = Math.abs(e.clientY - mid);
+                        if (dist < bestDist) { bestDist = dist; bestRow = row; }
+                    }
+
+                    // Within that row, find insert position by X midpoint
                     let found = false;
-                    for (let i = 0; i < children.length; i++) {
-                        const rect = children[i].getBoundingClientRect();
+                    for (const { idx, rect } of bestRow.items) {
                         if (e.clientX < rect.left + rect.width / 2) {
-                            insertIdx = i;
+                            insertIdx = idx;
                             found = true;
                             break;
                         }
                     }
-                    if (!found) insertIdx = children.length; // after last child
+                    if (!found) {
+                        // After the last item in this row
+                        insertIdx = bestRow.items[bestRow.items.length - 1].idx + 1;
+                    }
                 }
                 setDropInsertIndex(insertIdx);
                 dropInsertIndexRef.current = insertIdx;
@@ -1346,7 +1387,16 @@
             }, [saveToHistory]);
 
             const removeItem = useCallback((tier, itemId) => {
-                setTiers(prev => { const nt = { ...prev, [tier]: prev[tier].filter(i => i.id !== itemId) }; saveToHistory(nt); return nt; });
+                setTiers(prev => {
+                    const arr = [...(prev[tier] || [])];
+                    // Only remove the FIRST occurrence so duplicate albums don't all vanish
+                    const idx = arr.findIndex(i => i.id === itemId);
+                    if (idx === -1) return prev;
+                    arr.splice(idx, 1);
+                    const nt = { ...prev, [tier]: arr };
+                    saveToHistory(nt);
+                    return nt;
+                });
             }, [saveToHistory]);
 
             const addItemToUnranked = useCallback((item) => {
@@ -2328,21 +2378,23 @@
                                             </div>
 
                                             {/* Tiers */}
-                                            {tierNames.map(tn => (
-                                                <div key={tn} className="flex mb-2">
-                                                    <div className="w-14 md:w-16 flex items-center justify-center font-bold text-black rounded-l-lg shrink-0 overflow-hidden p-1" style={{ backgroundColor: tierColors[tn], fontSize: tn.length > 4 ? (tn.length > 8 ? '9px' : '11px') : tn.length > 2 ? '13px' : undefined, wordBreak: 'break-word', textAlign: 'center', lineHeight: '1.1', minHeight: '56px' }}>{tn}</div>
+                                            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+                                            {tierNames.map((tn, tierIdx) => (
+                                                <div key={tn} className="flex tier-row" style={{ borderBottom: tierIdx < tierNames.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}>
+                                                    <div className="tier-label w-14 md:w-16 flex items-center justify-center font-bold text-black shrink-0 overflow-hidden p-1" style={{ backgroundColor: tierColors[tn], fontSize: tn.length > 10 ? '8px' : tn.length > 6 ? '9px' : tn.length > 4 ? '11px' : tn.length > 2 ? '13px' : undefined, wordBreak: 'break-word', overflowWrap: 'break-word', textAlign: 'center', lineHeight: '1.1', minHeight: '56px', hyphens: 'auto' }}>{tn}</div>
                                                     <div
                                                         onDragOver={(e) => handleTierDragOver(e, tn)}
                                                         onDragLeave={handleDragLeave}
                                                         onDrop={(e) => handleDrop(e, tn)}
                                                         data-touch-tier={tn}
-                                                        className={`flex-1 tier-slot rounded-r-lg bg-white/5 p-2 flex flex-wrap gap-2 items-center ${dragOverTier === tn && dropInsertIndex === null ? 'drag-over' : ''}`}
+                                                        className={`flex-1 tier-slot bg-white/5 p-2 flex flex-wrap gap-2 items-center ${dragOverTier === tn && dropInsertIndex === null ? 'drag-over' : ''}`}
                                                     >
                                                         {tiers[tn]?.length === 0 && <span className="text-white/30 text-sm">Drag items here</span>}
                                                         {renderTierItems(tn, tiers[tn] || [])}
                                                     </div>
                                                 </div>
                                             ))}
+                                            </div>
 
                                             {/* Unranked below tiers — only when not shown in sidebar */}
                                             {!showUnrankedLeft && (
