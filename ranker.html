@@ -656,7 +656,23 @@
                 pinnedBottom: new Set()
             });
 
-            const [bgColors, setBgColors] = useState(['#ff0080', '#7928ca']);
+            const getColorsFromAutoSave = () => {
+                const saves = loadAutoSaves();
+                if (saves.length > 0) {
+                    const latest = saves[0];
+                    const songData = latest.state?.songData;
+                    const sortedIndices = latest.sorting?.sortedIndices;
+                    if (songData && sortedIndices && sortedIndices.length >= 2) {
+                        const c1 = songData[sortedIndices[0]]?.color;
+                        const c2 = songData[sortedIndices[1]]?.color;
+                        if (c1 && c2) return [c1, c2];
+                        if (c1) return [c1, '#0d9488'];
+                    }
+                }
+                return ['#1d4ed8', '#0d9488'];
+            };
+
+            const [bgColors, setBgColors] = useState(getColorsFromAutoSave);
             const [playingAudio, setPlayingAudio] = useState({ index: null, audio: null });
             const [notification, setNotification] = useState(null);
             const [contextMenu, setContextMenu] = useState(null);
@@ -692,6 +708,13 @@
             useEffect(() => {
                 setAutoSaves(loadAutoSaves());
             }, []);
+
+            // Update gradient when returning to home screen based on latest autosave
+            useEffect(() => {
+                if (state.stage === 'selectMode') {
+                    setBgColors(getColorsFromAutoSave());
+                }
+            }, [state.stage]);
 
             useEffect(() => {
                 if (state.stage === 'sorting' && state.songs.length > 0) {
