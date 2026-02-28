@@ -3696,7 +3696,7 @@
     </script>
     <!-- Help Button -->
     <button id="helpBtn"
-        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
+        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden'; window.openHelpInit('helpModal','helpSearch');"
         class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
         style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3710,89 +3710,214 @@
         style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);"
         onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
         <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
-            <div class="rounded-3xl p-8 shadow-2xl"
+            <div class="rounded-3xl p-6 shadow-2xl"
                 style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px);">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-3xl font-bold text-white">Topsters</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold text-white">Topsters — Help</h3>
                     <button
                         onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
-                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0"
                         style="background: rgba(255,255,255,0.1);">
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
-                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height: 60vh;">
-                    <div class="space-y-6">
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">What are Topsters?</h4>
-                            <p class="text-gray-300">Grids of album covers showing your favourites — you've definitely
-                                seen these on social media. They originated on music forums like RateYourMusic and
-                                4chan's /mu/ as a quick way to show off your taste.</p>
-                        </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Layout Modes</h4>
-                            <ul class="space-y-2 text-gray-300">
-                                <li><strong>Standard:</strong> custom grid — set any width and height you want (up to
-                                    12×12)</li>
-                                <li><strong>Top 42:</strong> the classic 6×7 /mu/ format</li>
-                                <li><strong>Top 100:</strong> a 10×10 grid. Requires commitment</li>
-                                <li><strong>About You:</strong> labelled slots for albums that represent different
-                                    things — your most played, comfort listen, the one that got you into music, etc.
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Using This Tool</h4>
-                            <ul class="space-y-2 text-gray-300">
-                                <li><strong>Search albums:</strong> search by album name or browse by artist. Pulls from iTunes and Last.fm, with duplicate results automatically merged</li>
-                                <li><strong>Drag & drop:</strong> arrange albums however you like. Drag one onto another
-                                    to swap them</li>
-                                <li><strong>Right-click an album:</strong> rename or remove it from the grid</li>
-                                <li><strong>Multiple charts:</strong> create and switch between multiple saved charts
-                                </li>
-                                <li><strong>Customise:</strong> toggle album titles, numbers, change background colour,
-                                    adjust grid gap</li>
-                                <li><strong>Export:</strong> download as a PNG image, ready to post</li>
-                            </ul>
-                        </div>
-                        <div class="rounded-xl p-4"
-                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-                            <h4 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                </svg>
-                                Keyboard Shortcuts
-                            </h4>
-                            <div class="space-y-2 text-sm text-gray-300">
-                                <div class="flex items-center justify-between"><span>Undo last action</span><kbd
-                                        class="px-2 py-0.5 rounded text-xs"
-                                        style="background:rgba(255,255,255,0.1);">⌘/Ctrl Z</kbd></div>
-                                <div class="flex items-center justify-between"><span>Redo</span><span
-                                        class="flex gap-1"><kbd class="px-2 py-0.5 rounded text-xs"
-                                            style="background:rgba(255,255,255,0.1);">⌘/Ctrl ⇧ Z</kbd><span
-                                            class="text-gray-500 text-xs mx-1">or</span><kbd
-                                            class="px-2 py-0.5 rounded text-xs"
-                                            style="background:rgba(255,255,255,0.1);">⌘/Ctrl Y</kbd></span></div>
+                
+                <div class="relative mb-5">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                    <input id="helpSearch" type="text" placeholder="Search help topics…" class="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);">
+                </div>
+                <div class="space-y-3 overflow-y-auto pr-1" style="max-height: 62vh;">
+
+
+                        <div data-help-section="overview" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    What are Topsters?
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="Topsters are grids of album covers that show off your favourites — you've definitely seen these on social media. They originated on music forums like RateYourMusic and 4chan's /mu/ as a quick way to flex your taste. This tool lets you build, customise, and export them as a PNG ready to post anywhere.">Topsters are grids of album covers that show off your favourites — you've definitely seen these on social media. They originated on music forums like RateYourMusic and 4chan's /mu/ as a quick way to flex your taste. This tool lets you build, customise, and export them as a PNG ready to post anywhere.</p><p data-help-text="Every change you make is saved automatically to your browser so your charts will still be there if you close the tab.">Every change you make is saved automatically to your browser so your charts will still be there if you close the tab.</p>
                             </div>
                         </div>
-                    </div>
+                        <div data-help-section="layouts" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z"/></svg>
+                                    Layout Modes
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Standard</strong> — Fully custom grid — use the Width and Height steppers to set any dimensions from 1×1 up to 12×12. Great for any size list you have in mind."><strong>Standard</strong> — Fully custom grid — use the Width and Height steppers to set any dimensions from 1×1 up to 12×12. Great for any size list you have in mind.</p><p data-help-text="<strong>Top 42</strong> — The classic 6×7 format popularised on /mu/. Fixed layout, no size controls needed — just fill it in."><strong>Top 42</strong> — The classic 6×7 format popularised on /mu/. Fixed layout, no size controls needed — just fill it in.</p><p data-help-text="<strong>Top 100</strong> — A 10×10 grid that expands into a pyramid of increasingly smaller cells toward the bottom, mirroring the traditional Top 100 poster format. Requires real commitment to fill."><strong>Top 100</strong> — A 10×10 grid that expands into a pyramid of increasingly smaller cells toward the bottom, mirroring the traditional Top 100 poster format. Requires real commitment to fill.</p><p data-help-text="<strong>About You</strong> — 24 labelled slots covering personality-style prompts: Favourite Album, Best Narrative, Favourite Cover, Bad Day Cure, Underrated, Overrated, Most Depressing, and more. Each label is editable — click it to rename. Great for sharing as a 'get to know me' music post."><strong>About You</strong> — 24 labelled slots covering personality-style prompts: Favourite Album, Best Narrative, Favourite Cover, Bad Day Cure, Underrated, Overrated, Most Depressing, and more. Each label is editable — click it to rename. Great for sharing as a 'get to know me' music post.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="searching" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                                    Searching for Albums
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Album search</strong> — Type an album name in the search bar and hit Enter or click the search button. Results are pulled from both iTunes and Last.fm simultaneously, with duplicate entries automatically merged so you don't get the same album twice."><strong>Album search</strong> — Type an album name in the search bar and hit Enter or click the search button. Results are pulled from both iTunes and Last.fm simultaneously, with duplicate entries automatically merged so you don't get the same album twice.</p><p data-help-text="<strong>Artist browse</strong> — Toggle the search mode to Artist to look up a specific artist. Select them from the results and you'll see their full discography listed — click any album to add it straight to your grid."><strong>Artist browse</strong> — Toggle the search mode to Artist to look up a specific artist. Select them from the results and you'll see their full discography listed — click any album to add it straight to your grid.</p><p data-help-text="<strong>Search filters</strong> — When in Artist mode you can optionally filter by album name or year to narrow large discographies. This is especially useful for artists with extensive back-catalogues."><strong>Search filters</strong> — When in Artist mode you can optionally filter by album name or year to narrow large discographies. This is especially useful for artists with extensive back-catalogues.</p><p data-help-text="<strong>Adding to grid</strong> — Click any search result to add it to the next empty slot. If the grid is full, the result won't be added — remove something first."><strong>Adding to grid</strong> — Click any search result to add it to the next empty slot. If the grid is full, the result won't be added — remove something first.</p><p data-help-text="<strong>Result quality</strong> — Cover images that are missing or placeholder-only are filtered out automatically, so you only see results with real artwork."><strong>Result quality</strong> — Cover images that are missing or placeholder-only are filtered out automatically, so you only see results with real artwork.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="dragging" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+                                    Drag & Drop
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Rearranging</strong> — Drag any album cover to a different slot. A blue highlight shows where it will land. If you drop it onto an occupied slot, the two albums swap positions."><strong>Rearranging</strong> — Drag any album cover to a different slot. A blue highlight shows where it will land. If you drop it onto an occupied slot, the two albums swap positions.</p><p data-help-text="<strong>Touch support</strong> — On mobile or tablet, press and hold an album cover for a moment to initiate a drag — a ghost image follows your finger. Scroll edge-detection kicks in so you can drag to slots that are off-screen."><strong>Touch support</strong> — On mobile or tablet, press and hold an album cover for a moment to initiate a drag — a ghost image follows your finger. Scroll edge-detection kicks in so you can drag to slots that are off-screen.</p><p data-help-text="<strong>Drag from search</strong> — You can also drag directly from a search result into any grid slot without it first going into the next empty slot."><strong>Drag from search</strong> — You can also drag directly from a search result into any grid slot without it first going into the next empty slot.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="slotactions" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    Slot Actions
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Hover actions</strong> — Hover over any filled slot and two buttons appear in the top-right corner: a blue pencil to rename the entry and a red trash icon to remove it."><strong>Hover actions</strong> — Hover over any filled slot and two buttons appear in the top-right corner: a blue pencil to rename the entry and a red trash icon to remove it.</p><p data-help-text="<strong>Right-click</strong> — Right-clicking a filled slot opens the same rename and remove options as a context menu."><strong>Right-click</strong> — Right-clicking a filled slot opens the same rename and remove options as a context menu.</p><p data-help-text="<strong>Rename</strong> — Renaming lets you customise the display name shown in the sidebar titles list. This is useful when an album title on iTunes or Last.fm is truncated or formatted oddly. Changes are saved with your chart."><strong>Rename</strong> — Renaming lets you customise the display name shown in the sidebar titles list. This is useful when an album title on iTunes or Last.fm is truncated or formatted oddly. Changes are saved with your chart.</p><p data-help-text="<strong>Remove</strong> — Removes the album from that slot. The slot becomes empty again and can be filled by dragging or clicking a new result."><strong>Remove</strong> — Removes the album from that slot. The slot becomes empty again and can be filled by dragging or clicking a new result.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="display" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                                    Display Options
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Show Titles</strong> — Toggle this on to display a numbered sidebar next to the grid listing every album and artist name. Clicking a title in the sidebar opens the rename dialog for that slot."><strong>Show Titles</strong> — Toggle this on to display a numbered sidebar next to the grid listing every album and artist name. Clicking a title in the sidebar opens the rename dialog for that slot.</p><p data-help-text="<strong>Show Numbers</strong> — Overlays a small number badge on each filled slot and in each empty slot so you can easily count and reference positions."><strong>Show Numbers</strong> — Overlays a small number badge on each filled slot and in each empty slot so you can easily count and reference positions.</p><p data-help-text="<strong>Title text & colour</strong> — Edit the chart title at the top. Click the colour swatch next to it to open a colour picker and change the title text colour."><strong>Title text & colour</strong> — Edit the chart title at the top. Click the colour swatch next to it to open a colour picker and change the title text colour.</p><p data-help-text="<strong>Background colour</strong> — Click the background colour swatch to change the chart background. This affects both the live preview and the exported PNG."><strong>Background colour</strong> — Click the background colour swatch to change the chart background. This affects both the live preview and the exported PNG.</p><p data-help-text="<strong>Grid gap</strong> — A slider controls the spacing between cells. Drag it all the way left for a seamless zero-gap mosaic look, or add gap to give each cover breathing room."><strong>Grid gap</strong> — A slider controls the spacing between cells. Drag it all the way left for a seamless zero-gap mosaic look, or add gap to give each cover breathing room.</p><p data-help-text="<strong>Hide guides</strong> — Toggle grid guides off to hide the dashed borders on empty cells. Combined with zero gap, this gives the cleanest look for export."><strong>Hide guides</strong> — Toggle grid guides off to hide the dashed borders on empty cells. Combined with zero gap, this gives the cleanest look for export.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="multicharts" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414A1 1 0 0121 8.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+                                    Multiple Charts
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Creating charts</strong> — Click the + button in the charts panel to create a new blank chart. Each chart has its own grid, title, colours, and settings."><strong>Creating charts</strong> — Click the + button in the charts panel to create a new blank chart. Each chart has its own grid, title, colours, and settings.</p><p data-help-text="<strong>Switching</strong> — Click any chart name in the charts panel to switch to it. Your current chart is saved automatically before switching."><strong>Switching</strong> — Click any chart name in the charts panel to switch to it. Your current chart is saved automatically before switching.</p><p data-help-text="<strong>Renaming charts</strong> — Double-click a chart name in the panel to rename it inline."><strong>Renaming charts</strong> — Double-click a chart name in the panel to rename it inline.</p><p data-help-text="<strong>Deleting charts</strong> — Click the trash icon next to a chart to delete it. You'll be asked to confirm. You can't delete the last remaining chart — there's always at least one."><strong>Deleting charts</strong> — Click the trash icon next to a chart to delete it. You'll be asked to confirm. You can't delete the last remaining chart — there's always at least one.</p><p data-help-text="<strong>Pinning charts</strong> — Pin a chart to keep it at the top of the list so it doesn't get buried if you have many charts."><strong>Pinning charts</strong> — Pin a chart to keep it at the top of the list so it doesn't get buried if you have many charts.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="export" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                    Exporting
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>PNG export</strong> — Click the Download button (or press Ctrl/Cmd+E) to save the current chart as a high-quality PNG image. The exported file includes the title, grid, and sidebar titles if they are turned on — exactly what you see on screen."><strong>PNG export</strong> — Click the Download button (or press Ctrl/Cmd+E) to save the current chart as a high-quality PNG image. The exported file includes the title, grid, and sidebar titles if they are turned on — exactly what you see on screen.</p><p data-help-text="Tip: for the cleanest export, turn off grid guides and set the gap to zero before downloading.">Tip: for the cleanest export, turn off grid guides and set the gap to zero before downloading.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="shortcuts" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                                    Keyboard Shortcuts
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span data-help-text="Undo last action">Undo last action</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">⌘/Ctrl Z</kbd></div><div class="flex items-center justify-between"><span data-help-text="Redo">Redo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">⌘/Ctrl Shift Z  or  ⌘/Ctrl Y</kbd></div><div class="flex items-center justify-between"><span data-help-text="Export PNG">Export PNG</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">⌘/Ctrl E</kbd></div><div class="flex items-center justify-between"><span data-help-text="Close this modal">Close this modal</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
+                            </div>
+                        </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.getElementById('helpModal').classList.add('hidden');
-                document.body.style.overflow = 'auto';
-            }
-        });
-    </script>
+
+<style>
+.help-section { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+.help-section-header { cursor: pointer; user-select: none; }
+.help-section-header:hover { opacity: 0.85; }
+.help-search-highlight { background: rgba(255,255,255,0.18); border-radius: 2px; }
+.help-section.hidden-section { display: none; }
+</style>
+<script>
+(function(){
+  function initHelp(modalId, searchId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) return;
+    var searchInput = document.getElementById(searchId);
+    var sections = modal.querySelectorAll('[data-help-section]');
+
+    // Collapse/expand toggle
+    sections.forEach(function(sec) {
+      var header = sec.querySelector('.help-section-header');
+      var body   = sec.querySelector('.help-section-body');
+      var chevron = sec.querySelector('.help-chevron');
+      if (!header || !body) return;
+      var open = true;
+      header.addEventListener('click', function() {
+        open = !open;
+        body.style.maxHeight = open ? body.scrollHeight + 'px' : '0px';
+        body.style.opacity   = open ? '1' : '0';
+        if (chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+      });
+      // set initial open state
+      body.style.maxHeight = body.scrollHeight + 'px';
+      body.style.opacity = '1';
+      body.style.overflow = 'hidden';
+      body.style.transition = 'max-height 0.3s ease, opacity 0.25s ease';
+    });
+
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+      var q = this.value.trim().toLowerCase();
+      sections.forEach(function(sec) {
+        if (!q) {
+          sec.classList.remove('hidden-section');
+          // restore highlight
+          sec.querySelectorAll('[data-help-text]').forEach(function(el) {
+            el.innerHTML = el.getAttribute('data-help-text');
+          });
+          return;
+        }
+        var title = (sec.querySelector('.help-section-title') || {}).textContent || '';
+        var texts = Array.from(sec.querySelectorAll('[data-help-text]'));
+        var allText = title + ' ' + texts.map(function(e){ return e.getAttribute('data-help-text'); }).join(' ');
+        var match = allText.toLowerCase().indexOf(q) !== -1;
+        sec.classList.toggle('hidden-section', !match);
+        if (match) {
+          texts.forEach(function(el) {
+            var raw = el.getAttribute('data-help-text');
+            var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+            el.innerHTML = raw.replace(re, '<mark class="help-search-highlight">$1</mark>');
+          });
+        }
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initHelp('helpModal', 'helpSearch');
+  });
+  // Also init when modal is opened (in case DOMContentLoaded already fired)
+  var _orig = window.openHelp;
+  window.openHelpInit = function(modalId, searchId){ initHelp(modalId, searchId); };
+})();
+</script>
+
 </body>
 
 </html>
