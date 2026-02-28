@@ -3201,7 +3201,7 @@
     </script>
     <!-- Help Button -->
     <button id="helpBtn"
-        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden';"
+        onclick="document.getElementById('helpModal').classList.remove('hidden'); document.body.style.overflow='hidden'; window.openHelpInit('helpModal','helpSearch');"
         class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
         style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(20px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3215,85 +3215,178 @@
         style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);"
         onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
         <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
-            <div class="rounded-3xl p-8 shadow-2xl"
+            <div class="rounded-3xl p-6 shadow-2xl"
                 style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px);">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-3xl font-bold text-white">Ranker</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold text-white">Ranker — Help</h3>
                     <button
                         onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
-                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0"
                         style="background: rgba(255,255,255,0.1);">
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
-                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height: 60vh;">
-                    <div class="space-y-6">
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">What is This?</h4>
-                            <p class="text-gray-300">A comparison-based ranker that sorts songs by asking you to pick
-                                between two at a time. Easier than staring at a blank list — you just answer one simple
-                                question repeatedly until it's done.</p>
+                
+                <div class="relative mb-5">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                    <input id="helpSearch" type="text" placeholder="Search help topics…" class="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);">
+                </div>
+                <div class="space-y-3 overflow-y-auto pr-1" style="max-height: 62vh;">
+
+
+                        <div data-help-section="overview" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    What is Ranker?
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="Ranker is a comparison-based sorting tool that builds a definitive ranked list of songs or albums by asking you to pick your favourite from two options at a time. Instead of staring at a blank list trying to decide where everything goes, you just answer one simple question repeatedly until everything is sorted.">Ranker is a comparison-based sorting tool that builds a definitive ranked list of songs or albums by asking you to pick your favourite from two options at a time. Instead of staring at a blank list trying to decide where everything goes, you just answer one simple question repeatedly until everything is sorted.</p><p data-help-text="It works for any size catalogue — from a single 10-track album up to an artist's entire discography spanning hundreds of songs.">It works for any size catalogue — from a single 10-track album up to an artist's entire discography spanning hundreds of songs.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">How the Algorithm Works</h4>
-                            <p class="text-gray-300 mb-3">Under the hood this uses an optimised sort with transitive
-                                inference:</p>
-                            <ol class="list-decimal list-inside space-y-2 text-gray-300 ml-4">
-                                <li>You compare two songs and pick your favourite</li>
-                                <li>Your picks slowly bubble the best songs to the top</li>
-                                <li>The algorithm skips obvious comparisons (if A > B and B > C, it already knows A > C)
-                                </li>
-                                <li>It keeps going until everything is sorted</li>
-                            </ol>
+                        <div data-help-section="algorithm" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                    How the Algorithm Works
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="The ranker uses an optimised merge sort with transitive inference. That means:">The ranker uses an optimised merge sort with transitive inference. That means:</p><p data-help-text="1. You compare two items and pick your favourite — your choice is recorded as a preference.">1. You compare two items and pick your favourite — your choice is recorded as a preference.</p><p data-help-text="2. The algorithm uses those preferences to bubble items toward their correct position.">2. The algorithm uses those preferences to bubble items toward their correct position.</p><p data-help-text="3. Crucially, if you've said A > B and B > C, the algorithm already knows A > C without asking you. These inferred comparisons are skipped automatically, cutting down the total number of picks you need to make significantly.">3. Crucially, if you've said A > B and B > C, the algorithm already knows A > C without asking you. These inferred comparisons are skipped automatically, cutting down the total number of picks you need to make significantly.</p><p data-help-text="4. A progress counter shows how many comparisons remain. For a 50-song catalogue expect roughly 150–250 picks. For 100 songs expect roughly 400–600.">4. A progress counter shows how many comparisons remain. For a 50-song catalogue expect roughly 150–250 picks. For 100 songs expect roughly 400–600.</p><p data-help-text="Tip: try to stay consistent. If you contradict yourself too often (e.g. pick A over B, then later B over A) the algorithm has to make judgment calls and the final ranking can drift slightly from your true preferences.">Tip: try to stay consistent. If you contradict yourself too often (e.g. pick A over B, then later B over A) the algorithm has to make judgment calls and the final ranking can drift slightly from your true preferences.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Using It</h4>
-                            <ul class="space-y-2 text-gray-300">
-                                <li><strong>Rank Artist:</strong> pick an artist, select which albums to include, and
-                                    rank their whole catalogue</li>
-                                <li><strong>Rank Album:</strong> rank all tracks from one specific album</li>
-                                <li><strong>Preview:</strong> hit the play button to hear a 30-second clip (requires
-                                    Apple Music availability)</li>
-                                <li><strong>Undo:</strong> changed your mind? Undo your last pick</li>
-                                <li><strong>Skip:</strong> genuinely can't choose? Skip it — the algorithm will try to
-                                    infer the answer from your other choices. If it can't, it'll ask again later</li>
-                                <li><strong>Right-click a song card:</strong> instantly move a song to the top or bottom
-                                    if you're certain about it</li>
-                            </ul>
+                        <div data-help-section="modes" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                    Rank Artist vs Rank Album
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Rank Artist</strong> — Search for any artist by name. Once selected, all of their albums appear with checkboxes. Pick which albums to include in the ranking — you can be as selective or comprehensive as you like — then hit Start Ranking. Songs from all selected albums are pooled together."><strong>Rank Artist</strong> — Search for any artist by name. Once selected, all of their albums appear with checkboxes. Pick which albums to include in the ranking — you can be as selective or comprehensive as you like — then hit Start Ranking. Songs from all selected albums are pooled together.</p><p data-help-text="<strong>Rank Album</strong> — Search for a specific album by name (with an optional artist field to narrow results). The full track list loads and you rank every song on that album against each other."><strong>Rank Album</strong> — Search for a specific album by name (with an optional artist field to narrow results). The full track list loads and you rank every song on that album against each other.</p><p data-help-text="<strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view excluded songs and re-include them at any time from the results screen."><strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view excluded songs and re-include them at any time from the results screen.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Saving & Exporting</h4>
-                            <ul class="space-y-2 text-gray-300">
-                                <li><strong>Auto-save:</strong> your session saves automatically every 5 comparisons</li>
-                                <li><strong>Save Progress:</strong> export mid-ranking as a JSON file for safekeeping</li>
-                                <li><strong>Load Save:</strong> resume a previous session from a saved file</li>
-                                <li><strong>Export PDF / TXT / PNG:</strong> download your ranked list in your preferred format</li>
-                                <li><strong>Try Another:</strong> rank something new — your current results are saved first</li>
-                            </ul>
+                        <div data-help-section="controls" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    Controls During Ranking
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Choosing</strong> — Click (or tap) the song card you prefer. It immediately advances to the next comparison."><strong>Choosing</strong> — Click (or tap) the song card you prefer. It immediately advances to the next comparison.</p><p data-help-text="<strong>Preview</strong> — Each card has a play button. Pressing it plays a 30-second audio preview via Apple Music. Only one preview plays at a time — starting a new one stops the previous. Preview availability depends on Apple Music having a clip for that track."><strong>Preview</strong> — Each card has a play button. Pressing it plays a 30-second audio preview via Apple Music. Only one preview plays at a time — starting a new one stops the previous. Preview availability depends on Apple Music having a clip for that track.</p><p data-help-text="<strong>Undo</strong> — Changed your mind about the last pick? Hit the Undo button to step back one comparison. You can undo multiple times to retrace your steps."><strong>Undo</strong> — Changed your mind about the last pick? Hit the Undo button to step back one comparison. You can undo multiple times to retrace your steps.</p><p data-help-text="<strong>Skip</strong> — If you genuinely cannot choose between two songs, hit Skip. The algorithm will try to infer the answer from your other choices. If it can eventually determine the order transitively, it will — and that comparison won't come back. If it can't infer it, the pair will reappear later."><strong>Skip</strong> — If you genuinely cannot choose between two songs, hit Skip. The algorithm will try to infer the answer from your other choices. If it can eventually determine the order transitively, it will — and that comparison won't come back. If it can't infer it, the pair will reappear later.</p><p data-help-text="<strong>Right-click a card</strong> — Opens a context menu with three options: Mark as Best (instantly places that song at #1, above all others), Mark as Worst (instantly places it last), and Exclude Song (removes it from the ranking entirely)."><strong>Right-click a card</strong> — Opens a context menu with three options: Mark as Best (instantly places that song at #1, above all others), Mark as Worst (instantly places it last), and Exclude Song (removes it from the ranking entirely).</p><p data-help-text="<strong>Smart notifications</strong> — When a song is obviously trending toward the top or bottom based on your picks so far, a toast notification appears offering you a shortcut to move it all the way to #1 or last place immediately — saving you many comparisons."><strong>Smart notifications</strong> — When a song is obviously trending toward the top or bottom based on your picks so far, a toast notification appears offering you a shortcut to move it all the way to #1 or last place immediately — saving you many comparisons.</p>
+                            </div>
                         </div>
-                        <div class="rounded-xl p-4"
-                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-                            <p class="text-sm text-gray-400"><strong>Tip:</strong> try to stay consistent — if you
-                                contradict yourself too often the algorithm has to make judgment calls and the results
-                                can get a bit random</p>
+                        <div data-help-section="results" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                    Viewing Results
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Results screen</strong> — Once sorting is complete, your full ranked list appears. Songs are numbered from #1 (best) to last. Each entry shows the album artwork, song title, and album name."><strong>Results screen</strong> — Once sorting is complete, your full ranked list appears. Songs are numbered from #1 (best) to last. Each entry shows the album artwork, song title, and album name.</p><p data-help-text="<strong>Grid vs List view</strong> — Toggle between a compact grid view (artwork-focused) and a detailed list view (with numbering and album info) using the view toggle button."><strong>Grid vs List view</strong> — Toggle between a compact grid view (artwork-focused) and a detailed list view (with numbering and album info) using the view toggle button.</p><p data-help-text="<strong>Progress during sort</strong> — While ranking is still in progress you can click Show Results at any time to see the current partial ordering — useful if you want a preview before finishing."><strong>Progress during sort</strong> — While ranking is still in progress you can click Show Results at any time to see the current partial ordering — useful if you want a preview before finishing.</p>
+                            </div>
                         </div>
-                    </div>
+                        <div data-help-section="saving" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                    Saving & Exporting
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Auto-save</strong> — Your session auto-saves to localStorage every 5 comparisons. If you accidentally close the tab or your browser crashes, you can resume from the auto-save panel which shows your recent sessions."><strong>Auto-save</strong> — Your session auto-saves to localStorage every 5 comparisons. If you accidentally close the tab or your browser crashes, you can resume from the auto-save panel which shows your recent sessions.</p><p data-help-text="<strong>Save Progress JSON</strong> — Click Save Progress to download a JSON snapshot of your entire session — all comparisons made so far, current sort state, and the song list. You can load this back in later to continue exactly where you left off."><strong>Save Progress JSON</strong> — Click Save Progress to download a JSON snapshot of your entire session — all comparisons made so far, current sort state, and the song list. You can load this back in later to continue exactly where you left off.</p><p data-help-text="<strong>Load Save</strong> — Click Load Save and select a previously exported JSON file to resume a saved session."><strong>Load Save</strong> — Click Load Save and select a previously exported JSON file to resume a saved session.</p><p data-help-text="<strong>Export PDF</strong> — Downloads a nicely formatted PDF of your final ranked list, numbered from 1 to last."><strong>Export PDF</strong> — Downloads a nicely formatted PDF of your final ranked list, numbered from 1 to last.</p><p data-help-text="<strong>Export TXT</strong> — Downloads a plain text file of the ranked list — one song per line with its rank number."><strong>Export TXT</strong> — Downloads a plain text file of the ranked list — one song per line with its rank number.</p><p data-help-text="<strong>Export PNG</strong> — Downloads a screenshot of the results page as a PNG image, ready to share."><strong>Export PNG</strong> — Downloads a screenshot of the results page as a PNG image, ready to share.</p><p data-help-text="<strong>Send to Tier List</strong> — After completing a ranking, click Send to Tier List to automatically create a new tier list where songs are placed into tiers (S through F) based on their rank percentile. Opens in a new tab in songs mode without affecting your existing tier lists."><strong>Send to Tier List</strong> — After completing a ranking, click Send to Tier List to automatically create a new tier list where songs are placed into tiers (S through F) based on their rank percentile. Opens in a new tab in songs mode without affecting your existing tier lists.</p>
+                            </div>
+                        </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.getElementById('helpModal').classList.add('hidden');
-                document.body.style.overflow = 'auto';
-            }
-        });
-    </script>
+
+<style>
+.help-section { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+.help-section-header { cursor: pointer; user-select: none; }
+.help-section-header:hover { opacity: 0.85; }
+.help-search-highlight { background: rgba(255,255,255,0.18); border-radius: 2px; }
+.help-section.hidden-section { display: none; }
+</style>
+<script>
+(function(){
+  function initHelp(modalId, searchId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) return;
+    var searchInput = document.getElementById(searchId);
+    var sections = modal.querySelectorAll('[data-help-section]');
+
+    // Collapse/expand toggle
+    sections.forEach(function(sec) {
+      var header = sec.querySelector('.help-section-header');
+      var body   = sec.querySelector('.help-section-body');
+      var chevron = sec.querySelector('.help-chevron');
+      if (!header || !body) return;
+      var open = true;
+      header.addEventListener('click', function() {
+        open = !open;
+        body.style.maxHeight = open ? body.scrollHeight + 'px' : '0px';
+        body.style.opacity   = open ? '1' : '0';
+        if (chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+      });
+      // set initial open state
+      body.style.maxHeight = body.scrollHeight + 'px';
+      body.style.opacity = '1';
+      body.style.overflow = 'hidden';
+      body.style.transition = 'max-height 0.3s ease, opacity 0.25s ease';
+    });
+
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+      var q = this.value.trim().toLowerCase();
+      sections.forEach(function(sec) {
+        if (!q) {
+          sec.classList.remove('hidden-section');
+          // restore highlight
+          sec.querySelectorAll('[data-help-text]').forEach(function(el) {
+            el.innerHTML = el.getAttribute('data-help-text');
+          });
+          return;
+        }
+        var title = (sec.querySelector('.help-section-title') || {}).textContent || '';
+        var texts = Array.from(sec.querySelectorAll('[data-help-text]'));
+        var allText = title + ' ' + texts.map(function(e){ return e.getAttribute('data-help-text'); }).join(' ');
+        var match = allText.toLowerCase().indexOf(q) !== -1;
+        sec.classList.toggle('hidden-section', !match);
+        if (match) {
+          texts.forEach(function(el) {
+            var raw = el.getAttribute('data-help-text');
+            var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+            el.innerHTML = raw.replace(re, '<mark class="help-search-highlight">$1</mark>');
+          });
+        }
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initHelp('helpModal', 'helpSearch');
+  });
+  // Also init when modal is opened (in case DOMContentLoaded already fired)
+  var _orig = window.openHelp;
+  window.openHelpInit = function(modalId, searchId){ initHelp(modalId, searchId); };
+})();
+</script>
+
 </body>
 
 </html>
