@@ -750,6 +750,39 @@
                 }
             }, [state, sorting, search]);
 
+            // Auto-save when ranking completes (stage transitions to results)
+            useEffect(() => {
+                if (state.stage === 'results' && state.songs.length > 0 && sessionIdRef.current) {
+                    const dataToSave = {
+                        sessionId: sessionIdRef.current,
+                        state: {
+                            ...state,
+                            selectedAlbums: Array.from(state.selectedAlbums),
+                            excludedSongs: Array.from(state.excludedSongs)
+                        },
+                        sorting: {
+                            ...sorting,
+                            history: [],
+                            skippedPairs: Array.from(sorting.skippedPairs),
+                            notificationShownFor: Array.from(sorting.notificationShownFor),
+                            pinnedTop: Array.from(sorting.pinnedTop),
+                            pinnedBottom: Array.from(sorting.pinnedBottom)
+                        },
+                        search: {
+                            artistName: search.artistName,
+                            albumName: search.albumName,
+                            albumArtist: search.albumArtist,
+                            albumYear: search.albumYear
+                        }
+                    };
+                    saveAutoSave(dataToSave);
+                    setAutoSaves(loadAutoSaves());
+                    setAutoSaveStatus('saved');
+                    if (autoSaveStatusTimerRef.current) clearTimeout(autoSaveStatusTimerRef.current);
+                    autoSaveStatusTimerRef.current = setTimeout(() => setAutoSaveStatus('idle'), 2500);
+                }
+            }, [state.stage]);
+
             useEffect(() => {
                 if (state.stage === 'sorting' && sorting.j < sorting.sortedIndices.length - 1) {
                     const color1 = state.songData[sorting.sortedIndices[sorting.j]]?.color || '#ff0080';
