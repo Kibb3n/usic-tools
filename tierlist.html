@@ -72,6 +72,33 @@
         .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
         .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
 
+        /* Touch drag ghost */
+        #touch-drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.85;
+            transform: translate(-50%, -50%) scale(1.08);
+            border-radius: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            transition: none;
+            overflow: hidden;
+        }
+
+        /* Prevent text selection and page scroll during touch drag */
+        body.touch-dragging {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            overflow: hidden;
+        }
+
+        /* Stop iOS long-press context menu on draggable items */
+        .draggable-item {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
         /* Resize handle */
         .sidebar-resize-handle {
             position: absolute;
@@ -249,6 +276,221 @@
         const tierListRef = useRef(null);
         const scrollIntervalRef = useRef(null);
         const titleInputRef = useRef(null);
+
+        // ── Touch drag-and-drop ──────────────────────────────────────────────
+        // HTML5 drag events don't fire on iOS/iPadOS. We implement a custom
+        // touch-based drag system that reuses the same drag state so the tier
+        // logic is identical for both input methods.
+        const touchDragRef = useRef({
+            item: null, fromTier: null, sourceEl: null, lastTarget: null,
+            longPressTimer: null, active: false, startX: 0, startY: 0
+        });
+        const docTouchMoveRef = useRef(null);
+
+        const createTouchGhost = useCallback((item, x, y, size) => {
+            let ghost = document.getElementById('touch-drag-ghost');
+            if (!ghost) {
+                ghost = document.createElement('div');
+                ghost.id = 'touch-drag-ghost';
+                document.body.appendChild(ghost);
+            }
+            ghost.innerHTML = '';
+            ghost.style.width = size + 'px';
+            ghost.style.height = size + 'px';
+            if (item.image) {
+                const img = document.createElement('img');
+                img.src = item.image;
+                img.style.width = size + 'px';
+                img.style.height = size + 'px';
+                img.style.display = 'block';
+                img.style.objectFit = 'cover';
+                ghost.appendChild(img);
+                if (item.trackNumber !== undefined) {
+                    // Song overlay
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);padding:4px;';
+                    const span = document.createElement('span');
+                    span.style.cssText = 'color:#fff;font-size:10px;font-weight:600;text-align:center;line-height:1.2;word-break:break-word;';
+                    span.textContent = item.title;
+                    overlay.appendChild(span);
+                    ghost.appendChild(overlay);
+                }
+            } else if (item.custom) {
+                ghost.style.backgroundColor = item.color || '#8b5cf6';
+                const span = document.createElement('span');
+                span.style.cssText = 'color:#fff;font-size:10px;font-weight:600;text-align:center;word-break:break-word;display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:4px;box-sizing:border-box;';
+                span.textContent = item.title;
+                ghost.appendChild(span);
+            }
+            ghost.style.left = x + 'px';
+            ghost.style.top = y + 'px';
+            ghost.style.display = 'block';
+            return ghost;
+        }, []);
+
+        const removeTouchGhost = useCallback(() => {
+            const ghost = document.getElementById('touch-drag-ghost');
+            if (ghost) ghost.style.display = 'none';
+        }, []);
+
+        // Find the tier slot element under the touch point
+        const getTouchDropTarget = useCallback((x, y) => {
+            const el = document.elementFromPoint(x, y);
+            if (!el) return null;
+            return el.closest('[data-touch-tier]');
+        }, []);
+
+        // Compute insert index within a tier slot based on touch x-position
+        const computeTouchInsertIndex = useCallback((tierEl, x) => {
+            const children = Array.from(tierEl.querySelectorAll(':scope > .draggable-item'));
+            if (!children.length) return null;
+            for (let i = 0; i < children.length; i++) {
+                const rect = children[i].getBoundingClientRect();
+                if (x < rect.left + rect.width / 2) return i;
+            }
+            return children.length;
+        }, []);
+
+        const handleTouchStart = useCallback((e, item, fromTier) => {
+            if (!item) return;
+            const t = touchDragRef.current;
+            if (t.longPressTimer) clearTimeout(t.longPressTimer);
+
+            const touch = e.touches[0];
+            const el = e.currentTarget;
+            const rect = el.getBoundingClientRect();
+            const size = Math.round(rect.width);
+
+            t.startX = touch.clientX;
+            t.startY = touch.clientY;
+
+            t.longPressTimer = setTimeout(() => {
+                t.item = item;
+                t.fromTier = fromTier;
+                t.active = true;
+                t.sourceEl = el;
+
+                draggedItemRef.current = item;
+                draggedFromRef.current = fromTier;
+                droppedRef.current = false;
+
+                document.body.classList.add('touch-dragging');
+                el.style.opacity = '0.25';
+                el.style.transform = 'scale(0.95)';
+
+                createTouchGhost(item, touch.clientX, touch.clientY, size);
+                if (navigator.vibrate) navigator.vibrate(30);
+
+                // Non-passive listener to prevent scroll during drag
+                if (docTouchMoveRef.current) {
+                    document.removeEventListener('touchmove', docTouchMoveRef.current);
+                }
+                const preventScroll = (ev) => {
+                    if (touchDragRef.current.active) ev.preventDefault();
+                };
+                docTouchMoveRef.current = preventScroll;
+                document.addEventListener('touchmove', preventScroll, { passive: false });
+            }, 250);
+        }, [createTouchGhost]);
+
+        const handleTouchMove = useCallback((e) => {
+            const t = touchDragRef.current;
+            if (t.longPressTimer && !t.active) {
+                const touch = e.touches[0];
+                const dx = touch.clientX - t.startX;
+                const dy = touch.clientY - t.startY;
+                if (Math.sqrt(dx*dx + dy*dy) > 10) {
+                    clearTimeout(t.longPressTimer);
+                    t.longPressTimer = null;
+                }
+                return;
+            }
+            if (!t.active) return;
+
+            const touch = e.touches[0];
+            const ghost = document.getElementById('touch-drag-ghost');
+            if (ghost) {
+                ghost.style.left = touch.clientX + 'px';
+                ghost.style.top = touch.clientY + 'px';
+            }
+
+            const dropEl = getTouchDropTarget(touch.clientX, touch.clientY);
+            if (dropEl) {
+                const tierName = dropEl.getAttribute('data-touch-tier');
+                setDragOverTier(tierName);
+                const insertIdx = computeTouchInsertIndex(dropEl, touch.clientX);
+                setDropInsertIndex(insertIdx);
+                dropInsertIndexRef.current = insertIdx;
+                if (t.lastTarget && t.lastTarget !== dropEl) t.lastTarget.classList.remove('drag-over');
+                dropEl.classList.add('drag-over');
+                t.lastTarget = dropEl;
+            } else {
+                if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
+                setDragOverTier(null);
+                setDropInsertIndex(null);
+                dropInsertIndexRef.current = null;
+            }
+
+            // Edge-scroll
+            const y = touch.clientY;
+            const threshold = 80, maxSpeed = 14;
+            if (y < threshold) window.scrollBy(0, -Math.round(maxSpeed * (1 - y / threshold)));
+            else if (y > window.innerHeight - threshold) window.scrollBy(0, Math.round(maxSpeed * (1 - (window.innerHeight - y) / threshold)));
+        }, [getTouchDropTarget, computeTouchInsertIndex]);
+
+        const handleTouchEnd = useCallback((e) => {
+            const t = touchDragRef.current;
+            if (t.longPressTimer) { clearTimeout(t.longPressTimer); t.longPressTimer = null; }
+            if (!t.active) return;
+
+            const touch = e.changedTouches[0];
+            removeTouchGhost();
+            document.body.classList.remove('touch-dragging');
+
+            if (docTouchMoveRef.current) {
+                document.removeEventListener('touchmove', docTouchMoveRef.current);
+                docTouchMoveRef.current = null;
+            }
+            if (t.lastTarget) { t.lastTarget.classList.remove('drag-over'); t.lastTarget = null; }
+            if (t.sourceEl) { t.sourceEl.style.opacity = ''; t.sourceEl.style.transform = ''; t.sourceEl = null; }
+
+            const dropEl = getTouchDropTarget(touch.clientX, touch.clientY);
+            const toTier = dropEl ? dropEl.getAttribute('data-touch-tier') : null;
+
+            setDragOverTier(null);
+            setDropInsertIndex(null);
+
+            if (toTier && t.item) {
+                const item = t.item;
+                const fromTier = t.fromTier;
+                const insertAt = dropInsertIndexRef.current;
+                dropInsertIndexRef.current = null;
+
+                setTiers(prev => {
+                    const nt = JSON.parse(JSON.stringify(prev));
+                    const oldIdx = fromTier !== null ? (nt[fromTier] || []).findIndex(i => i.id === item.id) : -1;
+                    if (fromTier !== null && nt[fromTier]) {
+                        nt[fromTier] = nt[fromTier].filter(i => i.id !== item.id);
+                    }
+                    if (!nt[toTier]) nt[toTier] = [];
+                    if (insertAt === null || insertAt === undefined) {
+                        nt[toTier].push(item);
+                    } else {
+                        let adj = insertAt;
+                        if (fromTier === toTier && oldIdx !== -1 && oldIdx < insertAt) adj = Math.max(0, adj - 1);
+                        adj = Math.min(adj, nt[toTier].length);
+                        nt[toTier].splice(adj, 0, item);
+                    }
+                    saveToHistory(nt);
+                    return nt;
+                });
+            }
+
+            t.item = null; t.fromTier = null; t.active = false;
+            draggedItemRef.current = null;
+            draggedFromRef.current = null;
+            droppedRef.current = false;
+        }, [getTouchDropTarget, removeTouchGhost, saveToHistory]);
 
         const startSidebarResize = useCallback((e) => {
             sidebarResizingRef.current = true;
@@ -1121,6 +1363,9 @@
                 onDragOver={(e) => handleItemDragOver(e, tier, idx)}
                 onDrop={(e) => handleDrop(e, tier)}
                 onContextMenu={(e) => { e.preventDefault(); openRenameModal(tier, item); }}
+                onTouchStart={(e) => handleTouchStart(e, item, tier)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
             >
                 {item.custom ? (
                     /* Custom colour tile — solid background + title text */
@@ -1157,6 +1402,7 @@
                 onDragOver={(e) => handleTierDragOver(e, 'unranked')}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, 'unranked')}
+                data-touch-tier="unranked"
                 className={`tier-slot rounded-lg bg-white/5 p-3 flex flex-wrap gap-2 items-start ${dragOverTier==='unranked' && dropInsertIndex===null && !(tiers.unranked?.length>0) ? 'drag-over' : ''}`}
                 style={{ minHeight:'120px' }}
             >
@@ -1478,6 +1724,7 @@
                                                         /* Album mode: drag to place, + to add to unranked */
                                                         <div key={album.id} className="group bg-white/10 rounded-lg p-2 border border-white/10 hover:bg-white/20 transition-all flex items-center gap-3">
                                                             <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd}
+                                                                onTouchStart={e => handleTouchStart(e, album, null)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
                                                                 className="flex items-center gap-3 flex-1 min-w-0 draggable-item cursor-grab">
                                                                 <img src={album.image} alt={album.title} className="w-12 h-12 rounded object-cover shrink-0"/>
                                                                 <div className="flex-1 min-w-0">
@@ -1519,7 +1766,9 @@
                                                             ) : (
                                                                 /* Album mode: drag to place, + visible on hover */
                                                                 <div key={album.id} className="group relative bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-all border border-white/10">
-                                                                    <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd} className="draggable-item cursor-grab">
+                                                                    <div draggable onDragStart={e => handleDragStart(e, album, null)} onDragEnd={handleDragEnd}
+                                                                        onTouchStart={e => handleTouchStart(e, album, null)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+                                                                        className="draggable-item cursor-grab">
                                                                         <img src={album.image} alt={album.title} className="w-full aspect-square rounded object-cover mb-1"/>
                                                                         <p className="text-white text-xs font-medium truncate">{album.title}</p>
                                                                         <p className="text-gray-400 text-[10px] truncate">{album.year}</p>
@@ -1557,6 +1806,7 @@
                                                                 <span className="text-white/40 text-xs w-5 text-right shrink-0">{song.trackNumber}</span>
                                                                 {/* Only draggable in songs mode */}
                                                                 <div draggable={songsMode} onDragStart={e => songsMode && handleDragStart(e, song, null)} onDragEnd={handleDragEnd}
+                                                                    onTouchStart={e => songsMode && handleTouchStart(e, song, null)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
                                                                     className={`flex-1 min-w-0 ${songsMode ? 'draggable-item cursor-grab' : ''}`}>
                                                                     <p className="text-white text-sm font-medium truncate">{song.title}</p>
                                                                     <p className="text-gray-400 text-xs truncate">{song.artist}</p>
@@ -1732,6 +1982,7 @@
                                                     onDragOver={(e) => handleTierDragOver(e, tn)}
                                                     onDragLeave={handleDragLeave}
                                                     onDrop={(e) => handleDrop(e, tn)}
+                                                    data-touch-tier={tn}
                                                     className={`flex-1 tier-slot rounded-r-lg bg-white/5 p-2 flex flex-wrap gap-2 items-center ${dragOverTier===tn && dropInsertIndex===null ? 'drag-over' : ''}`}
                                                 >
                                                     {tiers[tn]?.length===0 && <span className="text-white/30 text-sm">Drag items here</span>}
