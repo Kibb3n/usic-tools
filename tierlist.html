@@ -2466,7 +2466,7 @@
 
     <!-- Help Button -->
     <button id="helpBtn"
-        onclick="document.getElementById('helpModal').classList.remove('hidden');document.body.style.overflow='hidden';"
+        onclick="document.getElementById('helpModal').classList.remove('hidden');document.body.style.overflow='hidden';window.openHelpInit('helpModal','helpSearch');"
         class="fixed bottom-6 right-6 w-12 h-12 flex items-center justify-center rounded-full z-40 transition-all duration-300 hover:scale-110 active:scale-95"
         style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(20px);box-shadow:0 4px 20px rgba(0,0,0,0.3);">
         <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2480,52 +2480,214 @@
         style="background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);"
         onclick="if(event.target===this){this.classList.add('hidden');document.body.style.overflow='auto';}">
         <div class="w-full max-w-2xl" onclick="event.stopPropagation()">
-            <div class="rounded-3xl p-8 shadow-2xl"
+            <div class="rounded-3xl p-6 shadow-2xl"
                 style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(40px);">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-3xl font-bold text-white">Tier List</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-2xl font-bold text-white">Tier List — Help</h3>
                     <button
                         onclick="document.getElementById('helpModal').classList.add('hidden');document.body.style.overflow='auto';"
-                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all"
+                        class="w-10 h-10 flex items-center justify-center rounded-full transition-all flex-shrink-0"
                         style="background:rgba(255,255,255,0.1);">
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
-                <div class="text-gray-200 space-y-4 overflow-y-auto pr-2" style="max-height:60vh;">
-                    <div class="space-y-6">
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Getting Started</h4>
-                            <p class="text-gray-300">Search for albums or artists in the <strong>Search</strong> tab of
-                                the sidebar, then drag results into tier rows. Toggle to Songs mode in the topbar to
-                                rank tracks instead of albums.</p>
+                
+                <div class="relative mb-5">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                    <input id="helpSearch" type="text" placeholder="Search help topics…" class="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-white/30" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);">
+                </div>
+                <div class="space-y-3 overflow-y-auto pr-1" style="max-height: 62vh;">
+
+
+                        <div data-help-section="overview" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    What is a Tier List?
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="A tier list lets you rank music by sorting albums or songs into lettered rows — S through F by default — where S is the best and F is the worst. It's one of the most popular formats for sharing music opinions online.">A tier list lets you rank music by sorting albums or songs into lettered rows — S through F by default — where S is the best and F is the worst. It's one of the most popular formats for sharing music opinions online.</p><p data-help-text="Your tier lists are auto-saved to your browser. Every drag, rename, and tier change is preserved automatically, so you can close the tab and pick up exactly where you left off.">Your tier lists are auto-saved to your browser. Every drag, rename, and tier change is preserved automatically, so you can close the tab and pick up exactly where you left off.</p><p data-help-text="You can have multiple named tier lists and switch between them using the charts panel at the top of the sidebar.">You can have multiple named tier lists and switch between them using the charts panel at the top of the sidebar.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Sidebar Tabs</h4>
-                            <ul class="space-y-2 text-gray-300">
-                                <li><strong>Search</strong> — find and drag albums or songs into tiers</li>
-                                <li><strong>Tiers</strong> — bulk move items between tiers, add/remove/rename rows</li>
-                                <li><strong>Options</strong> — rename the list, toggle reorder buttons</li>
-                            </ul>
+                        <div data-help-section="sidebar" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                                    The Sidebar — Search Tab
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Searching albums</strong> — Type an album name in the search box. Results come from both Last.fm (sorted by popularity) and iTunes. Duplicate results from both sources are automatically merged into a single entry."><strong>Searching albums</strong> — Type an album name in the search box. Results come from both Last.fm (sorted by popularity) and iTunes. Duplicate results from both sources are automatically merged into a single entry.</p><p data-help-text="<strong>Artist filter</strong> — Add an artist name in the optional artist field to narrow results — especially useful for common album names."><strong>Artist filter</strong> — Add an artist name in the optional artist field to narrow results — especially useful for common album names.</p><p data-help-text="<strong>Browse by artist</strong> — Switch to the Artist tab in the search area to look up a specific artist and see their full discography. Click the artist to see their albums, then click any album to expand its track list in songs mode."><strong>Browse by artist</strong> — Switch to the Artist tab in the search area to look up a specific artist and see their full discography. Click the artist to see their albums, then click any album to expand its track list in songs mode.</p><p data-help-text="<strong>Adding to Unranked</strong> — Click any search result or track to add it to the Unranked pool below the tier list. From there you drag it up into a tier."><strong>Adding to Unranked</strong> — Click any search result or track to add it to the Unranked pool below the tier list. From there you drag it up into a tier.</p><p data-help-text="<strong>Songs mode</strong> — Toggle the Songs switch in the top bar to switch from ranking albums to ranking individual songs. When in songs mode, the search results show tracks. You can also bulk-load a full album's track list by clicking on it."><strong>Songs mode</strong> — Toggle the Songs switch in the top bar to switch from ranking albums to ranking individual songs. When in songs mode, the search results show tracks. You can also bulk-load a full album's track list by clicking on it.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Dragging</h4>
-                            <p class="text-gray-300">Drag items between tiers. When dragging within a tier, a blue line
-                                appears showing exactly where the item will land — left or right of its neighbours.</p>
+                        <div data-help-section="tierstab" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                                    The Sidebar — Tiers Tab
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Add a tier</strong> — Click Add Tier at the bottom of the tiers list to insert a new row below all existing tiers."><strong>Add a tier</strong> — Click Add Tier at the bottom of the tiers list to insert a new row below all existing tiers.</p><p data-help-text="<strong>Rename a tier</strong> — Click the tier label (the coloured letter/word on the left side of a row) to edit its name inline. Names can be letters, words, or anything you like."><strong>Rename a tier</strong> — Click the tier label (the coloured letter/word on the left side of a row) to edit its name inline. Names can be letters, words, or anything you like.</p><p data-help-text="<strong>Change tier colour</strong> — Click the colour swatch next to a tier name in the Tiers tab to open a colour picker. The chosen colour updates the left label of that tier row in real time."><strong>Change tier colour</strong> — Click the colour swatch next to a tier name in the Tiers tab to open a colour picker. The chosen colour updates the left label of that tier row in real time.</p><p data-help-text="<strong>Reorder tiers</strong> — Drag tiers up and down in the Tiers tab to reorder them. All the items inside move with the tier."><strong>Reorder tiers</strong> — Drag tiers up and down in the Tiers tab to reorder them. All the items inside move with the tier.</p><p data-help-text="<strong>Delete a tier</strong> — Click the trash icon next to a tier in the Tiers tab to remove it. Any items in that tier are moved to Unranked so nothing is lost."><strong>Delete a tier</strong> — Click the trash icon next to a tier in the Tiers tab to remove it. Any items in that tier are moved to Unranked so nothing is lost.</p><p data-help-text="<strong>Bulk move</strong> — In the Tiers tab, each tier has arrow buttons to bulk-move all of its items into an adjacent tier — useful for quickly re-evaluating a full tier."><strong>Bulk move</strong> — In the Tiers tab, each tier has arrow buttons to bulk-move all of its items into an adjacent tier — useful for quickly re-evaluating a full tier.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="text-xl font-semibold text-white mb-2">Exporting</h4>
-                            <p class="text-gray-300">Use the <strong>PNG</strong> button for a screenshot, or
-                                <strong>Export → JSON/CSV</strong> for data. Import a saved JSON to resume later.
-                            </p>
+                        <div data-help-section="optionstab" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                                    The Sidebar — Options Tab
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Rename the list</strong> — Type a new name for the entire tier list here. The title appears at the top of the tier list when exported."><strong>Rename the list</strong> — Type a new name for the entire tier list here. The title appears at the top of the tier list when exported.</p><p data-help-text="<strong>Reorder buttons</strong> — Toggle the arrow buttons on/off. When enabled, each item in a tier has left/right arrows so you can nudge its position without dragging."><strong>Reorder buttons</strong> — Toggle the arrow buttons on/off. When enabled, each item in a tier has left/right arrows so you can nudge its position without dragging.</p><p data-help-text="<strong>Move unranked to sidebar</strong> — Moves the Unranked pool from below the tier list into the sidebar, freeing up vertical space when working on a large list."><strong>Move unranked to sidebar</strong> — Moves the Unranked pool from below the tier list into the sidebar, freeing up vertical space when working on a large list.</p><p data-help-text="<strong>Hide sidebar</strong> — Collapse the sidebar entirely to give the tier list maximum screen width — useful when presenting or exporting."><strong>Hide sidebar</strong> — Collapse the sidebar entirely to give the tier list maximum screen width — useful when presenting or exporting.</p>
+                            </div>
                         </div>
-                    </div>
+                        <div data-help-section="dragging" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+                                    Dragging
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Between tiers</strong> — Drag any item tile from one tier row and drop it onto another. The entire tier row is a valid drop zone."><strong>Between tiers</strong> — Drag any item tile from one tier row and drop it onto another. The entire tier row is a valid drop zone.</p><p data-help-text="<strong>Within a tier</strong> — When dragging inside the same tier, a thin blue glowing line appears between items showing exactly where the tile will be inserted — left or right of each neighbour. This works even in wrapped multi-row tiers."><strong>Within a tier</strong> — When dragging inside the same tier, a thin blue glowing line appears between items showing exactly where the tile will be inserted — left or right of each neighbour. This works even in wrapped multi-row tiers.</p><p data-help-text="<strong>From Unranked</strong> — Drag items out of the Unranked pool into any tier. They can also be dragged back to Unranked."><strong>From Unranked</strong> — Drag items out of the Unranked pool into any tier. They can also be dragged back to Unranked.</p><p data-help-text="<strong>Touch support</strong> — On mobile, press and hold a tile for about 150 ms to start a drag. A ghost image follows your finger. Edge-scrolling activates when you drag near the top or bottom of the screen."><strong>Touch support</strong> — On mobile, press and hold a tile for about 150 ms to start a drag. A ghost image follows your finger. Edge-scrolling activates when you drag near the top or bottom of the screen.</p><p data-help-text="<strong>Right-click rename</strong> — Right-click (or long-press) any item tile to rename it inline — useful when a song or album title is too long and you want a shorter label."><strong>Right-click rename</strong> — Right-click (or long-press) any item tile to rename it inline — useful when a song or album title is too long and you want a shorter label.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="multicharts" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414A1 1 0 0121 8.414V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+                                    Multiple Tier Lists
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>New list</strong> — Click the + button in the charts panel to create a brand new blank tier list alongside your existing ones."><strong>New list</strong> — Click the + button in the charts panel to create a brand new blank tier list alongside your existing ones.</p><p data-help-text="<strong>Switching lists</strong> — Click any list name in the charts panel to switch to it. All state (tiers, items, colours, title) is saved automatically before switching."><strong>Switching lists</strong> — Click any list name in the charts panel to switch to it. All state (tiers, items, colours, title) is saved automatically before switching.</p><p data-help-text="<strong>Rename a list</strong> — Double-click a list name in the panel to rename it."><strong>Rename a list</strong> — Double-click a list name in the panel to rename it.</p><p data-help-text="<strong>Delete a list</strong> — Click the trash icon next to a list name to delete it. Cannot delete the last remaining list."><strong>Delete a list</strong> — Click the trash icon next to a list name to delete it. Cannot delete the last remaining list.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="sidebar_resize" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12M8 12h12M8 17h12M3 7h.01M3 12h.01M3 17h.01"/></svg>
+                                    Sidebar Width
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="Drag the resize handle on the right edge of the sidebar to make it wider or narrower. The width is saved to your browser so it persists between sessions. The sidebar can be sized between 200 px and 600 px.">Drag the resize handle on the right edge of the sidebar to make it wider or narrower. The width is saved to your browser so it persists between sessions. The sidebar can be sized between 200 px and 600 px.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="export" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                    Exporting & Saving
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <p data-help-text="<strong>Export PNG</strong> — Click the PNG button (or press Ctrl/Cmd+E) to download a screenshot of your tier list as an image file. The export captures the tier grid exactly as it appears, including the title."><strong>Export PNG</strong> — Click the PNG button (or press Ctrl/Cmd+E) to download a screenshot of your tier list as an image file. The export captures the tier grid exactly as it appears, including the title.</p><p data-help-text="<strong>Export JSON</strong> — Saves the full tier list structure to a JSON file — tiers, items, colours, title and all. Use this to back up your list or transfer it to another device."><strong>Export JSON</strong> — Saves the full tier list structure to a JSON file — tiers, items, colours, title and all. Use this to back up your list or transfer it to another device.</p><p data-help-text="<strong>Export CSV</strong> — Downloads a simple spreadsheet of your ranked items — one row per item with its tier label. Useful if you want to process your rankings elsewhere."><strong>Export CSV</strong> — Downloads a simple spreadsheet of your ranked items — one row per item with its tier label. Useful if you want to process your rankings elsewhere.</p><p data-help-text="<strong>Import JSON</strong> — Load a previously saved JSON file to restore a tier list exactly as it was when you exported it."><strong>Import JSON</strong> — Load a previously saved JSON file to restore a tier list exactly as it was when you exported it.</p><p data-help-text="<strong>Auto-save</strong> — All changes are auto-saved to localStorage in real time. You don't need to manually save — just export JSON if you want a portable backup."><strong>Auto-save</strong> — All changes are auto-saved to localStorage in real time. You don't need to manually save — just export JSON if you want a portable backup.</p>
+                            </div>
+                        </div>
+                        <div data-help-section="shortcuts" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
+                            <div class="help-section-header flex items-center justify-between px-4 py-3" style="background:rgba(255,255,255,0.05);">
+                                <h4 class="help-section-title text-base font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-4 h-4 opacity-60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                                    Keyboard Shortcuts
+                                </h4>
+                                <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </div>
+                            <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
+                                <div class="flex items-center justify-between"><span data-help-text="Undo">Undo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd Z</kbd></div><div class="flex items-center justify-between"><span data-help-text="Redo">Redo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd Y</kbd></div><div class="flex items-center justify-between"><span data-help-text="Toggle sidebar">Toggle sidebar</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd H</kbd></div><div class="flex items-center justify-between"><span data-help-text="Export PNG">Export PNG</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd E</kbd></div><div class="flex items-center justify-between"><span data-help-text="Save JSON">Save JSON</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd S</kbd></div><div class="flex items-center justify-between"><span data-help-text="Quick rename item">Quick rename item</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Right-click tile</kbd></div><div class="flex items-center justify-between"><span data-help-text="Close this modal">Close this modal</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
+                            </div>
+                        </div>
                 </div>
             </div>
         </div>
     </div>
+
+
+<style>
+.help-section { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+.help-section-header { cursor: pointer; user-select: none; }
+.help-section-header:hover { opacity: 0.85; }
+.help-search-highlight { background: rgba(255,255,255,0.18); border-radius: 2px; }
+.help-section.hidden-section { display: none; }
+</style>
+<script>
+(function(){
+  function initHelp(modalId, searchId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) return;
+    var searchInput = document.getElementById(searchId);
+    var sections = modal.querySelectorAll('[data-help-section]');
+
+    // Collapse/expand toggle
+    sections.forEach(function(sec) {
+      var header = sec.querySelector('.help-section-header');
+      var body   = sec.querySelector('.help-section-body');
+      var chevron = sec.querySelector('.help-chevron');
+      if (!header || !body) return;
+      var open = true;
+      header.addEventListener('click', function() {
+        open = !open;
+        body.style.maxHeight = open ? body.scrollHeight + 'px' : '0px';
+        body.style.opacity   = open ? '1' : '0';
+        if (chevron) chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+      });
+      // set initial open state
+      body.style.maxHeight = body.scrollHeight + 'px';
+      body.style.opacity = '1';
+      body.style.overflow = 'hidden';
+      body.style.transition = 'max-height 0.3s ease, opacity 0.25s ease';
+    });
+
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+      var q = this.value.trim().toLowerCase();
+      sections.forEach(function(sec) {
+        if (!q) {
+          sec.classList.remove('hidden-section');
+          // restore highlight
+          sec.querySelectorAll('[data-help-text]').forEach(function(el) {
+            el.innerHTML = el.getAttribute('data-help-text');
+          });
+          return;
+        }
+        var title = (sec.querySelector('.help-section-title') || {}).textContent || '';
+        var texts = Array.from(sec.querySelectorAll('[data-help-text]'));
+        var allText = title + ' ' + texts.map(function(e){ return e.getAttribute('data-help-text'); }).join(' ');
+        var match = allText.toLowerCase().indexOf(q) !== -1;
+        sec.classList.toggle('hidden-section', !match);
+        if (match) {
+          texts.forEach(function(el) {
+            var raw = el.getAttribute('data-help-text');
+            var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+            el.innerHTML = raw.replace(re, '<mark class="help-search-highlight">$1</mark>');
+          });
+        }
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initHelp('helpModal', 'helpSearch');
+  });
+  // Also init when modal is opened (in case DOMContentLoaded already fired)
+  var _orig = window.openHelp;
+  window.openHelpInit = function(modalId, searchId){ initHelp(modalId, searchId); };
+})();
+</script>
+
 </body>
 
 </html>
