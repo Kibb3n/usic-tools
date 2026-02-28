@@ -507,6 +507,12 @@
             const [renameTitle, setRenameTitle] = useState('');
             const [createTileModalOpen, setCreateTileModalOpen] = useState(false);
             const [showConfirm, setShowConfirm] = useState(false);
+            // Generic confirm modal — replaces all browser confirm() calls
+            const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm, danger }
+            const openConfirm = useCallback((title, message, onConfirm, danger = true) => {
+                setConfirmModal({ title, message, onConfirm, danger });
+            }, []);
+            const closeConfirm = useCallback(() => setConfirmModal(null), []);
             const [newTileTitle, setNewTileTitle] = useState('');
             const [newTileColor, setNewTileColor] = useState('#8b5cf6');
 
@@ -1513,15 +1519,26 @@
 
                 // Draw tier list onto canvas
                 const CELL = 80, GAP = 4, PAD = 32, LABEL_W = 60;
+                const TITLE_FONT = 'bold 24px -apple-system,BlinkMacSystemFont,sans-serif';
                 const TITLE_H = title ? 56 : 0;
                 const rows = tierNames;
                 const rawMaxCols = Math.max(1, ...rows.map(tn => (tiers[tn] || []).length));
                 const UNRANKED = tiers.unranked || [];
                 const tierH = CELL + GAP;
 
-                // Find smallest colsCap (min 4) that makes canvas taller than wide (portrait-friendly)
+                // Measure title width so we can ensure canvas is never narrower than the title
+                let titleMinW = 0;
+                if (title) {
+                    const measCtx = document.createElement('canvas').getContext('2d');
+                    measCtx.font = TITLE_FONT;
+                    titleMinW = measCtx.measureText(title).width + PAD * 2;
+                }
+
+                // Find smallest colsCap (min 4) that makes canvas taller than wide (portrait-friendly),
+                // but never let the canvas be narrower than the title text.
                 const calcDimensions = (colsCap) => {
-                    const w = PAD * 2 + LABEL_W + GAP + colsCap * CELL + (colsCap - 1) * GAP;
+                    const wFromCols = PAD * 2 + LABEL_W + GAP + colsCap * CELL + (colsCap - 1) * GAP;
+                    const w = Math.max(wFromCols, titleMinW);
                     const wrappedTierRows = rows.reduce((sum, tn) => sum + Math.max(1, Math.ceil((tiers[tn] || []).length / colsCap)), 0);
                     const uCols = Math.max(1, Math.floor((w - PAD * 2) / (CELL + GAP)));
                     const uH = UNRANKED.length > 0 ? (Math.ceil(UNRANKED.length / uCols) * (CELL + GAP) + 28 + GAP * 2) : 0;
@@ -1550,7 +1567,7 @@
                 // Title
                 if (title) {
                     ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 24px -apple-system,BlinkMacSystemFont,sans-serif';
+                    ctx.font = TITLE_FONT;
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.fillText(title, canvasW / 2, PAD + TITLE_H / 2);
                 }
@@ -1676,12 +1693,17 @@
             }, [tierNames, saveToHistory]);
 
             const resetGrid = useCallback(() => {
-                if (!confirm('Reset to default S-F tiers? All items move to unranked.')) return;
-                const allItems = []; Object.values(tiers).forEach(t => allItems.push(...t));
-                setTierNames(DEFAULT_TIERS); setTierColors(TIER_COLORS);
-                const nt = { S: [], A: [], B: [], C: [], D: [], E: [], F: [], unranked: allItems };
-                setTiers(nt); saveToHistory(nt);
-            }, [tiers, saveToHistory]);
+                openConfirm(
+                    'Reset to default tiers?',
+                    'All items will move to unranked and tier names will reset to S–F.',
+                    () => {
+                        const allItems = []; Object.values(tiers).forEach(t => allItems.push(...t));
+                        setTierNames(DEFAULT_TIERS); setTierColors(TIER_COLORS);
+                        const nt = { S: [], A: [], B: [], C: [], D: [], E: [], F: [], unranked: allItems };
+                        setTiers(nt); saveToHistory(nt);
+                    }
+                );
+            }, [tiers, saveToHistory, openConfirm]);
 
             const addNewTier = useCallback(() => {
                 if (tierNames.length >= 26) { alert('Max 26 tiers'); return; }
@@ -1693,11 +1715,16 @@
 
             const removeTier = useCallback((tn) => {
                 if (tierNames.length <= 1) { alert('Must have at least one tier'); return; }
-                if (!confirm(`Remove tier ${tn}? Items move to unranked.`)) return;
-                setTiers(prev => { const nt = { ...prev }; const items = nt[tn] || []; delete nt[tn]; nt.unranked = [...nt.unranked, ...items]; saveToHistory(nt); return nt; });
-                setTierNames(p => p.filter(n => n !== tn));
-                setTierColors(p => { const nc = { ...p }; delete nc[tn]; return nc; });
-            }, [tierNames, saveToHistory]);
+                openConfirm(
+                    `Remove tier "${tn}"?`,
+                    'All items in this tier will move to unranked.',
+                    () => {
+                        setTiers(prev => { const nt = { ...prev }; const items = nt[tn] || []; delete nt[tn]; nt.unranked = [...nt.unranked, ...items]; saveToHistory(nt); return nt; });
+                        setTierNames(p => p.filter(n => n !== tn));
+                        setTierColors(p => { const nc = { ...p }; delete nc[tn]; return nc; });
+                    }
+                );
+            }, [tierNames, saveToHistory, openConfirm]);
 
             const renameTier = useCallback((oldName, newName) => {
                 if (!newName.trim() || oldName === newName) { setEditingTierName(null); return; }
@@ -1878,6 +1905,26 @@
                         </div>
                     )}
 
+                    {/* Generic confirm modal */}
+                    {confirmModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                            <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
+                                <h3 className="text-xl font-bold text-white mb-3">{confirmModal.title}</h3>
+                                <p className="text-gray-400 mb-6">{confirmModal.message}</p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={closeConfirm}
+                                        className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                    >Cancel</button>
+                                    <button
+                                        onClick={() => { confirmModal.onConfirm(); closeConfirm(); }}
+                                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors text-white ${confirmModal.danger ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'}`}
+                                    >Confirm</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Rename modal */}
                     {renameModalOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -1949,7 +1996,7 @@
                                                                     <Pencil className="w-3 h-3" />
                                                                 </button>
                                                                 {Object.keys(charts).length > 1 && (
-                                                                    <button onClick={e => { e.stopPropagation(); if (confirm(`Delete "${chart.name}"?`)) deleteChart(id); }} className="p-1 text-white/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 rounded" title="Delete">
+                                                                    <button onClick={e => { e.stopPropagation(); openConfirm(`Delete list?`, `"${chart.name}" will be permanently removed.`, () => deleteChart(id)); }} className="p-1 text-white/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 rounded" title="Delete">
                                                                         <Trash className="w-3 h-3" />
                                                                     </button>
                                                                 )}
