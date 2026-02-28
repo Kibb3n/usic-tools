@@ -1435,10 +1435,16 @@
                 setSorting(s => ({ ...s, estimatedRemaining: estimatedTotal, lastEstimateUpdate: made }));
             }, [state.songs.length, state.excludedSongs.size, sorting.comparisons, sorting.autoSkipped]);
 
-            const moveToNextComparison = useCallback((indices, newI, newJ, newPrefs, newWinCounts, newLossCounts) => {
+            const moveToNextComparison = useCallback((indices, newI, newJ, newPrefs, newWinCounts, newLossCounts, skippedPairs) => {
                 let nextJ = newJ + 1;
                 let nextI = newI;
                 let autoSkipCount = 0;
+
+                // Track the first skipped pair we encounter, to use as fallback
+                // if no fresh (never-skipped) pair exists in the remainder of the sort
+                let fallbackI = null;
+                let fallbackJ = null;
+                let fallbackAutoSkipCount = 0;
 
                 while (true) {
                     if (nextJ < state.songs.length - 1 - nextI) {
@@ -1458,32 +1464,63 @@
                             }
                             nextJ++;
                         } else {
-                            setSorting(s => ({
-                                ...s,
-                                i: nextI,
-                                j: nextJ,
-                                sortedIndices: indices,
-                                preferences: newPrefs,
-                                winCounts: newWinCounts,
-                                lossCounts: newLossCounts,
-                                autoSkipped: s.autoSkipped + autoSkipCount
-                            }));
-                            return;
+                            // Check if this is a previously skipped pair
+                            const pairKey = `${idx1}-${idx2}`;
+                            const reversePairKey = `${idx2}-${idx1}`;
+                            const isSkipped = skippedPairs && (skippedPairs.has(pairKey) || skippedPairs.has(reversePairKey));
+
+                            if (isSkipped) {
+                                // Save as fallback, keep scanning for a fresh pair
+                                if (fallbackI === null) {
+                                    fallbackI = nextI;
+                                    fallbackJ = nextJ;
+                                    fallbackAutoSkipCount = autoSkipCount;
+                                }
+                                nextJ++;
+                            } else {
+                                // Fresh pair — show it immediately
+                                setSorting(s => ({
+                                    ...s,
+                                    i: nextI,
+                                    j: nextJ,
+                                    sortedIndices: indices,
+                                    preferences: newPrefs,
+                                    winCounts: newWinCounts,
+                                    lossCounts: newLossCounts,
+                                    autoSkipped: s.autoSkipped + autoSkipCount
+                                }));
+                                return;
+                            }
                         }
                     } else {
                         nextI++;
                         if (nextI < state.songs.length - 1) {
                             nextJ = 0;
                         } else {
-                            setSorting(s => ({
-                                ...s,
-                                sortedIndices: indices,
-                                preferences: newPrefs,
-                                winCounts: newWinCounts,
-                                lossCounts: newLossCounts,
-                                autoSkipped: s.autoSkipped + autoSkipCount
-                            }));
-                            setState(s => ({ ...s, stage: 'results' }));
+                            // Exhausted all comparisons
+                            if (fallbackI !== null) {
+                                // There are still skipped pairs to resolve — show the first one
+                                setSorting(s => ({
+                                    ...s,
+                                    i: fallbackI,
+                                    j: fallbackJ,
+                                    sortedIndices: indices,
+                                    preferences: newPrefs,
+                                    winCounts: newWinCounts,
+                                    lossCounts: newLossCounts,
+                                    autoSkipped: s.autoSkipped + fallbackAutoSkipCount
+                                }));
+                            } else {
+                                setSorting(s => ({
+                                    ...s,
+                                    sortedIndices: indices,
+                                    preferences: newPrefs,
+                                    winCounts: newWinCounts,
+                                    lossCounts: newLossCounts,
+                                    autoSkipped: s.autoSkipped + autoSkipCount
+                                }));
+                                setState(s => ({ ...s, stage: 'results' }));
+                            }
                             return;
                         }
                     }
@@ -1546,7 +1583,7 @@
                     setTimeout(updateEstimate, 0);
                 }
 
-                moveToNextComparison(newIndices, sorting.i, sorting.j, newPreferences, newWinCounts, newLossCounts);
+                moveToNextComparison(newIndices, sorting.i, sorting.j, newPreferences, newWinCounts, newLossCounts, sorting.skippedPairs);
             }, [sorting, playingAudio.audio, moveToNextComparison, updateEstimate]);
 
             const handleUndo = () => {
@@ -1586,20 +1623,75 @@
                 newSkippedPairs.add(pairKey);
                 newSkippedPairs.add(reversePairKey);
 
-                setSorting(s => {
-                    let newJ = s.j + 1;
-                    let newI = s.i;
+                // Scan forward for the next fresh (non-skipped) pair,
+                // falling back to the first skipped pair if nothing fresh found
+                const indices = sorting.sortedIndices;
+                const n = state.songs.length;
+                let scanI = sorting.i;
+                let scanJ = sorting.j + 1;
+                let fallbackI = null;
+                let fallbackJ = null;
 
-                    if (newJ >= state.songs.length - 1 - s.i) {
-                        newI = s.i + 1;
-                        newJ = 0;
-                        if (newI >= state.songs.length - 1) {
-                            setState(st => ({ ...st, stage: 'results' }));
+                outerScan: while (true) {
+                    if (scanJ < n - 1 - scanI) {
+                        const si1 = indices[scanJ];
+                        const si2 = indices[scanJ + 1];
+
+                        if (state.excludedSongs.has(si1) || state.excludedSongs.has(si2)) {
+                            scanJ++;
+                            continue;
+                        }
+
+                        const sk1 = `${si1}-${si2}`;
+                        const sk2 = `${si2}-${si1}`;
+                        const isPairSkipped = newSkippedPairs.has(sk1) || newSkippedPairs.has(sk2);
+
+                        // Check if it's auto-resolvable
+                        const canAutoResolve = (() => {
+                            if (sorting.pinnedTop.has(si1) && !sorting.pinnedTop.has(si2)) return true;
+                            if (sorting.pinnedTop.has(si2) && !sorting.pinnedTop.has(si1)) return true;
+                            if (sorting.pinnedBottom.has(si1) && !sorting.pinnedBottom.has(si2)) return true;
+                            if (sorting.pinnedBottom.has(si2) && !sorting.pinnedBottom.has(si1)) return true;
+                            if (isPairSkipped) return false;
+                            for (let mid in sorting.preferences) {
+                                const m = parseInt(mid);
+                                if (sorting.preferences[si1]?.[m] === 'win' && sorting.preferences[m]?.[si2] === 'win') return true;
+                                if (sorting.preferences[si2]?.[m] === 'win' && sorting.preferences[m]?.[si1] === 'win') return true;
+                            }
+                            if (sorting.preferences[si1]?.[si2] === 'win') return true;
+                            if (sorting.preferences[si2]?.[si1] === 'win') return true;
+                            return false;
+                        })();
+
+                        if (canAutoResolve) {
+                            scanJ++;
+                            continue;
+                        }
+
+                        if (!isPairSkipped) {
+                            // Fresh pair found!
+                            setSorting(s => ({ ...s, i: scanI, j: scanJ, skippedPairs: newSkippedPairs }));
+                            return;
+                        } else {
+                            // Skipped pair - save as fallback
+                            if (fallbackI === null) { fallbackI = scanI; fallbackJ = scanJ; }
+                            scanJ++;
+                        }
+                    } else {
+                        scanI++;
+                        if (scanI < n - 1) {
+                            scanJ = 0;
+                        } else {
+                            // No fresh pairs remain
+                            if (fallbackI !== null) {
+                                setSorting(s => ({ ...s, i: fallbackI, j: fallbackJ, skippedPairs: newSkippedPairs }));
+                            } else {
+                                setState(st => ({ ...st, stage: 'results' }));
+                            }
+                            return;
                         }
                     }
-
-                    return { ...s, i: newI, j: newJ, skippedPairs: newSkippedPairs };
-                });
+                }
             };
 
             const excludeSong = (songIdx) => {
