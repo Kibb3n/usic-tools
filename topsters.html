@@ -680,6 +680,12 @@
             const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
             const [showChartsMenu, setShowChartsMenu] = useState(false);
             const [showConfirm, setShowConfirm] = useState(false);
+            const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm }
+            const openConfirmModal = (title, message, onConfirm) => setConfirmModal({ title, message, onConfirm });
+            const closeConfirmModal = () => setConfirmModal(null);
+            const [alertModal, setAlertModal] = useState(null); // { title, message }
+            const openAlert = (message, title = 'Notice') => setAlertModal({ title, message });
+            const closeAlert = () => setAlertModal(null);
             const [uploadedImages, setUploadedImages] = useState([]);
             const [searchPage, setSearchPage] = useState(0);
             // Artist browse: step 1 = artist list, step 2 = catalog view
@@ -1093,58 +1099,96 @@
                     lastModified: Date.now()
                 };
 
-                // Update persisted charts immediately
-                const updatedCharts = { ...charts, [newId]: newChart };
-                setCharts(updatedCharts);
+                // Save current chart state before switching (same logic as switchChart)
+                setCharts(prev => {
+                    let updatedCharts = { ...prev, [newId]: newChart };
+
+                    // If there is an active chart, snapshot its current state first
+                    if (currentChartId) {
+                        const freshData = currentStateRef.current;
+                        const currentChartData = Object.keys(freshData).length > 0 ? {
+                            ...freshData,
+                            id: currentChartId,
+                            name: prev[currentChartId]?.name || freshData.name || title,
+                            lastModified: Date.now()
+                        } : {
+                            id: currentChartId,
+                            name: prev[currentChartId]?.name || title,
+                            layout, gridWidth, gridHeight, title, titleColor, bgColor,
+                            showTitles, grid, aboutYouGrid, showNumbers,
+                            lastModified: Date.now()
+                        };
+
+                        // Strip base64 before persisting
+                        let imageMap = {};
+                        try { imageMap = JSON.parse(localStorage.getItem('topstersImages') || '{}'); } catch (_) { }
+                        const { strippedGrid: sg, imageMap: im1 } = stripDataUrls(currentChartData.grid || [], imageMap);
+                        const { strippedGrid: sag, imageMap: im2 } = stripDataUrlsAboutYou(currentChartData.aboutYouGrid || [], im1);
+                        saveImagesToStorage(im2);
+                        updatedCharts = { ...updatedCharts, [currentChartId]: { ...currentChartData, grid: sg, aboutYouGrid: sag } };
+                    }
+
+                    // Force save to LS
+                    try {
+                        localStorage.setItem('topstersData', JSON.stringify({
+                            currentChartId: newId,
+                            charts: updatedCharts
+                        }));
+                    } catch (e) { console.warn('quota on createNewChart save', e); }
+
+                    return updatedCharts;
+                });
                 setCurrentChartId(newId);
                 loadChart(newChart);
-
-                // Force save to LS
-                localStorage.setItem('topstersData', JSON.stringify({
-                    currentChartId: newId,
-                    charts: updatedCharts
-                }));
             };
 
             const switchChart = (id) => {
                 if (id === currentChartId) return;
-                // Use the always-fresh ref to save current chart before switching
-                // (avoids stale closure bug where state appears as defaults)
-                const freshData = currentStateRef.current;
-                const currentChartData = Object.keys(freshData).length > 0 ? {
-                    ...freshData,
-                    id: currentChartId,
-                    name: charts[currentChartId]?.name || freshData.name || title,
-                    lastModified: Date.now()
-                } : {
-                    id: currentChartId,
-                    name: charts[currentChartId]?.name || title,
-                    layout, gridWidth, gridHeight, title, titleColor, bgColor,
-                    showTitles, grid, aboutYouGrid, showNumbers,
-                    lastModified: Date.now()
-                };
+                setCharts(prev => {
+                    // Use the always-fresh ref to save current chart before switching
+                    // (avoids stale closure bug where state appears as defaults)
+                    const freshData = currentStateRef.current;
+                    const currentChartData = Object.keys(freshData).length > 0 ? {
+                        ...freshData,
+                        id: currentChartId,
+                        name: prev[currentChartId]?.name || freshData.name || title,
+                        lastModified: Date.now()
+                    } : {
+                        id: currentChartId,
+                        name: prev[currentChartId]?.name || title,
+                        layout, gridWidth, gridHeight, title, titleColor, bgColor,
+                        showTitles, grid, aboutYouGrid, showNumbers,
+                        lastModified: Date.now()
+                    };
 
-                // Strip base64 before persisting (same as the save effect does)
-                let imageMap = {};
-                try { imageMap = JSON.parse(localStorage.getItem('topstersImages') || '{}'); } catch (_) { }
-                const { strippedGrid: sg, imageMap: im1 } = stripDataUrls(currentChartData.grid || [], imageMap);
-                const { strippedGrid: sag, imageMap: im2 } = stripDataUrlsAboutYou(currentChartData.aboutYouGrid || [], im1);
-                saveImagesToStorage(im2);
-                const strippedChartData = { ...currentChartData, grid: sg, aboutYouGrid: sag };
+                    // Strip base64 before persisting (same as the save effect does)
+                    let imageMap = {};
+                    try { imageMap = JSON.parse(localStorage.getItem('topstersImages') || '{}'); } catch (_) { }
+                    const { strippedGrid: sg, imageMap: im1 } = stripDataUrls(currentChartData.grid || [], imageMap);
+                    const { strippedGrid: sag, imageMap: im2 } = stripDataUrlsAboutYou(currentChartData.aboutYouGrid || [], im1);
+                    saveImagesToStorage(im2);
+                    const strippedChartData = { ...currentChartData, grid: sg, aboutYouGrid: sag };
 
-                const updatedCharts = { ...charts, [currentChartId]: strippedChartData };
+                    const updatedCharts = { ...prev, [currentChartId]: strippedChartData };
 
-                // Persist immediately so the chart we are leaving is saved correctly
-                try {
-                    localStorage.setItem('topstersData', JSON.stringify({ currentChartId: id, charts: updatedCharts }));
-                } catch (e) { console.warn('quota on switchChart save', e); }
+                    // Persist immediately so the chart we are leaving is saved correctly
+                    try {
+                        localStorage.setItem('topstersData', JSON.stringify({ currentChartId: id, charts: updatedCharts }));
+                    } catch (e) { console.warn('quota on switchChart save', e); }
 
-                // Keep full (with base64) data in runtime charts state for the current session
-                const updatedChartsWithImages = { ...charts, [currentChartId]: currentChartData };
-                setCharts(updatedChartsWithImages);
+                    // Keep full (with base64) data in runtime charts state for the current session
+                    return { ...updatedCharts, [currentChartId]: currentChartData };
+                });
                 setCurrentChartId(id);
-                // loadChart reads from updatedCharts (stripped), but restoreDataUrls inside will re-inflate
-                loadChart(updatedCharts[id]);
+                // Read target chart from localStorage so we always get the freshly-saved version
+                // (localStorage was just written by the setCharts updater above)
+                try {
+                    const saved = JSON.parse(localStorage.getItem('topstersData') || '{}');
+                    if (saved.charts && saved.charts[id]) { loadChart(saved.charts[id]); return; }
+                } catch (_) { }
+                // Fallback: use the in-memory chart directly (stale closure is acceptable here
+                // since we only need any valid version of the chart to restore from)
+                if (charts[id]) loadChart(charts[id]);
             };
 
             const updateCurrentChart = () => {
@@ -1171,48 +1215,66 @@
             };
 
             const deleteChart = (id) => {
-                const newCharts = { ...charts };
-                delete newCharts[id];
+                let nextId = currentChartId;
+                let chartToLoad = null;
 
-                // If deleting current, switch to another
+                setCharts(prev => {
+                    const newCharts = { ...prev };
+                    delete newCharts[id];
+
+                    if (id === currentChartId) {
+                        const remainingIds = Object.keys(newCharts);
+                        if (remainingIds.length > 0) {
+                            nextId = remainingIds[0];
+                            chartToLoad = newCharts[nextId];
+                        } else {
+                            nextId = null;
+                        }
+                    }
+
+                    try {
+                        localStorage.setItem('topstersData', JSON.stringify({
+                            currentChartId: nextId,
+                            charts: newCharts
+                        }));
+                    } catch (e) { console.warn('quota on deleteChart save', e); }
+
+                    return newCharts;
+                });
+
+                // Perform navigation outside the updater
                 if (id === currentChartId) {
-                    const remainingIds = Object.keys(newCharts);
-                    if (remainingIds.length > 0) {
-                        const nextId = remainingIds[0];
+                    if (chartToLoad) {
                         setCurrentChartId(nextId);
-                        loadChart(newCharts[nextId]);
+                        loadChart(chartToLoad);
                     } else {
-                        // No charts left, create new
-                        createNewChart();
-                        return;
+                        // No charts left — create a new one after this update settles
+                        setTimeout(createNewChart, 0);
                     }
                 }
-
-                setCharts(newCharts);
-                // LS update happens in effect or we force it here?
-                localStorage.setItem('topstersData', JSON.stringify({
-                    currentChartId: id === currentChartId ? Object.keys(newCharts)[0] : currentChartId,
-                    charts: newCharts
-                }));
             };
 
             const updateChartName = (id, newName) => {
-                const newCharts = { ...charts };
-                if (newCharts[id]) {
-                    newCharts[id].name = newName;
-                    setCharts(newCharts);
-                    localStorage.setItem('topstersData', JSON.stringify({ currentChartId, charts: newCharts }));
-                }
+                setCharts(prev => {
+                    if (!prev[id]) return prev;
+                    const newCharts = { ...prev, [id]: { ...prev[id], name: newName } };
+                    try {
+                        localStorage.setItem('topstersData', JSON.stringify({ currentChartId, charts: newCharts }));
+                    } catch (e) { console.warn('quota on updateChartName save', e); }
+                    return newCharts;
+                });
             };
 
             const toggleChartPin = (e, id) => {
                 e.stopPropagation();
-                const newCharts = { ...charts };
-                if (newCharts[id]) {
-                    newCharts[id] = { ...newCharts[id], pinned: !newCharts[id].pinned };
-                    setCharts(newCharts);
-                    localStorage.setItem('topstersData', JSON.stringify({ currentChartId, charts: newCharts }));
-                }
+                setCharts(prev => {
+                    if (!prev[id]) return prev;
+                    const newCharts = { ...prev, [id]: { ...prev[id], pinned: !prev[id].pinned } };
+                    try {
+                        localStorage.setItem('topstersData', JSON.stringify({ currentChartId, charts: newCharts }));
+                    } catch (e) { console.warn('quota on toggleChartPin save', e); }
+                    return newCharts;
+                });
             };
 
             // Resize standard grid when dimensions change (user manually changes width/height sliders)
@@ -2363,24 +2425,35 @@
                     try {
                         const data = JSON.parse(e.target.result);
                         if (!data.grid && !data.aboutYouGrid) {
-                            alert('Invalid data file');
+                            openAlert('This file doesn\'t contain valid chart data.', 'Invalid File');
                             return;
                         }
-                        setLayout(data.layout || 'standard');
-                        setGridWidth(data.gridWidth || 5);
-                        setGridHeight(data.gridHeight || 5);
-                        setTitle(data.title || 'My Top Albums');
-                        setTitleColor(data.titleColor || '#ffffff');
-                        setBgColor(data.bgColor || '#000000');
-                        setShowTitles(data.showTitles || false);
-                        setGrid(data.grid || []);
-                        setAboutYouGrid(data.aboutYouGrid || []);
+                        // Build a full chart object and load it via loadChart so that all
+                        // live refs, layout snapshots, and isLoadingChartRef are handled correctly.
+                        const importedChart = {
+                            id: currentChartId,
+                            name: charts[currentChartId]?.name || 'Imported Chart',
+                            layout: data.layout || 'standard',
+                            gridWidth: data.gridWidth || 5,
+                            gridHeight: data.gridHeight || 5,
+                            title: data.title || 'My Top Albums',
+                            titleColor: data.titleColor || '#ffffff',
+                            bgColor: data.bgColor || '#000000',
+                            showTitles: data.showTitles || false,
+                            grid: data.grid || [],
+                            aboutYouGrid: data.aboutYouGrid || [],
+                            showNumbers: data.showNumbers !== undefined ? data.showNumbers : true,
+                            lastModified: Date.now()
+                        };
+                        loadChart(importedChart);
                     } catch (err) {
-                        alert('Failed to import data. Please check the file format.');
+                        openAlert('Failed to import data. Please check the file format.', 'Import Failed');
                     }
                 };
                 reader.readAsText(file);
-            }, []);
+                // Reset so the same file can be imported again if needed
+                event.target.value = '';
+            }, [currentChartId, charts]);
 
             const clearGrid = useCallback(() => {
                 setShowConfirm(false);
@@ -2452,10 +2525,10 @@
                             return;
                         }
                     }
-                    alert('No image found in clipboard');
+                    openAlert('No image was found in the clipboard.', 'Nothing to Paste');
                 } catch (err) {
                     console.error('Failed to read clipboard:', err);
-                    alert('Failed to paste from clipboard. Make sure you have copied an image.');
+                    openAlert('Failed to paste from clipboard. Make sure you have copied an image.', 'Paste Failed');
                 }
             }, []);
 
@@ -2618,6 +2691,31 @@
                         </div>
                     )}
 
+                    {/* Generic confirm modal */}
+                    {confirmModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeConfirmModal}>
+                            <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold text-white mb-3">{confirmModal.title}</h3>
+                                <p className="text-gray-400 mb-6">{confirmModal.message}</p>
+                                <div className="flex gap-3">
+                                    <button onClick={closeConfirmModal} className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">Cancel</button>
+                                    <button onClick={() => { confirmModal.onConfirm(); closeConfirmModal(); }} className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Alert modal */}
+                    {alertModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeAlert}>
+                            <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold text-white mb-3">{alertModal.title}</h3>
+                                <p className="text-gray-400 mb-6">{alertModal.message}</p>
+                                <button onClick={closeAlert} className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">OK</button>
+                            </div>
+                        </div>
+                    )}
+
                     {showImageModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                             <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
@@ -2693,25 +2791,28 @@
 
                                     {showChartsMenu && (
                                         <>
-                                            <div className="absolute top-full mt-2 right-0 w-72 bg-gray-950/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50">
+                                            <div className="absolute top-full mt-2 right-0 w-72 rounded-2xl shadow-2xl overflow-hidden z-50" style={{background:'#1a1a1a', border:'1px solid rgba(255,255,255,0.12)'}}>
                                                 {/* Header */}
-                                                <div className="px-4 pt-4 pb-3 border-b border-white/10 flex items-center justify-between">
-                                                    <span className="text-white/60 text-xs font-semibold uppercase tracking-wider">Your Charts</span>
+                                                <div className="px-4 pt-3.5 pb-3 flex items-center justify-between" style={{borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+                                                    <span className="text-white/40 text-xs font-semibold uppercase tracking-wider">Your Charts</span>
                                                     <button
                                                         onClick={() => { createNewChart(); setShowChartsMenu(false); }}
-                                                        className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-white/10"
+                                                        className="px-2.5 py-1 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                                                        style={{background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.12)'}}
+                                                        onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.18)'}
+                                                        onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.1)'}
                                                     >
                                                         <Plus className="w-3 h-3" /> New
                                                     </button>
                                                 </div>
                                                 {/* Chart list */}
-                                                <div className="max-h-72 overflow-y-auto p-2 space-y-1">
+                                                <div className="max-h-72 overflow-y-auto p-2 space-y-0.5">
                                                     {Object.entries(charts)
                                                         .sort(([, a], [, b]) => {
-                                                            // Pinned first, then by lastModified
+                                                            // Pinned first, then by lastModified (most recent first)
                                                             if (a.pinned && !b.pinned) return -1;
                                                             if (!a.pinned && b.pinned) return 1;
-                                                            return b.lastModified - a.lastModified;
+                                                            return (b.lastModified || 0) - (a.lastModified || 0);
                                                         })
                                                         .map(([id, chart]) => {
                                                             const isActive = currentChartId === id;
@@ -2719,7 +2820,8 @@
                                                             return (
                                                                 <div
                                                                     key={id}
-                                                                    className={`group flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all ${isActive ? 'bg-white/15 border border-white/20' : 'hover:bg-white/8 border border-transparent cursor-pointer'}`}
+                                                                    className={`group flex items-center gap-2 px-2.5 py-2 rounded-xl transition-all ${isActive ? 'border border-white/15' : 'hover:bg-white/8 border border-transparent cursor-pointer'}`}
+                                                                    style={isActive ? {background:'rgba(255,255,255,0.1)'} : {}}
                                                                     onClick={() => { if (!isActive && !isRenaming) { switchChart(id); setShowChartsMenu(false); } }}
                                                                 >
                                                                     {/* Pin button */}
@@ -2744,12 +2846,12 @@
                                                                                     if (e.key === 'Enter') { updateChartName(id, e.target.value || chart.name); setRenamingChartId(null); }
                                                                                     if (e.key === 'Escape') setRenamingChartId(null);
                                                                                 }}
-                                                                                className="w-full bg-white/10 text-white text-sm font-medium rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-white/40 border border-white/20"
+                                                                                className="w-full bg-white/10 text-white text-sm font-medium rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-white/30 border border-white/15"
                                                                             />
                                                                         ) : (
                                                                             <div className="text-white text-sm font-medium truncate">{chart.name}</div>
                                                                         )}
-                                                                        <div className="text-white/40 text-xs mt-0.5">
+                                                                        <div className="text-white/35 text-xs mt-0.5">
                                                                             {chart.layout === 'standard' ? `${chart.gridWidth}×${chart.gridHeight}` : chart.layout === 'classic' ? 'Top 42' : chart.layout === 'classic2' ? 'Top 100' : 'About You'}
                                                                             {' · '}{new Date(chart.lastModified).toLocaleDateString()}
                                                                         </div>
@@ -2767,7 +2869,7 @@
                                                                         {/* Delete button — only if more than 1 chart */}
                                                                         {Object.keys(charts).length > 1 && (
                                                                             <button
-                                                                                onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${chart.name}"?`)) deleteChart(id); }}
+                                                                                onClick={(e) => { e.stopPropagation(); openConfirmModal(`Delete chart?`, `"${chart.name}" will be permanently removed.`, () => deleteChart(id)); }}
                                                                                 className="p-1 text-white/30 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 rounded"
                                                                                 title="Delete"
                                                                             >
@@ -2775,7 +2877,7 @@
                                                                             </button>
                                                                         )}
                                                                         {/* Active indicator */}
-                                                                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-green-400 ml-1 flex-none"></span>}
+                                                                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white/60 ml-1 flex-none"></span>}
                                                                     </div>
                                                                 </div>
                                                             );
