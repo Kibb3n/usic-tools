@@ -76,10 +76,6 @@
             z-index: 10;
         }
 
-        .draggable-item.multi-selected {
-            filter: brightness(1.1);
-        }
-
         .draggable-item:active {
             cursor: grabbing;
         }
@@ -506,24 +502,6 @@
             const draggedFromRef = useRef(null);
             const dropInsertIndexRef = useRef(null);
             const droppedRef = useRef(false); // guard against duplicate drop events from bubbling
-
-            // ── Multi-select state ──────────────────────────────────────────────────
-            const [selectedItems, setSelectedItems] = useState(new Set()); // Set of item IDs
-            const lastSelectedRef = useRef(null); // { id, tier, idx } for shift-click range
-            const selectedItemsRef = useRef(new Set());
-            // Keep ref in sync
-            useEffect(() => { selectedItemsRef.current = selectedItems; }, [selectedItems]);
-            // Clear selection when clicking outside tiles
-            useEffect(() => {
-                const handler = (e) => {
-                    if (!e.target.closest('.draggable-item') && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                        setSelectedItems(new Set());
-                        lastSelectedRef.current = null;
-                    }
-                };
-                window.addEventListener('mousedown', handler);
-                return () => window.removeEventListener('mousedown', handler);
-            }, []);
 
             const [renameModalOpen, setRenameModalOpen] = useState(false);
             const [renameItem, setRenameItem] = useState(null);
@@ -1308,51 +1286,21 @@
             }, []);
 
             // ── Drag handlers ──────────────────────────────────────────────────────
-            // dragedMultiItems: array of {item, fromTier} for all selected items being dragged
-            const draggedMultiRef = useRef(null); // array of {item, fromTier} or null for single
-
             const handleDragStart = useCallback((e, item, fromTier) => {
-                const sel = selectedItemsRef.current;
-                // If the dragged item is part of the selection (and >1 selected), drag all selected
-                if (sel.size > 1 && sel.has(item.id)) {
-                    // We need to gather items from all tiers in order (tier order, then index order)
-                    // We'll collect them preserving visual order: iterate tiers, then items
-                    draggedMultiRef.current = { primaryItem: item, primaryTier: fromTier };
-                    draggedItemRef.current = item; // primary item for single-drop compat
-                    draggedFromRef.current = fromTier;
-                    droppedRef.current = false;
-                    setDraggedItem(item);
-                    setDraggedFrom(fromTier);
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', item.id);
-                    requestAnimationFrame(() => {
-                        // Dim all selected items
-                        document.querySelectorAll('.draggable-item.multi-selected').forEach(el => {
-                            el.style.opacity = '0.25';
-                            el.style.transform = 'scale(0.95)';
-                        });
-                    });
-                } else {
-                    // Single item drag — clear multi-select unless this item is the only selected
-                    draggedMultiRef.current = null;
-                    setDraggedItem(item);
-                    setDraggedFrom(fromTier);
-                    draggedItemRef.current = item;
-                    draggedFromRef.current = fromTier;
-                    droppedRef.current = false;
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', item.id);
-                    requestAnimationFrame(() => {
-                        if (e.target) e.target.classList.add('dragging');
-                    });
-                }
+                setDraggedItem(item);
+                setDraggedFrom(fromTier);
+                draggedItemRef.current = item;
+                draggedFromRef.current = fromTier;
+                droppedRef.current = false;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', item.id);
+                requestAnimationFrame(() => {
+                    if (e.target) e.target.classList.add('dragging');
+                });
             }, []);
 
             const handleDragEnd = useCallback((e) => {
-                if (e.target) { e.target.classList.remove('dragging'); e.target.style.opacity = ''; e.target.style.transform = ''; }
-                // Restore all dimmed selected items
-                document.querySelectorAll('.draggable-item').forEach(el => { el.style.opacity = ''; el.style.transform = ''; });
-                draggedMultiRef.current = null;
+                if (e.target) e.target.classList.remove('dragging');
                 setDragOverTier(null);
                 setDropInsertIndex(null);
                 setDraggedItem(null);
@@ -1444,7 +1392,7 @@
             const handleDrop = useCallback((e, toTier) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (droppedRef.current) return;
+                if (droppedRef.current) return; // already handled — ignore bubbled duplicate
                 droppedRef.current = true;
                 const item = draggedItemRef.current;
                 const fromTier = draggedFromRef.current;
@@ -1454,56 +1402,29 @@
                 dropInsertIndexRef.current = null;
                 if (!item) return;
 
-                const isMulti = draggedMultiRef.current && selectedItemsRef.current.size > 1 && selectedItemsRef.current.has(item.id);
-
                 setTiers(prev => {
                     const nt = JSON.parse(JSON.stringify(prev));
-                    if (isMulti) {
-                        // Collect all selected items in visual order (tier order, then index order)
-                        const sel = selectedItemsRef.current;
-                        const allTierOrder = [...Object.keys(nt)];
-                        const itemsToMove = [];
-                        for (const tier of allTierOrder) {
-                            if (!nt[tier]) continue;
-                            for (const it of nt[tier]) {
-                                if (sel.has(it.id)) itemsToMove.push({ item: it, fromTier: tier });
-                            }
-                        }
-                        // Remove all selected items from their source tiers
-                        for (const { item: it, fromTier: ft } of itemsToMove) {
-                            nt[ft] = nt[ft].filter(i => i.id !== it.id);
-                        }
-                        if (!nt[toTier]) nt[toTier] = [];
-                        // Insert at position — adjust for primary item's original position
-                        const primaryIdx = itemsToMove.findIndex(i => i.item.id === item.id);
-                        // Items before primary go before drop point, items after go after
-                        const before = itemsToMove.slice(0, primaryIdx).map(i => i.item);
-                        const primary = itemsToMove[primaryIdx].item;
-                        const after = itemsToMove.slice(primaryIdx + 1).map(i => i.item);
-                        const group = [...before, primary, ...after];
+                    const oldIdx = fromTier !== null ? (nt[fromTier] || []).findIndex(i => i.id === item.id) : -1;
 
-                        let adj = insertAt === null || insertAt === undefined ? nt[toTier].length : insertAt;
-                        adj = Math.min(adj, nt[toTier].length);
-                        nt[toTier].splice(adj, 0, ...group);
+                    // Remove from source
+                    if (fromTier !== null && nt[fromTier]) {
+                        nt[fromTier] = nt[fromTier].filter(i => i.id !== item.id);
+                    }
+                    if (!nt[toTier]) nt[toTier] = [];
+
+                    if (insertAt === null || insertAt === undefined) {
+                        nt[toTier].push(item);
                     } else {
-                        const oldIdx = fromTier !== null ? (nt[fromTier] || []).findIndex(i => i.id === item.id) : -1;
-                        if (fromTier !== null && nt[fromTier]) {
-                            nt[fromTier] = nt[fromTier].filter(i => i.id !== item.id);
+                        let adj = insertAt;
+                        if (fromTier === toTier && oldIdx !== -1 && oldIdx < insertAt) {
+                            adj = Math.max(0, adj - 1);
                         }
-                        if (!nt[toTier]) nt[toTier] = [];
-                        if (insertAt === null || insertAt === undefined) {
-                            nt[toTier].push(item);
-                        } else {
-                            let adj = insertAt;
-                            if (fromTier === toTier && oldIdx !== -1 && oldIdx < insertAt) adj = Math.max(0, adj - 1);
-                            adj = Math.min(adj, nt[toTier].length);
-                            nt[toTier].splice(adj, 0, item);
-                        }
+                        adj = Math.min(adj, nt[toTier].length);
+                        nt[toTier].splice(adj, 0, item);
                     }
                     saveToHistory(nt);
                     return nt;
                 });
-                if (isMulti) setSelectedItems(new Set());
             }, [saveToHistory]);
 
             const removeItem = useCallback((tier, itemId) => {
@@ -1574,16 +1495,7 @@
             const confirmModeSwitch = useCallback(async () => {
                 setModeWarningOpen(false);
                 if (!songsMode) {
-                    // Album → Songs mode
-                    // Check if items are already songs (e.g. imported from ranker)
-                    const allItems = Object.values(tiers).flat().filter(Boolean);
-                    const alreadySongs = allItems.length > 0 && allItems.every(i => i.trackNumber !== undefined);
-                    if (alreadySongs) {
-                        // Items are already songs — just flip the mode flag, no conversion needed
-                        setSongsMode(true);
-                        return;
-                    }
-                    // Normal path: backup albums and convert to tracks
+                    // Album → Songs: backup current state (including ranked albums), then convert all to tracks
                     const backup = JSON.parse(JSON.stringify(tiers));
                     setAlbumBackup(backup);
                     const nt = {}; tierNames.forEach(n => { nt[n] = []; }); nt.unranked = [];
@@ -1602,24 +1514,17 @@
                     setTiers(nt);
                     setSongsMode(true);
                 } else {
-                    // Songs → Albums mode
+                    // Songs → Albums: restore from backup
                     if (albumBackup) {
-                        // Normal path: restore from backup
                         const nt = {};
                         tierNames.forEach(n => { nt[n] = albumBackup[n] || []; });
                         nt.unranked = albumBackup.unranked || [];
                         setTiers(nt);
                         setAlbumBackup(null);
-                    } else {
-                        // No backup (songs were imported directly, e.g. from ranker)
-                        // Clear all items and switch to album mode so user can add albums
-                        const nt = {}; tierNames.forEach(n => { nt[n] = []; }); nt.unranked = [];
-                        setTiers(nt);
-                        saveToHistory(nt);
                     }
                     setSongsMode(false);
                 }
-            }, [songsMode, tiers, albumBackup, fetchAlbumTracks, tierNames, saveToHistory]);
+            }, [songsMode, tiers, albumBackup, fetchAlbumTracks, tierNames]);
 
             const bulkMoveTiers = useCallback(() => {
                 if (!bulkMoveFrom || !bulkMoveTo || bulkMoveFrom === bulkMoveTo) { openAlert('Please select different source and destination tiers.', 'Invalid Selection'); return; }
@@ -1786,7 +1691,7 @@
             }, [tiers, tierNames, tierColors, title]);
 
             const exportData = useCallback(() => {
-                const data = { tiers: albumBackup || tiers, title, tierNames, tierColors, songsMode: false };
+                const data = { tiers: albumBackup || tiers, title, tierNames, tierColors };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `tier-list-${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
             }, [tiers, albumBackup, title, tierNames, tierColors]);
@@ -1804,18 +1709,12 @@
                 reader.onload = e => {
                     try {
                         const data = JSON.parse(e.target.result); if (!data.tiers) { openAlert('This file doesn\'t contain valid tier list data.', 'Invalid File'); return; }
+                        setSongsMode(false); setAlbumBackup(null);
                         if (data.tierNames) setTierNames(data.tierNames);
                         if (data.tierColors) setTierColors(data.tierColors);
                         const rt = { ...data.tiers };
                         (data.tierNames || DEFAULT_TIERS).forEach(n => { if (!rt[n]) rt[n] = []; });
                         if (!rt.unranked) rt.unranked = [];
-                        // Detect if items are songs (have trackNumber) to set the right mode
-                        const allItems = Object.values(rt).flat();
-                        const hasSongs = allItems.some(i => i && i.trackNumber !== undefined);
-                        const importedSongsMode = data.songsMode !== undefined ? data.songsMode : hasSongs;
-                        setSongsMode(importedSongsMode);
-                        // If items are songs imported directly (no album backup in file), clear backup
-                        setAlbumBackup(data.albumBackup || null);
                         setTiers(rt); setTitle(data.title || 'My Music Tier List'); setTempTitle(data.title || 'My Music Tier List'); saveToHistory(rt);
                     } catch (err) { openAlert('Failed to import: ' + err.message, 'Import Failed'); }
                 };
@@ -1877,53 +1776,6 @@
                 else setTempTitle(title);
             }, [title]);
 
-            // ── Multi-select click handler ───────────────────────────────────────────
-            const handleTileClick = useCallback((e, item, tier, idx) => {
-                // Only intercept ctrl/cmd/shift clicks
-                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                    // Regular click: clear selection
-                    setSelectedItems(new Set());
-                    lastSelectedRef.current = { id: item.id, tier, idx };
-                    return;
-                }
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (e.shiftKey && lastSelectedRef.current) {
-                    // Shift-click: select range between lastSelected and this item
-                    // Gather all items in flat order (tier order, then index)
-                    setTiers(prev => {
-                        const allTierOrder = [...tierNames, 'unranked'];
-                        const flat = [];
-                        for (const tn of allTierOrder) {
-                            (prev[tn] || []).forEach((it, i) => flat.push({ id: it.id, tier: tn, idx: i }));
-                        }
-                        const lastId = lastSelectedRef.current.id;
-                        const aPos = flat.findIndex(f => f.id === lastId);
-                        const bPos = flat.findIndex(f => f.id === item.id);
-                        if (aPos === -1 || bPos === -1) return prev;
-                        const [lo, hi] = aPos < bPos ? [aPos, bPos] : [bPos, aPos];
-                        const rangeIds = flat.slice(lo, hi + 1).map(f => f.id);
-                        setSelectedItems(prev2 => {
-                            const next = new Set(prev2);
-                            rangeIds.forEach(id => next.add(id));
-                            return next;
-                        });
-                        return prev; // don't mutate tiers
-                    });
-                    lastSelectedRef.current = { id: item.id, tier, idx };
-                } else if (e.ctrlKey || e.metaKey) {
-                    // Ctrl/Cmd click: toggle this item
-                    setSelectedItems(prev => {
-                        const next = new Set(prev);
-                        if (next.has(item.id)) { next.delete(item.id); }
-                        else { next.add(item.id); }
-                        return next;
-                    });
-                    lastSelectedRef.current = { id: item.id, tier, idx };
-                }
-            }, [tierNames]);
-
             // ── Render tile ─────────────────────────────────────────────────────────
             const renderTierItems = (tierName, items) => {
                 const isDragging = !!draggedItemRef.current;
@@ -1942,14 +1794,11 @@
                 return result;
             };
 
-            const renderTile = (item, tier, idx) => {
-                const isSelected = selectedItems.has(item.id);
-                return (
+            const renderTile = (item, tier, idx) => (
                 <div
                     key={item.id}
-                    className={`group relative draggable-item flex-shrink-0${isSelected ? ' multi-selected' : ''}`}
+                    className="group relative draggable-item flex-shrink-0"
                     draggable
-                    onClick={(e) => handleTileClick(e, item, tier, idx)}
                     onDragStart={(e) => handleDragStart(e, item, tier)}
                     onDragEnd={handleDragEnd}
                     onDragOver={(e) => handleItemDragOver(e, tier, idx)}
@@ -1958,7 +1807,6 @@
                     onTouchStart={(e) => handleTouchStart(e, item, tier)}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    style={isSelected ? { outline: '3px solid #60a5fa', outlineOffset: '2px', borderRadius: '6px', zIndex: 5 } : {}}
                 >
                     {item.custom ? (
                         /* Custom colour tile — solid background + title text */
@@ -1978,21 +1826,17 @@
                         <img src={item.image} alt={item.title} className="w-16 h-16 md:w-20 md:h-20 object-cover rounded block" />
                     )}
                     <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                        <button onClick={(e) => { e.stopPropagation(); openRenameModal(tier, item); }} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded" title="Rename"><Pencil className="w-3 h-3" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); removeItem(tier, item.id); }} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded" title="Remove"><Trash className="w-3 h-3" /></button>
+                        <button onClick={() => openRenameModal(tier, item)} className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded" title="Rename"><Pencil className="w-3 h-3" /></button>
+                        <button onClick={() => removeItem(tier, item.id)} className="bg-red-500 hover:bg-red-600 text-white p-1 rounded" title="Remove"><Trash className="w-3 h-3" /></button>
                     </div>
                     {showReorderButtons && (
                         <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                            <button onClick={(e) => { e.stopPropagation(); moveItemLeft(tier, item.id); }} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move left one"><ArrowLeft className="w-3 h-3" /></button>
-                            <button onClick={(e) => { e.stopPropagation(); moveItemRight(tier, item.id); }} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move right one"><ArrowRight className="w-3 h-3" /></button>
+                            <button onClick={() => moveItemLeft(tier, item.id)} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move left one"><ArrowLeft className="w-3 h-3" /></button>
+                            <button onClick={() => moveItemRight(tier, item.id)} className="bg-purple-500 hover:bg-purple-600 text-white p-1 rounded" title="Move right one"><ArrowRight className="w-3 h-3" /></button>
                         </div>
                     )}
-                    {isSelected && selectedItems.size > 1 && (
-                        <div className="absolute top-1 left-1 z-10 bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold pointer-events-none">✓</div>
-                    )}
                 </div>
-                );
-            };
+            );
 
             const renderUnrankedSection = () => (
                 <div
@@ -2037,7 +1881,7 @@
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                             <div className="bg-gray-900 border border-white/20 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
                                 <h3 className="text-xl font-bold text-white mb-4">Switch Mode</h3>
-                                <p className="text-white mb-6">{songsMode ? (albumBackup ? "Switching back to Album mode will restore your original albums." : "Switching to Album mode will clear all songs. You'll be able to add albums fresh.") : "Switching to Songs mode will convert albums to tracks."}</p>
+                                <p className="text-white mb-6">{songsMode ? "Switching back to Album mode will move all items to unranked." : "Switching to Songs mode will convert albums to tracks and move them to unranked."}</p>
                                 <div className="flex gap-3">
                                     <button onClick={() => setModeWarningOpen(false)} className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg">Cancel</button>
                                     <button onClick={confirmModeSwitch} className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold">Continue</button>
@@ -2824,7 +2668,7 @@
                                 <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </div>
                             <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
-                                <div class="flex items-center justify-between"><span data-help-text="Undo">Undo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd Z</kbd></div><div class="flex items-center justify-between"><span data-help-text="Redo">Redo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd Y</kbd></div><div class="flex items-center justify-between"><span data-help-text="Toggle sidebar">Toggle sidebar</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd H</kbd></div><div class="flex items-center justify-between"><span data-help-text="Export PNG">Export PNG</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd E</kbd></div><div class="flex items-center justify-between"><span data-help-text="Save JSON">Save JSON</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd S</kbd></div><div class="flex items-center justify-between"><span data-help-text="Select multiple albums/songs">Select multiple albums/songs</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd + Click</kbd></div><div class="flex items-center justify-between"><span data-help-text="Select a range of albums/songs">Select a range of albums/songs</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Shift + Click</kbd></div><div class="flex items-center justify-between"><span data-help-text="Move all selected items together — drag any highlighted tile">Move all selected items together</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Drag any selected tile</kbd></div><div class="flex items-center justify-between"><span data-help-text="Quick rename item">Quick rename item</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Right-click tile</kbd></div><div class="flex items-center justify-between"><span data-help-text="Close this modal">Close this modal</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
+                                <div class="flex items-center justify-between"><span data-help-text="Undo">Undo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd Z</kbd></div><div class="flex items-center justify-between"><span data-help-text="Redo">Redo</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd Y</kbd></div><div class="flex items-center justify-between"><span data-help-text="Toggle sidebar">Toggle sidebar</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd H</kbd></div><div class="flex items-center justify-between"><span data-help-text="Export PNG">Export PNG</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd E</kbd></div><div class="flex items-center justify-between"><span data-help-text="Save JSON">Save JSON</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Ctrl/Cmd S</kbd></div><div class="flex items-center justify-between"><span data-help-text="Quick rename item">Quick rename item</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Right-click tile</kbd></div><div class="flex items-center justify-between"><span data-help-text="Close this modal">Close this modal</span><kbd class="px-2 py-0.5 rounded text-xs ml-2 flex-shrink-0" style="background:rgba(255,255,255,0.1);">Escape</kbd></div>
                             </div>
                         </div>
                 </div>
