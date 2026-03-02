@@ -681,6 +681,8 @@
             const [autoSaves, setAutoSaves] = useState([]);
             const [showProgress, setShowProgress] = useState(false);
         const [showTierlistExport, setShowTierlistExport] = useState(false);
+        // Tier percentages: each value = % of songs in that tier (must sum to 100)
+        const [tierPercentages, setTierPercentages] = useState({ S:14, A:14, B:15, C:14, D:14, E:15, F:14 });
             const [viewMode, setViewMode] = useState('grid');
             const [showUrlImport, setShowUrlImport] = useState(false);
             const [urlInput, setUrlInput] = useState('');
@@ -2308,23 +2310,28 @@
                 const total = filteredIndices.length;
                 if (total === 0) return;
 
-                // Tier boundary percentiles: S top ~14%, A next ~14%, B, C, D, E, F bottom
+                // Tier boundary percentiles based on user-defined percentages
                 const tierNames = ['S', 'A', 'B', 'C', 'D', 'E', 'F'];
                 const tierColors = { S:'#ff7f7f', A:'#ffbf7f', B:'#ffdf7f', C:'#ffff7f', D:'#bfff7f', E:'#7fff7f', F:'#7fbfff' };
+
+                // Build cumulative boundaries from tierPercentages
+                const totalPct = tierNames.reduce((s, t) => s + (tierPercentages[t] || 0), 0);
+                const boundaries = [];
+                let cumulative = 0;
+                for (let i = 0; i < tierNames.length - 1; i++) {
+                    cumulative += (tierPercentages[tierNames[i]] || 0) / totalPct;
+                    boundaries.push(cumulative);
+                }
 
                 // Assign each song a tier based on its rank percentage
                 const tierBuckets = { S:[], A:[], B:[], C:[], D:[], E:[], F:[], unranked:[] };
 
                 filteredIndices.forEach((songIdx, rank) => {
                     const pct = rank / total; // 0 = best, 1 = worst
-                    let tier;
-                    if (pct < 1/7)      tier = 'S';
-                    else if (pct < 2/7) tier = 'A';
-                    else if (pct < 3/7) tier = 'B';
-                    else if (pct < 4/7) tier = 'C';
-                    else if (pct < 5/7) tier = 'D';
-                    else if (pct < 6/7) tier = 'E';
-                    else                tier = 'F';
+                    let tier = tierNames[tierNames.length - 1];
+                    for (let i = 0; i < boundaries.length; i++) {
+                        if (pct < boundaries[i]) { tier = tierNames[i]; break; }
+                    }
 
                     const songData = state.songData[songIdx] || {};
                     const songName = state.songs[songIdx];
@@ -3178,16 +3185,86 @@
                             <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-md w-full border border-white/20 shadow-2xl">
                                 <h3 className="text-2xl font-bold text-white mb-3">Send to Tier List</h3>
                                 <p className="text-gray-300 mb-3">
-                                    This will create a new tier list from your ranked results, placing songs into tiers based on their rank percentile.
+                                    Adjust how much of your ranking goes into each tier, then open in Tier List.
                                 </p>
-                                <div className="rounded-xl p-4 mb-6" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <p className="text-sm text-gray-400 mb-2 font-semibold">Tier assignment:</p>
-                                    <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                                        {[['S','#ff7f7f'],['A','#ffbf7f'],['B','#ffdf7f'],['C','#ffff7f'],['D','#bfff7f'],['E','#7fff7f'],['F','#7fbfff']].map(([t,c]) => (
-                                            <div key={t} className="rounded-lg py-1 font-bold text-black" style={{ background: c }}>{t}</div>
-                                        ))}
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-2 text-center">Top → Bottom, split evenly across 7 tiers</p>
+                                <div className="rounded-xl p-4 mb-4" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <p className="text-sm text-gray-400 mb-3 font-semibold">Tier percentages <span className="font-normal text-gray-500">(must sum to 100%)</span></p>
+                                    {(() => {
+                                        const tiers = [['S','#ff7f7f'],['A','#ffbf7f'],['B','#ffdf7f'],['C','#ffff7f'],['D','#bfff7f'],['E','#7fff7f'],['F','#7fbfff']];
+                                        const tierKeys = tiers.map(([t]) => t);
+                                        const total = tierKeys.reduce((s, t) => s + (tierPercentages[t]||0), 0);
+                                        const filteredCount = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx)).length;
+
+                                        // When one tier changes, redistribute the remainder proportionally among the others
+                                        const handleTierChange = (changedTier, newVal) => {
+                                            newVal = Math.max(0, Math.min(100, newVal));
+                                            const others = tierKeys.filter(t => t !== changedTier);
+                                            const otherTotal = others.reduce((s, t) => s + (tierPercentages[t]||0), 0);
+                                            const remainder = 100 - newVal;
+                                            let newPercentages = { ...tierPercentages, [changedTier]: newVal };
+                                            if (otherTotal === 0) {
+                                                // distribute evenly
+                                                const share = Math.floor(remainder / others.length);
+                                                others.forEach(t => { newPercentages[t] = share; });
+                                                // put leftover on last
+                                                const leftover = remainder - share * others.length;
+                                                newPercentages[others[others.length - 1]] += leftover;
+                                            } else {
+                                                // distribute proportionally, then fix rounding
+                                                let assigned = 0;
+                                                others.forEach((t, i) => {
+                                                    if (i < others.length - 1) {
+                                                        const v = Math.round((tierPercentages[t]||0) / otherTotal * remainder);
+                                                        newPercentages[t] = v;
+                                                        assigned += v;
+                                                    }
+                                                });
+                                                newPercentages[others[others.length - 1]] = remainder - assigned;
+                                            }
+                                            // clamp negatives
+                                            tierKeys.forEach(t => { if (newPercentages[t] < 0) newPercentages[t] = 0; });
+                                            setTierPercentages(newPercentages);
+                                        };
+
+                                        return (
+                                            <div className="space-y-2">
+                                                {tiers.map(([t, c]) => {
+                                                    const songCount = Math.round((tierPercentages[t]||0) / 100 * filteredCount);
+                                                    return (
+                                                        <div key={t} className="flex items-center gap-2">
+                                                            <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-black text-sm flex-shrink-0" style={{ background: c }}>{t}</div>
+                                                            <input
+                                                                type="range"
+                                                                min="0"
+                                                                max="100"
+                                                                step="1"
+                                                                value={tierPercentages[t]||0}
+                                                                onChange={e => handleTierChange(t, parseInt(e.target.value))}
+                                                                className="flex-1 h-1"
+                                                                style={{ accentColor: c }}
+                                                            />
+                                                            <div className="flex items-center gap-1 w-20 flex-shrink-0">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    value={tierPercentages[t]||0}
+                                                                    onChange={e => handleTierChange(t, parseInt(e.target.value)||0)}
+                                                                    className="w-12 bg-white/10 text-white text-xs rounded-lg px-2 py-1 text-center border border-white/20"
+                                                                />
+                                                                <span className="text-gray-400 text-xs">%</span>
+                                                            </div>
+                                                            <span className="text-gray-500 text-xs w-12 text-right flex-shrink-0">{songCount} song{songCount !== 1 ? 's' : ''}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div className="flex justify-between items-center mt-2 pt-2 border-t border-white/10">
+                                                    <span className="text-xs text-green-400 font-bold">Total: {total}%</span>
+                                                    <button onClick={() => setTierPercentages({ S:14, A:14, B:15, C:14, D:14, E:15, F:14 })} className="text-xs text-gray-400 hover:text-white underline">Reset to even</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <p className="text-gray-400 text-sm mb-6">
                                     Your existing tier lists will be preserved. The new list will open in a new tab in songs mode.
