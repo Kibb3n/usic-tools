@@ -142,17 +142,17 @@
         }
 
         #communityBtn {
-            background: linear-gradient(135deg, rgba(255,69,0,0.25), rgba(255,69,0,0.12));
+            background: linear-gradient(135deg, rgba(255,69,0,0.25), rgba(255,69,0,0.12)) !important;
             border: 1px solid rgba(255,69,0,0.35);
             color: #ff7a50;
             box-shadow: 0 0 14px rgba(255,69,0,0.18);
             transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease, color 0.3s ease;
         }
         #communityBtn:hover {
-            background: linear-gradient(135deg, rgba(255,69,0,0.35), rgba(255,69,0,0.2));
-            border-color: rgba(255,69,0,0.6);
+            background: linear-gradient(135deg, rgba(255,69,0,0.55), rgba(255,69,0,0.4)) !important;
+            border-color: rgba(255,69,0,0.7);
             color: #ffbfa8;
-            box-shadow: 0 0 24px rgba(255,69,0,0.4);
+            box-shadow: 0 0 24px rgba(255,69,0,0.5);
             transform: scale(1.05);
         }
         #communityBtn:active {
@@ -192,6 +192,24 @@
             transform: scale(1.05);
         }
         #bugBtn:active {
+            transform: scale(0.95);
+        }
+
+        #betaBtn {
+            background: linear-gradient(135deg, rgba(120,120,120,0.25), rgba(90,90,90,0.12)) !important;
+            border: 1px solid rgba(150,150,150,0.35);
+            color: #b0b0b0;
+            box-shadow: 0 0 14px rgba(100,100,100,0.18);
+            transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+        #betaBtn:hover {
+            background: linear-gradient(135deg, rgba(160,160,160,0.55), rgba(120,120,120,0.45)) !important;
+            border-color: rgba(180,180,180,0.5);
+            color: #e0e0e0;
+            box-shadow: 0 0 20px rgba(150,150,150,0.3);
+            transform: scale(1.05);
+        }
+        #betaBtn:active {
             transform: scale(0.95);
         }
 
@@ -243,6 +261,45 @@
         </svg>
         community
     </a>
+
+    <!-- Beta button fixed top left below community -->
+    <button onclick="openBeta()" id="betaBtn"
+        class="fixed top-14 left-4 z-50 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+        beta
+    </button>
+
+    <!-- Beta Modal -->
+    <div id="betaModal" class="fixed inset-0 z-[100] hidden modal-backdrop">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeBeta()"></div>
+        <div class="absolute top-1/2 left-1/2 modal-content w-full max-w-sm" style="transform: translate(-50%, -50%);">
+            <div class="bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                        </svg>
+                        <h2 class="text-lg font-semibold text-white">µsic tools is in beta</h2>
+                    </div>
+                    <button onclick="closeBeta()" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="text-gray-300 text-sm leading-relaxed">this site is still in early development — things might break, look weird, or not work as expected.</p>
+                <p class="text-gray-300 text-sm leading-relaxed mt-3">if you spot any bugs, please report them using the <span class="text-gray-100 font-semibold">report a bug</span> button on the homepage.</p>
+                <button onclick="closeBeta()" class="mt-5 w-full py-2 rounded-xl text-sm font-semibold text-white transition-all"
+                    style="background: linear-gradient(135deg, rgba(120,120,120,0.4), rgba(90,90,90,0.25)); border: 1px solid rgba(150,150,150,0.4);"
+                    onmouseover="this.style.background='linear-gradient(135deg, rgba(160,160,160,0.5), rgba(120,120,120,0.35))'"
+                    onmouseout="this.style.background='linear-gradient(135deg, rgba(120,120,120,0.4), rgba(90,90,90,0.25))'">
+                    got it
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Buy Me a Coffee button fixed top right -->
     <a href="https://ko-fi.com/kibben" target="_blank" rel="noopener noreferrer" id="kofiBtn"
@@ -518,6 +575,28 @@
             blob2.style.setProperty('--blob2-color', defaultColor2);
         });
 
+        // Community button hover — Reddit orange + white
+        const communityBtn = document.getElementById('communityBtn');
+        communityBtn.addEventListener('mouseenter', () => {
+            blob1.style.setProperty('--blob1-color', '#ff4500');
+            blob2.style.setProperty('--blob2-color', '#ff4500');
+        });
+        communityBtn.addEventListener('mouseleave', () => {
+            blob1.style.setProperty('--blob1-color', defaultColor1);
+            blob2.style.setProperty('--blob2-color', defaultColor2);
+        });
+
+        // Beta button hover — same as bug report (grey)
+        const betaBtn = document.getElementById('betaBtn');
+        betaBtn.addEventListener('mouseenter', () => {
+            blob1.style.setProperty('--blob1-color', '#888888');
+            blob2.style.setProperty('--blob2-color', '#555555');
+        });
+        betaBtn.addEventListener('mouseleave', () => {
+            blob1.style.setProperty('--blob1-color', defaultColor1);
+            blob2.style.setProperty('--blob2-color', defaultColor2);
+        });
+
         // Tool card hovers
         const toolCards = document.querySelectorAll('.tool-card a[data-color1]');
         toolCards.forEach(card => {
@@ -779,6 +858,7 @@
             if (e.key === 'Escape') {
                 closeHelp();
                 closeBugReport();
+                closeBeta();
             }
         });
 
@@ -803,6 +883,16 @@
                 wordCountEl.classList.remove('text-red-400');
             }
         });
+
+        function openBeta() {
+            document.getElementById('betaModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeBeta() {
+            document.getElementById('betaModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
 
         function openBugReport() {
             document.getElementById('bugModal').classList.remove('hidden');
