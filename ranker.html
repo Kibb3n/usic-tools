@@ -1651,7 +1651,7 @@
                     history: [...s.history, historyEntry]
                 }));
 
-                if (newComparisons - sorting.lastEstimateUpdate >= 15) {
+                if (newComparisons - sorting.lastEstimateUpdate >= 5) {
                     setTimeout(updateEstimate, 0);
                 }
 
@@ -2398,7 +2398,11 @@
 
             const activeSongCount = state.songs.length - state.excludedSongs.size;
             const totalComparisons = activeSongCount > 0 ? (activeSongCount * (activeSongCount - 1)) / 2 : 0;
-            const progress = totalComparisons > 0 ? ((sorting.comparisons + sorting.autoSkipped) / totalComparisons) * 100 : 0;
+            // Use the dynamic estimated total for a more accurate progress bar.
+            // sorting.estimatedRemaining tracks estimated total comparisons (manual + inferred),
+            // which is much closer to actual n*log(n) cost than the theoretical n*(n-1)/2 max.
+            const estimatedTotal = sorting.estimatedRemaining > 0 ? sorting.estimatedRemaining : totalComparisons;
+            const progress = estimatedTotal > 0 ? Math.min(100, (sorting.comparisons / estimatedTotal) * 100) : 0;
             const itemsPerPage = 10;
             const paginatedSuggestions = search.suggestions.slice(search.page * itemsPerPage, (search.page + 1) * itemsPerPage);
 
@@ -2818,7 +2822,7 @@
                                                 Ranking {getRankingTitle()}
                                             </span>
                                             <span className="text-gray-300">
-                                                {sorting.comparisons} / {sorting.estimatedRemaining} comparisons
+                                                {sorting.comparisons} / ~{sorting.estimatedRemaining} comparisons
                                             </span>
                                         </div>
                                         <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
