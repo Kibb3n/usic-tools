@@ -141,6 +141,24 @@
             color: #ffa500;
         }
 
+        #communityBtn {
+            background: linear-gradient(135deg, rgba(255,69,0,0.25), rgba(255,69,0,0.12));
+            border: 1px solid rgba(255,69,0,0.35);
+            color: #ff7a50;
+            box-shadow: 0 0 14px rgba(255,69,0,0.18);
+            transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+        #communityBtn:hover {
+            background: linear-gradient(135deg, rgba(255,69,0,0.35), rgba(255,69,0,0.2));
+            border-color: rgba(255,69,0,0.6);
+            color: #ffbfa8;
+            box-shadow: 0 0 24px rgba(255,69,0,0.4);
+            transform: scale(1.05);
+        }
+        #communityBtn:active {
+            transform: scale(0.95);
+        }
+
         #kofiBtn {
             background: linear-gradient(135deg, rgba(255,94,58,0.25), rgba(255,94,58,0.12));
             border: 1px solid rgba(255,94,58,0.35);
@@ -217,10 +235,19 @@
 </head>
 
 <body>
+    <!-- Community button fixed top left -->
+    <a href="https://www.reddit.com/r/usicTools/" target="_blank" rel="noopener noreferrer" id="communityBtn"
+        class="fixed top-4 left-4 z-50 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full">
+        <svg class="w-5 h-5" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+            <path fill="currentColor" d="m154.04,60.36c2.22,9.41,10.67,16.42,20.76,16.42,11.78,0,21.33-9.55,21.33-21.33s-9.55-21.33-21.33-21.33c-10.3,0-18.89,7.3-20.89,17.01-17.25,1.85-30.72,16.48-30.72,34.21,0,.04,0,.07,0,.11-18.76.79-35.89,6.13-49.49,14.56-5.05-3.91-11.39-6.24-18.27-6.24-16.51,0-29.89,13.38-29.89,29.89,0,11.98,7.04,22.3,17.21,27.07.99,34.7,38.8,62.61,85.31,62.61s84.37-27.94,85.31-62.67c10.09-4.8,17.07-15.09,17.07-27,0-16.51-13.38-29.89-29.89-29.89-6.85,0-13.16,2.31-18.2,6.19-13.72-8.49-31.04-13.83-49.99-14.54,0-.03,0-.05,0-.08,0-12.7,9.44-23.24,21.68-24.97Zm-81.54,82.27c.5-10.84,7.7-19.16,16.07-19.16s14.77,8.79,14.27,19.63c-.5,10.84-6.75,14.78-15.13,14.78s-15.71-4.41-15.21-15.25Zm95.06-19.16c8.38,0,15.58,8.32,16.07,19.16.5,10.84-6.84,15.25-15.21,15.25s-14.63-3.93-15.13-14.78c-.5-10.84,5.89-19.63,14.27-19.63Zm-9.96,44.24c1.57.16,2.57,1.79,1.96,3.25-5.15,12.31-17.31,20.96-31.5,20.96s-26.34-8.65-31.5-20.96c-.61-1.46.39-3.09,1.96-3.25,9.2-.93,19.15-1.44,29.54-1.44s20.33.51,29.54,1.44Z"/>
+        </svg>
+        community
+    </a>
+
     <!-- Buy Me a Coffee button fixed top right -->
     <a href="https://ko-fi.com/kibben" target="_blank" rel="noopener noreferrer" id="kofiBtn"
         class="fixed top-4 right-4 z-50 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full">
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
             <path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.34.407 0 0 1.62-1.754 3.508-.785 1.887.971 1.938 2.422.706 4.133zm6.962.463c-.822.207-1.701-.082-1.701-.082V5.119c1.49.26 3.043 1.073 2.715 4.308-.144 1.408-.806 2.275-1.014 3.495z" />
         </svg>
         buy me a coffee
@@ -228,7 +255,7 @@
 
     <button onclick="openBugReport()" id="bugBtn"
         class="fixed top-14 right-4 z-50 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full">
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         report a bug
