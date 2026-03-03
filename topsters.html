@@ -987,6 +987,10 @@
             const loadChart = (chart) => {
                 if (!chart) return;
                 isLoadingChartRef.current = true;
+                // Clear the state snapshot ref immediately so the auto-save effect cannot
+                // accidentally write a previous chart's data under the new chart's ID
+                // during the async window between setCurrentChartId and new state settling.
+                currentStateRef.current = {};
 
                 const targetLayout = chart.layout || 'standard';
                 const savedGrid = Array.isArray(chart.grid) ? chart.grid : [];
@@ -1180,6 +1184,10 @@
                     return { ...updatedCharts, [currentChartId]: currentChartData };
                 });
                 setCurrentChartId(id);
+                // Clear the snapshot ref NOW — before loadChart runs — so the auto-save effect
+                // cannot fire between setCurrentChartId and the new state settling and pick up
+                // a stale snapshot of the chart we just left (which would overwrite the target chart).
+                currentStateRef.current = {};
                 // Read target chart from localStorage so we always get the freshly-saved version
                 // (localStorage was just written by the setCharts updater above)
                 try {
