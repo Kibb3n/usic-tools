@@ -612,6 +612,146 @@ Exclude Song
 );
 }
 
+// Tierlist Export Modal with interactive percentage sliders
+function TierlistExportModal({ onClose, onExport, totalSongs }) {
+const TIERS = [
+{ name: 'S', color: '#ff7f7f' },
+{ name: 'A', color: '#ffbf7f' },
+{ name: 'B', color: '#ffdf7f' },
+{ name: 'C', color: '#ffff7f' },
+{ name: 'D', color: '#bfff7f' },
+{ name: 'E', color: '#7fff7f' },
+{ name: 'F', color: '#7fbfff' },
+];
+
+// percentages[i] = fraction of songs in tier i (0–1), sums to 1
+const [percentages, setPercentages] = useState(() => TIERS.map(() => 1 / 7));
+
+// When slider i is moved to newVal, redistribute the difference among the other tiers
+// proportionally to their current sizes, but never let any tier go below 0
+const handleSliderChange = (i, newVal) => {
+setPercentages(prev => {
+const clamped = Math.max(0.01, Math.min(0.99, newVal));
+const delta = clamped - prev[i];
+if (Math.abs(delta) < 1e-9) return prev;
+
+// The other tiers need to absorb -delta in total
+const others = prev.map((v, idx) => idx === i ? 0 : v);
+const othersTotal = others.reduce((a, b) => a + b, 0);
+
+if (othersTotal < 1e-9) return prev; // safety
+
+const next = prev.map((v, idx) => {
+if (idx === i) return clamped;
+// proportional reduction/increase
+const share = v / othersTotal;
+return Math.max(0, v - delta * share);
+});
+
+// Re-normalise to exactly 1 due to floating point drift
+const sum = next.reduce((a, b) => a + b, 0);
+return next.map(v => v / sum);
+});
+};
+
+const songCounts = percentages.map(p => Math.max(1, Math.round(p * totalSongs)));
+// Fix rounding so sum = totalSongs
+const countSum = songCounts.reduce((a, b) => a + b, 0);
+if (countSum !== totalSongs) {
+const diff = totalSongs - countSum;
+songCounts[songCounts.length - 1] += diff;
+}
+
+const handleExport = () => {
+// Re-normalise just in case
+const sum = percentages.reduce((a, b) => a + b, 0);
+onExport(percentages.map(p => p / sum));
+};
+
+return (
+<div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+<div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-lg w-full border border-white/20 shadow-2xl">
+<div className="flex items-center justify-between mb-4">
+<h3 className="text-2xl font-bold text-white">Send to Tier List</h3>
+<button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
+<X className="w-6 h-6 text-white" />
+</button>
+</div>
+<p className="text-gray-300 text-sm mb-5">
+Adjust how many songs go into each tier. Dragging one slider automatically redistributes the rest.
+</p>
+
+{/* Stacked bar preview */}
+<div className="flex rounded-xl overflow-hidden h-8 mb-6 border border-white/10">
+{TIERS.map((tier, i) => (
+<div
+key={tier.name}
+className="flex items-center justify-center text-xs font-bold text-black transition-all duration-150 overflow-hidden"
+style={{ width: `${percentages[i] * 100}%`, background: tier.color, minWidth: percentages[i] > 0.03 ? undefined : 0 }}
+title={`${tier.name}: ${songCounts[i]} songs`}
+>
+{percentages[i] > 0.06 ? tier.name : ''}
+</div>
+))}
+</div>
+
+{/* Individual tier sliders */}
+<div className="space-y-3 mb-6">
+{TIERS.map((tier, i) => (
+<div key={tier.name} className="flex items-center gap-3">
+<div
+className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm text-black flex-shrink-0"
+style={{ background: tier.color }}
+>
+{tier.name}
+</div>
+<div className="flex-1 relative">
+<input
+type="range"
+min={1}
+max={99}
+step={1}
+value={Math.round(percentages[i] * 100)}
+onChange={e => handleSliderChange(i, parseInt(e.target.value) / 100)}
+className="w-full h-2 rounded-full appearance-none cursor-pointer"
+style={{
+background: `linear-gradient(to right, ${tier.color} 0%, ${tier.color} ${Math.round(percentages[i] * 100)}%, rgba(255,255,255,0.15) ${Math.round(percentages[i] * 100)}%, rgba(255,255,255,0.15) 100%)`,
+accentColor: tier.color,
+}}
+/>
+</div>
+<div className="text-right flex-shrink-0 w-20">
+<span className="text-white font-semibold text-sm">{Math.round(percentages[i] * 100)}%</span>
+<span className="text-gray-400 text-xs ml-1">({songCounts[i]})</span>
+</div>
+</div>
+))}
+</div>
+
+<p className="text-gray-500 text-xs mb-5 text-center">
+Your existing tier lists will be preserved. Opens in a new tab in songs mode.
+</p>
+
+<div className="flex gap-3">
+<button
+onClick={onClose}
+className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20"
+>
+Cancel
+</button>
+<button
+onClick={handleExport}
+className="flex-1 px-6 py-3 text-white rounded-xl font-semibold"
+style={{ background: 'linear-gradient(135deg, #ff7f7f, #7fbfff)' }}
+>
+Open Tier List
+</button>
+</div>
+</div>
+</div>
+);
+}
+
 // Main Ranker Component
 function RankerMode() {
 const [state, setState] = useState({
@@ -2303,34 +2443,32 @@ setSearch({ artistName: '', albumName: '', albumArtist: '', albumYear: '', sugge
 setAutoSaves(loadAutoSaves());
 };
 
-const exportToTierlist = () => {
+const exportToTierlist = (tierPercentages) => {
 // Build ordered list of songs (excluding excluded)
 const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
 const total = filteredIndices.length;
 if (total === 0) return;
 
-// Tier boundary percentiles: S top ~14%, A next ~14%, B, C, D, E, F bottom
 const tierNames = ['S', 'A', 'B', 'C', 'D', 'E', 'F'];
 const tierColors = { S:'#ff7f7f', A:'#ffbf7f', B:'#ffdf7f', C:'#ffff7f', D:'#bfff7f', E:'#7fff7f', F:'#7fbfff' };
 
-// Assign each song a tier based on its rank percentage
+// Build cumulative boundaries from percentages
+const pcts = tierPercentages || [1/7, 1/7, 1/7, 1/7, 1/7, 1/7, 1/7];
+const boundaries = [];
+let cum = 0;
+for (let i = 0; i < 6; i++) { cum += pcts[i]; boundaries.push(cum); }
+
 const tierBuckets = { S:[], A:[], B:[], C:[], D:[], E:[], F:[], unranked:[] };
 
 filteredIndices.forEach((songIdx, rank) => {
-const pct = rank / total; // 0 = best, 1 = worst
-let tier;
-if (pct < 1/7)      tier = 'S';
-else if (pct < 2/7) tier = 'A';
-else if (pct < 3/7) tier = 'B';
-else if (pct < 4/7) tier = 'C';
-else if (pct < 5/7) tier = 'D';
-else if (pct < 6/7) tier = 'E';
-else                tier = 'F';
+const pct = rank / total;
+let tier = 'F';
+for (let i = 0; i < boundaries.length; i++) {
+if (pct < boundaries[i]) { tier = tierNames[i]; break; }
+}
 
 const songData = state.songData[songIdx] || {};
 const songName = state.songs[songIdx];
-
-// Build item in tierlist format
 const item = {
 id: `ranker-import-${songIdx}-${Date.now()}-${Math.random()}`,
 title: songName,
@@ -2340,7 +2478,6 @@ albumTitle: songData.albumName || '',
 trackNumber: songData.trackNumber || null,
 collectionId: songData.collectionId || null
 };
-
 tierBuckets[tier].push(item);
 });
 
@@ -3175,41 +3312,11 @@ Import
 )}
 
 {showTierlistExport && (
-<div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-<div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-md w-full border border-white/20 shadow-2xl">
-<h3 className="text-2xl font-bold text-white mb-3">Send to Tier List</h3>
-<p className="text-gray-300 mb-3">
-This will create a new tier list from your ranked results, placing songs into tiers based on their rank percentile.
-</p>
-<div className="rounded-xl p-4 mb-6" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-<p className="text-sm text-gray-400 mb-2 font-semibold">Tier assignment:</p>
-<div className="grid grid-cols-7 gap-1 text-center text-xs">
-{[['S','#ff7f7f'],['A','#ffbf7f'],['B','#ffdf7f'],['C','#ffff7f'],['D','#bfff7f'],['E','#7fff7f'],['F','#7fbfff']].map(([t,c]) => (
-<div key={t} className="rounded-lg py-1 font-bold text-black" style={{ background: c }}>{t}</div>
-))}
-</div>
-<p className="text-xs text-gray-400 mt-2 text-center">Top → Bottom, split evenly across 7 tiers</p>
-</div>
-<p className="text-gray-400 text-sm mb-6">
-Your existing tier lists will be preserved. The new list will open in a new tab in songs mode.
-</p>
-<div className="flex gap-3">
-<button
-onClick={() => setShowTierlistExport(false)}
-className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20"
->
-Cancel
-</button>
-<button
-onClick={exportToTierlist}
-className="flex-1 px-6 py-3 text-white rounded-xl font-semibold"
-style={{ background: 'linear-gradient(135deg, #ff7f7f, #7fbfff)' }}
->
-Open Tier List
-</button>
-</div>
-</div>
-</div>
+<TierlistExportModal
+onClose={() => setShowTierlistExport(false)}
+onExport={exportToTierlist}
+totalSongs={sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx)).length}
+/>
 )}
 
 {notification && (
