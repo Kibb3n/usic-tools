@@ -2290,7 +2290,6 @@ filteredIndices.forEach((songIdx, rank) => {
 txt += `${String(rank + 1).padStart(3, ' ')}. ${state.songs[songIdx]}\n`;
 });
 txt += `\n${'─'.repeat(40)}\n`;
-txt += `μsic tools · ranker\n`;
 const blob = new Blob([txt], { type: 'text/plain' });
 const url = URL.createObjectURL(blob);
 const link = document.createElement('a');
@@ -2303,6 +2302,7 @@ URL.revokeObjectURL(url);
 const exportToPNG = async () => {
 const artistName = getRankingTitle();
 const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+const total = filteredIndices.length;
 
 // Derive gradient colors from top-ranked songs' artwork
 const parseColor = (colorStr) => {
@@ -2321,33 +2321,56 @@ const col2 = parseColor(col2Raw) || [121, 40, 202];
 const toHex = ([r,g,b]) => `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 const darken = ([r,g,b], f) => [Math.round(r*f), Math.round(g*f), Math.round(b*f)];
 
-// Build an off-screen canvas directly
+// --- Layout: choose number of columns based on song count ---
+// Target ~40 rows per column max; always at least 1 col
+const TARGET_ROWS = 40;
+const numCols = total <= TARGET_ROWS ? 1
+: total <= TARGET_ROWS * 2 ? 2
+: total <= TARGET_ROWS * 3 ? 3
+: 4;
+
+const rowsPerCol = Math.ceil(total / numCols);
+
+// Base unit scales everything: single col = 600px wide
+const colWidth = 560; // content width per column
+const colGap = 24;
+const outerPad = 28;
+const width = outerPad * 2 + numCols * colWidth + (numCols - 1) * colGap;
+
+// Row and font sizes scale slightly with column count so text stays readable
+const rowH = numCols === 1 ? 40 : numCols === 2 ? 38 : 34;
+const fontSize = numCols === 1 ? 15 : numCols === 2 ? 13 : 12;
+const rankFontSize = numCols === 1 ? 15 : numCols === 2 ? 13 : 11;
+
+// Header scales with canvas width
+const headerH = Math.round(width * 0.13);
+const titleFontSize = Math.round(width * 0.033);
+const subFontSize = Math.round(width * 0.018);
+const tinyFontSize = Math.round(width * 0.014);
+
+const bodyH = rowsPerCol * rowH + outerPad * 2;
+const totalH = headerH + bodyH;
+
 const canvas = document.createElement('canvas');
-const padding = 40;
-const rowH = 44;
-const headerH = 100;
-const width = 600;
-const totalH = headerH + filteredIndices.length * rowH + padding * 2;
 canvas.width = width;
 canvas.height = totalH;
 const ctx = canvas.getContext('2d');
 
-// Background gradient using darkened art colors
+// Background gradient
 const grad = ctx.createLinearGradient(0, 0, width, totalH);
 grad.addColorStop(0, toHex(darken(col1, 0.15)));
 grad.addColorStop(1, toHex(darken(col2, 0.12)));
 ctx.fillStyle = grad;
 ctx.fillRect(0, 0, width, totalH);
 
-// Header bar gradient from art colors
+// Header bar gradient
 const headerGrad = ctx.createLinearGradient(0, 0, width, 0);
 headerGrad.addColorStop(0, toHex(col1));
 headerGrad.addColorStop(1, toHex(col2));
 ctx.fillStyle = headerGrad;
 ctx.fillRect(0, 0, width, headerH);
 
-// Determine if header background is light — use dark text if so
-// Perceived luminance: average of the two gradient endpoints
+// Header text colours based on luminance
 const luminance = ([r,g,b]) => (0.299*r + 0.587*g + 0.114*b) / 255;
 const avgLuminance = (luminance(col1) + luminance(col2)) / 2;
 const headerIsLight = avgLuminance > 0.55;
@@ -2355,45 +2378,59 @@ const headerTextColor = headerIsLight ? 'rgba(0,0,0,0.85)' : '#ffffff';
 const headerSubColor = headerIsLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
 const headerTinyColor = headerIsLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.55)';
 
-// Header text
-ctx.fillStyle = headerTextColor;
-ctx.font = 'bold 26px system-ui, sans-serif';
-ctx.textAlign = 'center';
-ctx.fillText(`${artistName} Rankings`, width / 2, 38);
-ctx.font = '14px system-ui, sans-serif';
-ctx.fillStyle = headerSubColor;
-ctx.fillText(`${filteredIndices.length} songs • ${new Date().toLocaleDateString()}`, width / 2, 62);
-ctx.font = '11px system-ui, sans-serif';
-ctx.fillStyle = headerTinyColor;
-ctx.fillText('μsic tools · ranker', width / 2, 84);
+// Draw header text — vertically centred in header band
+const h1Y = headerH * 0.38;
+const h2Y = headerH * 0.62;
+const h3Y = headerH * 0.82;
 
-// Song rows
+ctx.textAlign = 'center';
+ctx.fillStyle = headerTextColor;
+ctx.font = `bold ${titleFontSize}px system-ui, sans-serif`;
+ctx.fillText(`${artistName} Rankings`, width / 2, h1Y);
+
+ctx.fillStyle = headerSubColor;
+ctx.font = `${subFontSize}px system-ui, sans-serif`;
+ctx.fillText(`${total} songs • ${new Date().toLocaleDateString()}`, width / 2, h2Y);
+
+ctx.fillStyle = headerTinyColor;
+ctx.font = `${tinyFontSize}px system-ui, sans-serif`;
+ctx.fillText('μsic tools · ranker', width / 2, h3Y);
+
+// Draw song rows — multi-column
+const rankNumW = rankFontSize * 2.8; // width reserved for rank number
+
 filteredIndices.forEach((songIdx, rank) => {
-const y = headerH + padding + rank * rowH;
+const col = Math.floor(rank / rowsPerCol);
+const row = rank % rowsPerCol;
+
+const colX = outerPad + col * (colWidth + colGap);
+const y = headerH + outerPad + row * rowH;
+
+// Row background
 const isEven = rank % 2 === 0;
 ctx.fillStyle = isEven ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)';
 ctx.beginPath();
-ctx.roundRect(padding / 2, y, width - padding, rowH - 4, 8);
+ctx.roundRect(colX, y, colWidth, rowH - 3, 6);
 ctx.fill();
 
-// Rank number — accent color for top 3
-ctx.fillStyle = rank < 3 ? toHex(col1) : 'rgba(255,255,255,0.4)';
-ctx.font = `bold 16px system-ui, sans-serif`;
+// Rank number
+ctx.fillStyle = rank < 3 ? toHex(col1) : 'rgba(255,255,255,0.38)';
+ctx.font = `bold ${rankFontSize}px system-ui, sans-serif`;
 ctx.textAlign = 'right';
-ctx.fillText(`#${rank + 1}`, padding + 36, y + rowH / 2 + 6);
+ctx.fillText(`#${rank + 1}`, colX + rankNumW, y + rowH / 2 + rankFontSize * 0.38);
 
-// Song name
+// Song name — truncate to fit remaining column width
 ctx.fillStyle = '#ffffff';
-ctx.font = `${rank < 3 ? 'bold' : 'normal'} 15px system-ui, sans-serif`;
+ctx.font = `${rank < 3 ? 'bold' : 'normal'} ${fontSize}px system-ui, sans-serif`;
 ctx.textAlign = 'left';
 const songName = state.songs[songIdx];
-const maxWidth = width - padding - 80;
+const maxTextW = colWidth - rankNumW - 12;
 let displayName = songName;
-while (ctx.measureText(displayName).width > maxWidth && displayName.length > 0) {
+while (ctx.measureText(displayName).width > maxTextW && displayName.length > 0) {
 displayName = displayName.slice(0, -1);
 }
 if (displayName !== songName) displayName += '…';
-ctx.fillText(displayName, padding + 48, y + rowH / 2 + 6);
+ctx.fillText(displayName, colX + rankNumW + 8, y + rowH / 2 + fontSize * 0.38);
 });
 
 canvas.toBlob((blob) => {
