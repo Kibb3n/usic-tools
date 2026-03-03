@@ -1223,36 +1223,42 @@
             };
 
             const deleteChart = (id) => {
+                // Determine navigation target BEFORE calling setCharts.
+                // Setting outer `let` variables from inside the updater function is unreliable —
+                // React may invoke the updater more than once (strict mode / batching), and the
+                // navigation code below runs synchronously before the updater has committed, so
+                // chartToLoad could still be null, causing a spurious createNewChart() call even
+                // when other charts remain.
+                const remainingCharts = { ...charts };
+                delete remainingCharts[id];
+                const remainingIds = Object.keys(remainingCharts);
+
                 let nextId = currentChartId;
                 let chartToLoad = null;
 
-                setCharts(prev => {
-                    const newCharts = { ...prev };
-                    delete newCharts[id];
-
-                    if (id === currentChartId) {
-                        const remainingIds = Object.keys(newCharts);
-                        if (remainingIds.length > 0) {
-                            nextId = remainingIds[0];
-                            chartToLoad = newCharts[nextId];
-                        } else {
-                            nextId = null;
-                        }
+                if (id === currentChartId) {
+                    if (remainingIds.length > 0) {
+                        nextId = remainingIds[0];
+                        chartToLoad = remainingCharts[nextId];
+                    } else {
+                        nextId = null;
                     }
+                }
 
+                setCharts(() => {
                     try {
                         localStorage.setItem('topstersData', JSON.stringify({
                             currentChartId: nextId,
-                            charts: newCharts
+                            charts: remainingCharts
                         }));
                     } catch (e) { console.warn('quota on deleteChart save', e); }
-
-                    return newCharts;
+                    return remainingCharts;
                 });
 
                 // Perform navigation outside the updater
                 if (id === currentChartId) {
                     if (chartToLoad) {
+                        currentStateRef.current = {};
                         setCurrentChartId(nextId);
                         loadChart(chartToLoad);
                     } else {
