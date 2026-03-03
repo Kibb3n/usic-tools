@@ -947,6 +947,8 @@
             const loadChartData = useCallback((chart) => {
                 if (!chart) return;
                 isLoadingChartRef.current = true;
+                // Clear snapshot so auto-save cannot write stale data under the new chart ID.
+                currentStateRef.current = {};
                 const rt = { ...(chart.tiers || { S: [], A: [], B: [], C: [], D: [], E: [], F: [], unranked: [] }) };
                 if (chart.tierNames) chart.tierNames.forEach(n => { if (!rt[n]) rt[n] = []; });
                 if (!rt.unranked) rt.unranked = [];
@@ -1001,6 +1003,8 @@
                     return updated;
                 });
                 setCurrentChartId(id);
+                // Clear snapshot BEFORE loadChartData so auto-save cannot fire with stale data.
+                currentStateRef.current = {};
                 // Read the target chart from the latest localStorage snapshot so we always
                 // get the most up-to-date version (including data saved by the updater above).
                 try {
@@ -1015,28 +1019,41 @@
             }, [currentChartId, loadChartData]);
 
             const deleteChart = useCallback((id) => {
-                let nextId = null;
+                // Compute navigation target BEFORE calling setCharts.
+                // Mutating outer lets from inside a React updater is unreliable: the updater
+                // may run more than once, and the navigation code below runs synchronously
+                // before the updater commits — so chartToLoad would still be null, causing a
+                // spurious createNewChart() call even when other lists exist.
+                const remainingCharts = { ...charts };
+                delete remainingCharts[id];
+                const remainingIds = Object.keys(remainingCharts);
+
+                let nextId = currentChartId;
                 let chartToLoad = null;
-                setCharts(prev => {
-                    const newCharts = { ...prev };
-                    delete newCharts[id];
-                    if (id === currentChartId) {
-                        const remaining = Object.keys(newCharts);
-                        nextId = remaining.length > 0 ? remaining[0] : null;
-                        if (nextId) chartToLoad = newCharts[nextId];
+                if (id === currentChartId) {
+                    if (remainingIds.length > 0) {
+                        nextId = remainingIds[0];
+                        chartToLoad = remainingCharts[nextId];
+                    } else {
+                        nextId = null;
                     }
-                    try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId: nextId, charts: newCharts })); } catch (e) { }
-                    return newCharts;
+                }
+
+                setCharts(() => {
+                    try { localStorage.setItem('tierListData', JSON.stringify({ currentChartId: nextId, charts: remainingCharts })); } catch (e) { }
+                    return remainingCharts;
                 });
+
                 if (id === currentChartId) {
                     if (chartToLoad) {
+                        currentStateRef.current = {};
                         setCurrentChartId(nextId);
                         loadChartData(chartToLoad);
                     } else {
                         setTimeout(createNewChart, 0);
                     }
                 }
-            }, [currentChartId, loadChartData, createNewChart]);
+            }, [currentChartId, charts, loadChartData, createNewChart]);
 
             const updateChartName = useCallback((id, newName) => {
                 setCharts(prev => {
