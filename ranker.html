@@ -1662,7 +1662,7 @@ if (nextJ < state.songs.length - 1 - nextI) {
 const idx1 = indices[nextJ];
 const idx2 = indices[nextJ + 1];
 
-if (state.excludedSongs.has(idx1) || state.excludedSongs.has(idx2)) {
+if (state.excludedSongs.has(idx1) || state.excludedSongs.has(idx2) || idx1 === idx2) {
 nextJ++;
 continue;
 }
@@ -1790,7 +1790,7 @@ comparisons: newComparisons,
 history: [...s.history, historyEntry]
 }));
 
-if (newComparisons - sorting.lastEstimateUpdate >= 15) {
+if (newComparisons - sorting.lastEstimateUpdate >= 5) {
 setTimeout(updateEstimate, 0);
 }
 
@@ -1848,7 +1848,7 @@ if (scanJ < n - 1 - scanI) {
 const si1 = indices[scanJ];
 const si2 = indices[scanJ + 1];
 
-if (state.excludedSongs.has(si1) || state.excludedSongs.has(si2)) {
+if (state.excludedSongs.has(si1) || state.excludedSongs.has(si2) || si1 === si2) {
 scanJ++;
 continue;
 }
@@ -2986,7 +2986,7 @@ Continue with {state.selectedAlbums.size} album{state.selectedAlbums.size !== 1 
 Ranking {getRankingTitle()}
 </span>
 <span className="text-gray-300">
-{sorting.comparisons} / {sorting.estimatedRemaining} comparisons
+{sorting.comparisons} / {Math.max(sorting.comparisons + 1, sorting.estimatedRemaining)} comparisons
 </span>
 </div>
 <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
