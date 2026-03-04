@@ -1784,9 +1784,15 @@ if (preferred === 'song2') {
 
 const newComparisons = sorting.comparisons + 1;
 
+// Remove the just-answered pair from skippedPairs so it isn't shown again
+const newSkippedPairs = new Set(sorting.skippedPairs);
+newSkippedPairs.delete(`${idx1}-${idx2}`);
+newSkippedPairs.delete(`${idx2}-${idx1}`);
+
 setSorting(s => ({
 ...s,
 comparisons: newComparisons,
+skippedPairs: newSkippedPairs,
 history: [...s.history, historyEntry]
 }));
 
@@ -1794,7 +1800,7 @@ if (newComparisons - sorting.lastEstimateUpdate >= 5) {
 setTimeout(updateEstimate, 0);
 }
 
-moveToNextComparison(newIndices, sorting.i, sorting.j, newPreferences, newWinCounts, newLossCounts, sorting.skippedPairs);
+moveToNextComparison(newIndices, sorting.i, sorting.j, newPreferences, newWinCounts, newLossCounts, newSkippedPairs);
 }, [sorting, playingAudio.audio, moveToNextComparison, updateEstimate]);
 
 const handleUndo = () => {
