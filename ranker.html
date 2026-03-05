@@ -763,7 +763,8 @@ songData: [],
 albums: [],
 selectedAlbums: new Set(),
 usedAlbums: [],
-excludedSongs: new Set()
+excludedSongs: new Set(),
+pickedAlbum: null
 });
 
 const [search, setSearch] = useState({
@@ -827,10 +828,84 @@ const [showUrlImport, setShowUrlImport] = useState(false);
 const [urlInput, setUrlInput] = useState('');
 const [autoSaveStatus, setAutoSaveStatus] = useState('idle');
 const [autoSaveCollapsed, setAutoSaveCollapsed] = useState(false);
+const [rankingTabs, setRankingTabs] = useState([]);
+const [activeTabId, setActiveTabId] = useState(null);
 const fileInputRef = useRef(null);
 const autoSaveTimerRef = useRef(null);
 const autoSaveStatusTimerRef = useRef(null);
 const sessionIdRef = useRef(null);
+
+// Tab helpers
+const createNewTab = (type) => ({
+id: Date.now() + Math.random(),
+type,
+label: type === 'artist' ? 'New Artist' : 'New Album',
+artist: null,
+albums: [],
+selectedAlbums: new Set(),
+songs: [],
+songData: [],
+usedAlbums: [],
+ready: false
+});
+
+const addNewTab = (type) => {
+setRankingTabs(prev => {
+let base = prev;
+if (type === 'album' && prev.length === 0 && state.pickedAlbum) {
+const { item, uniqueTracks } = state.pickedAlbum;
+const existingTab = {
+...createNewTab('album'),
+label: item.collectionName,
+artist: item,
+songData: uniqueTracks,
+songs: uniqueTracks.map(t => t.name),
+usedAlbums: [{ name: item.collectionName, artist: item.artistName }],
+ready: true,
+};
+base = [existingTab];
+}
+const newTab = createNewTab(type);
+const updated = [...base, newTab];
+setActiveTabId(newTab.id);
+return updated;
+});
+if (type === 'album') setState(s => ({ ...s, pickedAlbum: null }));
+setSearch(s => ({ ...s, artistName: '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, error: '' }));
+};
+
+const removeTab = (tabId) => {
+setRankingTabs(prev => {
+const remaining = prev.filter(t => t.id !== tabId);
+if (activeTabId === tabId && remaining.length > 0) {
+const newActive = remaining[remaining.length - 1];
+setActiveTabId(newActive.id);
+if (newActive.artist) {
+setState(s => ({ ...s, selectedArtist: newActive.artist, albums: newActive.albums, selectedAlbums: newActive.selectedAlbums || new Set() }));
+}
+} else if (remaining.length === 0) {
+setActiveTabId(null);
+setState(s => ({ ...s, stage: 'selectMode', pickedAlbum: null }));
+setSearch(sv => ({ ...sv, suggestions: [], error: '', albumName: '', albumArtist: '', albumYear: '', artistName: '' }));
+}
+return remaining;
+});
+};
+
+const switchToTab = (tabId) => {
+setActiveTabId(tabId);
+setRankingTabs(prev => {
+const tab = prev.find(t => t.id === tabId);
+if (tab) {
+if (tab.type === 'artist') {
+setSearch(s => ({ ...s, artistName: tab.searchInput || '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, error: '' }));
+} else {
+setSearch(s => ({ ...s, albumName: tab.searchInput || '', albumArtist: tab.searchArtist || '', albumYear: tab.searchYear || '', artistName: '', suggestions: [], page: 0, error: '' }));
+}
+}
+return prev;
+});
+};
 
 // Returns the display title for the current ranking.
 // If exactly one album is being ranked, returns "Album Name - Artist Name".
@@ -1375,23 +1450,23 @@ setSearch(s => ({ ...s, error: 'Failed to fetch data. Please try again.', loadin
 
 const selectArtistForAlbums = async (artist) => {
 setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
-
 try {
 const albumsData = await jsonpRequest(
 `https://itunes.apple.com/lookup?id=${artist.artistId}&entity=album&limit=200`
 );
-
 if (!albumsData.results || albumsData.results.length <= 1) {
 setSearch(s => ({ ...s, error: 'No albums found.', loadingSongs: false }));
 return;
 }
-
-const artistAlbums = albumsData.results
-.slice(1)
-.filter(item => item.wrapperType === 'collection');
-
-setState(s => ({ ...s, selectedArtist: artist, albums: artistAlbums, stage: 'selectAlbums' }));
-setSearch(s => ({ ...s, loadingSongs: false }));
+const artistAlbums = albumsData.results.slice(1).filter(item => item.wrapperType === 'collection');
+// Save artist + empty selection into the current active tab
+setRankingTabs(prev => prev.map(t => t.id === activeTabId
+? { ...t, label: artist.artistName, artist, albums: artistAlbums, selectedAlbums: new Set(), ready: false }
+: t
+));
+// Update main state to show album picker
+setState(s => ({ ...s, selectedArtist: artist, albums: artistAlbums, selectedAlbums: new Set(), stage: 'selectAlbums' }));
+setSearch(s => ({ ...s, loadingSongs: false, suggestions: [] }));
 } catch (err) {
 setSearch(s => ({ ...s, error: 'Failed to fetch albums.', loadingSongs: false }));
 }
@@ -1399,56 +1474,112 @@ setSearch(s => ({ ...s, error: 'Failed to fetch albums.', loadingSongs: false })
 
 const selectSingleAlbum = async (item) => {
 setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
-
 try {
 const songsData = await jsonpRequest(
 `https://itunes.apple.com/lookup?id=${item.collectionId}&entity=song&limit=200`
 );
-
 if (!songsData.results || songsData.results.length <= 1) {
 setSearch(s => ({ ...s, error: 'No songs found.', loadingSongs: false }));
 return;
 }
-
-const tracks = songsData.results
-.slice(1)
-.filter(item => item.wrapperType === 'track' && item.kind === 'song');
-
+const tracks = songsData.results.slice(1).filter(item => item.wrapperType === 'track' && item.kind === 'song');
 const uniqueTracks = await processTracksToUniqueSongs(tracks);
-const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
 
+if (state.mode === 'album' && rankingTabs.length > 0 && activeTabId) {
+// Already in multi-tab mode: save to current tab, clear search for next
+setRankingTabs(tabs => tabs.map(t => t.id === activeTabId ? {
+...t, label: item.collectionName, artist: item, songData: uniqueTracks,
+songs: uniqueTracks.map(tr => tr.name), usedAlbums: [{ name: item.collectionName, artist: item.artistName }],
+ready: true
+} : t));
+setSearch(s => ({ ...s, loadingSongs: false, suggestions: [], albumName: '', albumArtist: '', albumYear: '', error: '' }));
+} else {
+// First album picked — store it in state and stay on search screen so user can add more or start
 setState(s => ({
 ...s,
 selectedArtist: item,
 songData: uniqueTracks,
 songs: uniqueTracks.map(t => t.name),
 usedAlbums: [{ name: item.collectionName, artist: item.artistName }],
-stage: 'sorting'
+pickedAlbum: { item, uniqueTracks }
 }));
-
-const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
-setSorting({
-sortedIndices: shuffledIndices,
-i: 0,
-j: 0,
-comparisons: 0,
-autoSkipped: 0,
-preferences: {},
-history: [],
-skippedPairs: new Set(),
-winCounts: {},
-lossCounts: {},
-lastEstimateUpdate: 0,
-estimatedRemaining: totalComparisons,
-notificationShownFor: new Set(),
-pinnedTop: new Set(),
-pinnedBottom: new Set()
-});
-
-setSearch(s => ({ ...s, loadingSongs: false }));
+setSearch(s => ({ ...s, loadingSongs: false, suggestions: [], albumName: '', albumArtist: '', albumYear: '', error: '' }));
+}
 } catch (err) {
 setSearch(s => ({ ...s, error: 'Failed to fetch songs.', loadingSongs: false }));
 }
+};
+
+const startSingleAlbumRanking = () => {
+const { uniqueTracks } = state.pickedAlbum;
+const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+setState(s => ({ ...s, stage: 'sorting', pickedAlbum: null }));
+const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+setSorting({ sortedIndices: shuffledIndices, i: 0, j: 0, comparisons: 0, autoSkipped: 0, preferences: {}, history: [], skippedPairs: new Set(), winCounts: {}, lossCounts: {}, lastEstimateUpdate: 0, estimatedRemaining: totalComparisons, notificationShownFor: new Set(), pinnedTop: new Set(), pinnedBottom: new Set() });
+};
+
+const startRankingFromAlbumTabs = async () => {
+const readyTabs = rankingTabs.filter(t => t.ready);
+if (readyTabs.length === 0) { setSearch(s => ({ ...s, error: 'Please select at least one album first.' })); return; }
+setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
+try {
+const seenSongs = new Map();
+const allUsedAlbums = [];
+readyTabs.forEach(tab => {
+tab.songData.forEach(track => { const key = track.name.toLowerCase().trim(); if (!seenSongs.has(key)) seenSongs.set(key, track); });
+allUsedAlbums.push(...tab.usedAlbums);
+});
+const uniqueTracks = Array.from(seenSongs.values());
+const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+setState(s => ({ ...s, songData: uniqueTracks, songs: uniqueTracks.map(t => t.name), usedAlbums: allUsedAlbums, selectedArtist: readyTabs[0].artist, stage: 'sorting' }));
+const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+setSorting({ sortedIndices: shuffledIndices, i: 0, j: 0, comparisons: 0, autoSkipped: 0, preferences: {}, history: [], skippedPairs: new Set(), winCounts: {}, lossCounts: {}, lastEstimateUpdate: 0, estimatedRemaining: totalComparisons, notificationShownFor: new Set(), pinnedTop: new Set(), pinnedBottom: new Set() });
+setSearch(s => ({ ...s, loadingSongs: false }));
+} catch (err) { setSearch(s => ({ ...s, error: 'Failed to start ranking.', loadingSongs: false })); }
+};
+
+const startRankingFromArtistTabs = async (activeTabSelectionOverride) => {
+// If an override is passed (called directly from selectAlbums screen), use it for the active tab.
+// Otherwise each tab already has its saved selection stored.
+const tabsWithSaved = activeTabSelectionOverride !== undefined
+? rankingTabs.map(t => t.id === activeTabId ? { ...t, selectedAlbums: activeTabSelectionOverride } : t)
+: rankingTabs;
+const validTabs = tabsWithSaved.filter(t => t.artist && t.selectedAlbums && t.selectedAlbums.size > 0);
+if (validTabs.length === 0) { setSearch(s => ({ ...s, error: 'Please select at least one album.' })); return; }
+setSearch(s => ({ ...s, loadingSongs: true, error: '' }));
+try {
+const allTracks = [];
+const albumsList = [];
+for (const tab of validTabs) {
+for (const albumId of tab.selectedAlbums) {
+const album = tab.albums.find(a => a.collectionId === albumId);
+if (!album) continue;
+if (album.source === 'bandcamp') {
+const proxyUrl = 'https://api.allorigins.win/raw?url=';
+const response = await fetch(proxyUrl + encodeURIComponent(album.bandcampUrl));
+const html = await response.text();
+const tralbumMatch = html.match(/var TralbumData = ({[\s\S]*?});/);
+if (tralbumMatch) {
+const tralbumData = JSON.parse(tralbumMatch[1]);
+albumsList.push({ name: album.collectionName, artist: album.artistName });
+(tralbumData.trackinfo || []).forEach(track => { allTracks.push({ trackName: track.title, artworkUrl100: album.artworkUrl100, collectionName: album.collectionName, previewUrl: track.file?.['mp3-128'] || null }); });
+}
+} else {
+const songsData = await jsonpRequest(`https://itunes.apple.com/lookup?id=${albumId}&entity=song&limit=200`);
+if (songsData.results && songsData.results.length > 1) {
+albumsList.push({ name: album.collectionName, artist: album.artistName });
+allTracks.push(...songsData.results.slice(1).filter(item => item.wrapperType === 'track' && item.kind === 'song'));
+}
+}
+}
+}
+const uniqueTracks = await processTracksToUniqueSongs(allTracks);
+const shuffledIndices = shuffleArray(uniqueTracks.map((_, idx) => idx));
+setState(s => ({ ...s, songData: uniqueTracks, songs: uniqueTracks.map(t => t.name), usedAlbums: albumsList, selectedArtist: validTabs[0].artist, stage: 'sorting' }));
+const totalComparisons = (uniqueTracks.length * (uniqueTracks.length - 1)) / 2;
+setSorting({ sortedIndices: shuffledIndices, i: 0, j: 0, comparisons: 0, autoSkipped: 0, preferences: {}, history: [], skippedPairs: new Set(), winCounts: {}, lossCounts: {}, lastEstimateUpdate: 0, estimatedRemaining: totalComparisons, notificationShownFor: new Set(), pinnedTop: new Set(), pinnedBottom: new Set() });
+setSearch(s => ({ ...s, loadingSongs: false }));
+} catch (err) { setSearch(s => ({ ...s, error: 'Failed to fetch songs.', loadingSongs: false })); }
 };
 
 const proceedWithSelectedAlbums = async () => {
@@ -2281,16 +2412,38 @@ doc.save(`${values.fileName}.pdf`);
 setModalOpen(true);
 };
 
+const getAlbumCredits = () => {
+if (!state.usedAlbums || state.usedAlbums.length === 0) return null;
+// Group albums by artist
+const byArtist = {};
+state.usedAlbums.forEach(a => {
+const key = a.artist || 'Unknown';
+if (!byArtist[key]) byArtist[key] = [];
+byArtist[key].push(a.name);
+});
+const artists = Object.keys(byArtist);
+if (artists.length === 1) {
+const artist = artists[0];
+const albums = byArtist[artist];
+if (albums.length === 1) return `${artist} · ${albums[0]}`;
+return `${artist} · ${albums.join(', ')}`;
+}
+// Multiple artists: "Artist A (Album1, Album2) · Artist B (Album3)"
+return artists.map(a => {
+const albums = byArtist[a];
+return albums.length === 1 ? `${a} · ${albums[0]}` : `${a} (${albums.join(', ')})`;
+}).join(' — ');
+};
+
 const exportToTXT = () => {
 const artistName = getRankingTitle();
+const credits = getAlbumCredits();
 const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
 let txt = `μsic tools · ranker\n`;
 txt += `${'─'.repeat(40)}\n`;
 txt += `${artistName} — Song Rankings\n`;
+if (credits) txt += `${credits}\n`;
 txt += `Generated: ${new Date().toLocaleString()}\n`;
-if (state.usedAlbums && state.usedAlbums.length > 0) {
-txt += `Albums: ${state.usedAlbums.map(a => a.name).join(', ')}\n`;
-}
 txt += `${'─'.repeat(40)}\n\n`;
 filteredIndices.forEach((songIdx, rank) => {
 txt += `${String(rank + 1).padStart(3, ' ')}. ${state.songs[songIdx]}\n`;
@@ -2303,6 +2456,26 @@ link.href = url;
 link.download = `${artistName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-ranking.txt`;
 link.click();
 URL.revokeObjectURL(url);
+};
+
+const [copyStatus, setCopyStatus] = React.useState('idle');
+const copyToClipboard = () => {
+const artistName = getRankingTitle();
+const credits = getAlbumCredits();
+const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
+let txt = `${artistName} — Song Rankings\n`;
+if (credits) txt += `${credits}\n`;
+txt += `${'─'.repeat(40)}\n\n`;
+filteredIndices.forEach((songIdx, rank) => {
+txt += `${String(rank + 1).padStart(3, ' ')}. ${state.songs[songIdx]}\n`;
+});
+navigator.clipboard.writeText(txt).then(() => {
+setCopyStatus('copied');
+setTimeout(() => setCopyStatus('idle'), 2000);
+}).catch(() => {
+setCopyStatus('error');
+setTimeout(() => setCopyStatus('idle'), 2000);
+});
 };
 
 const exportToPNG = async () => {
@@ -2384,23 +2557,28 @@ const headerTextColor = headerIsLight ? 'rgba(0,0,0,0.85)' : '#ffffff';
 const headerSubColor = headerIsLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
 const headerTinyColor = headerIsLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.55)';
 
-// Draw header text — vertically centred in header band
-const h1Y = headerH * 0.38;
-const h2Y = headerH * 0.62;
-const h3Y = headerH * 0.82;
+// Build header lines
+const credits = getAlbumCredits();
+const headerLines = [
+{ text: `${artistName} Rankings`, font: `bold ${titleFontSize}px system-ui, sans-serif`, color: headerTextColor },
+credits ? { text: credits, font: `${subFontSize}px system-ui, sans-serif`, color: headerSubColor } : null,
+{ text: `${total} songs · ${new Date().toLocaleDateString()}`, font: `${subFontSize}px system-ui, sans-serif`, color: headerSubColor },
+{ text: 'μsic tools · ranker', font: `${tinyFontSize}px system-ui, sans-serif`, color: headerTinyColor },
+].filter(Boolean);
 
+// Distribute lines vertically across the header
 ctx.textAlign = 'center';
-ctx.fillStyle = headerTextColor;
-ctx.font = `bold ${titleFontSize}px system-ui, sans-serif`;
-ctx.fillText(`${artistName} Rankings`, width / 2, h1Y);
-
-ctx.fillStyle = headerSubColor;
-ctx.font = `${subFontSize}px system-ui, sans-serif`;
-ctx.fillText(`${total} songs • ${new Date().toLocaleDateString()}`, width / 2, h2Y);
-
-ctx.fillStyle = headerTinyColor;
-ctx.font = `${tinyFontSize}px system-ui, sans-serif`;
-ctx.fillText('μsic tools · ranker', width / 2, h3Y);
+const lineSpacing = headerH / (headerLines.length + 1);
+headerLines.forEach((line, i) => {
+ctx.fillStyle = line.color;
+ctx.font = line.font;
+// Truncate if wider than canvas
+let text = line.text;
+const maxW = width - outerPad * 2;
+while (ctx.measureText(text).width > maxW && text.length > 10) text = text.slice(0, -1);
+if (text !== line.text) text += '…';
+ctx.fillText(text, width / 2, lineSpacing * (i + 1));
+});
 
 // Draw song rows — multi-column
 const rankNumW = rankFontSize * 2.8; // width reserved for rank number
@@ -2473,10 +2651,14 @@ saveAutoSave(finalSave);
 // Clear session ID so next ranking gets a fresh one
 sessionIdRef.current = null;
 
+// Reset tabs
+setRankingTabs([]);
+setActiveTabId(null);
+
 // Reset to home
 setState({
 stage: 'selectMode', mode: null, songs: [], songData: {}, albums: [], selectedAlbums: new Set(),
-selectedArtist: null, usedAlbums: [], excludedSongs: new Set()
+selectedArtist: null, usedAlbums: [], excludedSongs: new Set(), pickedAlbum: null
 });
 setSorting({
 sortedIndices: [], j: 0, comparisons: 0, autoSkipped: 0, estimatedRemaining: 0,
@@ -2628,7 +2810,12 @@ Save Progress
 <>
 <div className="grid md:grid-cols-2 gap-6 mb-8">
 <button
-onClick={() => setState(s => ({ ...s, mode: 'artist', stage: 'search' }))}
+onClick={() => {
+const firstTab = createNewTab('artist');
+setRankingTabs([firstTab]);
+setActiveTabId(firstTab.id);
+setState(s => ({ ...s, mode: 'artist', stage: 'search' }));
+}}
 className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
 >
 <div className="flex flex-col items-center gap-6">
@@ -2642,7 +2829,11 @@ Compare all songs from your favorite artist
 </button>
 
 <button
-onClick={() => setState(s => ({ ...s, mode: 'album', stage: 'search' }))}
+onClick={() => {
+setState(s => ({ ...s, mode: 'album', stage: 'search' }));
+setRankingTabs([]);
+setActiveTabId(null);
+}}
 className="group bg-white/5 hover:bg-white/10 backdrop-blur-2xl rounded-3xl p-12 shadow-2xl border border-white/10 transition-all transform hover:scale-105"
 >
 <div className="flex flex-col items-center gap-6">
@@ -2751,10 +2942,59 @@ className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
 )}
 
 {state.stage === 'search' && (
-<div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10 mt-8">
+<div className="mt-8">
+{/* Tab bar — only show once user has added more than one entry */}
+{rankingTabs.length > 1 && (
+<div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
+{rankingTabs.map((tab) => {
+const isActive = tab.id === activeTabId;
+const isReady = tab.ready || (tab.type === 'artist' && tab.artist && tab.selectedAlbums?.size > 0);
+return (
+<button
+key={tab.id}
+onClick={() => {
+// Save current state.selectedAlbums back to current tab before switching (artist mode)
+if (state.mode === 'artist') {
+setRankingTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, selectedAlbums: state.selectedAlbums } : t));
+}
+switchToTab(tab.id);
+// Restore that tab's data into state
+const dest = rankingTabs.find(t => t.id === tab.id);
+if (dest && dest.artist) {
+setState(s => ({ ...s, selectedArtist: dest.artist, albums: dest.albums, selectedAlbums: dest.selectedAlbums || new Set(), stage: dest.type === 'artist' ? 'selectAlbums' : 'search' }));
+} else {
+setState(s => ({ ...s, stage: 'search' }));
+}
+}}
+className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-xl text-sm font-medium border transition-all flex-shrink-0 ${isActive ? 'bg-white text-black border-white' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+style={{maxWidth:220}}
+>
+<span className="truncate">{tab.label}</span>
+<span
+onClick={(e) => { e.stopPropagation(); removeTab(tab.id); }}
+className={`ml-0.5 flex-shrink-0 rounded-md p-0.5 transition-colors ${isActive ? 'text-black/40 hover:text-black hover:bg-black/10' : 'text-white/30 hover:text-white hover:bg-white/10'}`}
+>
+<X className="w-3.5 h-3.5" />
+</span>
+</button>
+);
+})}
+<button
+onClick={() => addNewTab(state.mode)}
+className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/25 transition-all flex-shrink-0"
+>
+<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+{state.mode === 'artist' ? 'Add artist' : 'Add album'}
+</button>
+</div>
+)}
+
+<div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
 <div className="flex items-center gap-3 mb-6">
 <button onClick={() => {
-setState(s => ({ ...s, stage: 'selectMode' }));
+setRankingTabs([]);
+setActiveTabId(null);
+setState(s => ({ ...s, stage: 'selectMode', pickedAlbum: null }));
 setSearch({ artistName: '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, loading: false, loadingSongs: false, error: '' });
 }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
 <ArrowLeft className="w-6 h-6 text-white" />
@@ -2777,11 +3017,7 @@ placeholder="The Beatles, Taylor Swift..."
 className="flex-1 px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
 disabled={search.loading}
 />
-<button
-onClick={searchArtistOrAlbum}
-disabled={search.loading}
-className="px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center gap-3"
->
+<button onClick={searchArtistOrAlbum} disabled={search.loading} className="px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center gap-3">
 {search.loading ? <Loader2 className="w-6 h-6" /> : <Search className="w-6 h-6" />}
 {search.loading ? 'Searching...' : 'Search'}
 </button>
@@ -2789,44 +3025,25 @@ className="px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 
 </div>
 ) : (
 <div className="space-y-4">
+{(() => { const tab = rankingTabs.find(t => t.id === activeTabId); return tab && tab.ready ? (
+<div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{background:'rgba(134,239,172,0.08)',border:'1px solid rgba(134,239,172,0.25)'}}>
+<span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+<span className="text-green-300 text-sm font-medium">"{tab.label}" added — search another or start ranking below</span>
+</div>
+) : null; })()}
 <div>
 <label className="block text-white text-lg font-medium mb-3">Album name *</label>
-<input
-type="text"
-value={search.albumName}
-onChange={(e) => setSearch(s => ({ ...s, albumName: e.target.value }))}
-onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()}
-placeholder="Abbey Road..."
-className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-/>
+<input type="text" value={search.albumName} onChange={(e) => setSearch(s => ({ ...s, albumName: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="Abbey Road..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
 </div>
 <div>
 <label className="block text-white text-lg font-medium mb-3">Artist (optional but recommended)</label>
-<input
-type="text"
-value={search.albumArtist}
-onChange={(e) => setSearch(s => ({ ...s, albumArtist: e.target.value }))}
-onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()}
-placeholder="The Beatles..."
-className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-/>
+<input type="text" value={search.albumArtist} onChange={(e) => setSearch(s => ({ ...s, albumArtist: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="The Beatles..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
 </div>
 <div>
 <label className="block text-white text-lg font-medium mb-3">Year (optional)</label>
-<input
-type="text"
-value={search.albumYear}
-onChange={(e) => setSearch(s => ({ ...s, albumYear: e.target.value }))}
-onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()}
-placeholder="1969..."
-className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
-/>
+<input type="text" value={search.albumYear} onChange={(e) => setSearch(s => ({ ...s, albumYear: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="1969..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
 </div>
-<button
-onClick={searchArtistOrAlbum}
-disabled={search.loading}
-className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3"
->
+<button onClick={searchArtistOrAlbum} disabled={search.loading} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
 {search.loading ? <Loader2 className="w-6 h-6" /> : <Search className="w-6 h-6" />}
 {search.loading ? 'Searching...' : 'Search'}
 </button>
@@ -2851,25 +3068,13 @@ className="w-full bg-white/10 hover:bg-white/20 rounded-xl p-5 text-left transit
 >
 <div className="flex items-center justify-between gap-4">
 <div className="flex items-center gap-4 flex-1">
-{item.artworkUrl100 && (
-<img src={item.artworkUrl100} alt="" className="w-16 h-16 rounded-lg" />
-)}
+{item.artworkUrl100 && <img src={item.artworkUrl100} alt="" className="w-16 h-16 rounded-lg" />}
 <div className="flex-1">
-<p className="text-white font-semibold text-xl">
-{item.type === 'artist' ? item.artistName : item.collectionName}
-</p>
-{item.type === 'album' && (
-<>
-{item.artistName && (
-<p className="text-gray-300 text-base mt-1">{item.artistName}</p>
-)}
-{item.releaseDate && (
-<p className="text-gray-400 text-sm mt-0.5">
-{new Date(item.releaseDate).getFullYear()}
-</p>
-)}
-</>
-)}
+<p className="text-white font-semibold text-xl">{item.type === 'artist' ? item.artistName : item.collectionName}</p>
+{item.type === 'album' && (<>
+{item.artistName && <p className="text-gray-300 text-base mt-1">{item.artistName}</p>}
+{item.releaseDate && <p className="text-gray-400 text-sm mt-0.5">{new Date(item.releaseDate).getFullYear()}</p>}
+</>)}
 </div>
 </div>
 <ChevronRight className="w-7 h-7 text-gray-300" />
@@ -2877,26 +3082,11 @@ className="w-full bg-white/10 hover:bg-white/20 rounded-xl p-5 text-left transit
 </button>
 ))}
 </div>
-
 {search.suggestions.length > itemsPerPage && (
 <div className="flex justify-center gap-3 mt-6">
-<button
-onClick={() => setSearch(s => ({ ...s, page: Math.max(0, s.page - 1) }))}
-disabled={search.page === 0}
-className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg"
->
-Previous
-</button>
-<span className="px-4 py-2 text-white">
-Page {search.page + 1} of {Math.ceil(search.suggestions.length / itemsPerPage)}
-</span>
-<button
-onClick={() => setSearch(s => ({ ...s, page: Math.min(Math.ceil(s.suggestions.length / itemsPerPage) - 1, s.page + 1) }))}
-disabled={search.page >= Math.ceil(search.suggestions.length / itemsPerPage) - 1}
-className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg"
->
-Next
-</button>
+<button onClick={() => setSearch(s => ({ ...s, page: Math.max(0, s.page - 1) }))} disabled={search.page === 0} className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg">Previous</button>
+<span className="px-4 py-2 text-white">Page {search.page + 1} of {Math.ceil(search.suggestions.length / itemsPerPage)}</span>
+<button onClick={() => setSearch(s => ({ ...s, page: Math.min(Math.ceil(s.suggestions.length / itemsPerPage) - 1, s.page + 1) }))} disabled={search.page >= Math.ceil(search.suggestions.length / itemsPerPage) - 1} className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white rounded-lg">Next</button>
 </div>
 )}
 </div>
@@ -2908,34 +3098,121 @@ Next
 <p className="text-white text-xl">Loading...</p>
 </div>
 )}
+
+{/* Album mode — single album picked: show confirmation with Add Another + Start Ranking */}
+{state.mode === 'album' && state.pickedAlbum && rankingTabs.length === 0 && (
+<div className="mt-8 pt-6 border-t border-white/10">
+<div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-4" style={{background:'rgba(134,239,172,0.08)',border:'1px solid rgba(134,239,172,0.25)'}}>
+{state.pickedAlbum.item.artworkUrl100 && <img src={state.pickedAlbum.item.artworkUrl100} alt="" className="w-10 h-10 rounded-lg flex-shrink-0" />}
+<div className="flex-1 min-w-0">
+<p className="text-white font-medium truncate">{state.pickedAlbum.item.collectionName}</p>
+<p className="text-green-300 text-sm">{state.pickedAlbum.uniqueTracks.length} tracks loaded</p>
+</div>
+</div>
+<div className="space-y-3">
+<button
+onClick={() => addNewTab('album')}
+className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl font-semibold flex items-center justify-center gap-2"
+>
+<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+Add Another Album
+</button>
+<button onClick={startSingleAlbumRanking} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold flex items-center justify-center gap-3">
+<ChevronRight className="w-6 h-6" />
+Start Ranking
+</button>
+</div>
+</div>
+)}
+
+{/* Album mode — in tab mode: ready tabs count + Start */}
+{state.mode === 'album' && rankingTabs.length > 0 && rankingTabs.filter(t => t.ready).length > 0 && (
+<div className="mt-8 pt-6 border-t border-white/10 space-y-3">
+<button onClick={startRankingFromAlbumTabs} disabled={search.loadingSongs} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
+{search.loadingSongs ? <><Loader2 className="w-6 h-6 animate-spin" />Loading...</> : <><ChevronRight className="w-6 h-6" />Start Ranking{rankingTabs.filter(t=>t.ready).length > 1 ? ` (${rankingTabs.filter(t=>t.ready).length} albums)` : ''}</>}
+</button>
+</div>
+)}
+
+{/* Artist mode start button — only visible from search when returning after album picks */}
+{state.mode === 'artist' && rankingTabs.length > 1 && rankingTabs.filter(t => t.artist && t.selectedAlbums?.size > 0).length > 0 && (
+<div className="mt-8 pt-6 border-t border-white/10">
+<button onClick={startRankingFromArtistTabs} disabled={search.loadingSongs} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
+{search.loadingSongs ? <><Loader2 className="w-6 h-6 animate-spin" />Loading...</> : <><ChevronRight className="w-6 h-6" />Start Ranking ({rankingTabs.filter(t=>t.artist && t.selectedAlbums?.size > 0).length} artists)</>}
+</button>
+</div>
+)}
+</div>
 </div>
 )}
 
 {state.stage === 'selectAlbums' && (
-<div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10 mt-8">
+<div className="mt-8">
+{/* Tab bar — only when multiple artists */}
+{rankingTabs.length > 1 && (
+<div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
+{rankingTabs.map((tab) => {
+const isActive = tab.id === activeTabId;
+const isReady = tab.artist && tab.selectedAlbums?.size > 0;
+return (
+<button
+key={tab.id}
+onClick={() => {
+if (isActive) return;
+// Save current tab's selection before switching
+setRankingTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, selectedAlbums: state.selectedAlbums } : t));
+const dest = rankingTabs.find(t => t.id === tab.id);
+switchToTab(tab.id);
+if (dest && dest.artist) {
+setState(s => ({ ...s, selectedArtist: dest.artist, albums: dest.albums, selectedAlbums: dest.selectedAlbums || new Set() }));
+} else {
+setState(s => ({ ...s, stage: 'search' }));
+setSearch(sv => ({ ...sv, suggestions: [], error: '' }));
+}
+}}
+className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-xl text-sm font-medium border transition-all flex-shrink-0 ${isActive ? 'bg-white text-black border-white' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+style={{maxWidth:220}}
+>
+<span className="truncate">{tab.label}</span>
+<span onClick={(e) => { e.stopPropagation(); removeTab(tab.id); }} className={`ml-0.5 flex-shrink-0 rounded-md p-0.5 transition-colors ${isActive ? 'text-black/40 hover:text-black hover:bg-black/10' : 'text-white/30 hover:text-white hover:bg-white/10'}`}>
+<X className="w-3.5 h-3.5" />
+</span>
+</button>
+);
+})}
+<button
+onClick={() => {
+const t = createNewTab('artist');
+setRankingTabs(prev => [...prev.map(tab => tab.id === activeTabId ? { ...tab, selectedAlbums: state.selectedAlbums } : tab), t]);
+setActiveTabId(t.id);
+setState(s => ({ ...s, stage: 'search' }));
+setSearch(sv => ({ ...sv, artistName: '', suggestions: [], error: '' }));
+}}
+className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/25 transition-all flex-shrink-0"
+>
+<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+Add artist
+</button>
+</div>
+)}
+
+<div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
 <div className="flex items-center gap-3 mb-6">
-<button onClick={() => setState(s => ({ ...s, stage: 'search' }))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+<button onClick={() => {
+setRankingTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, selectedAlbums: state.selectedAlbums } : t));
+setState(s => ({ ...s, stage: 'search' }));
+}} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
 <ArrowLeft className="w-6 h-6 text-white" />
 </button>
-<div>
+<div className="flex-1">
 <h2 className="text-2xl font-bold text-white">Select Albums</h2>
 <p className="text-gray-300 text-sm mt-1">Choose which albums to include</p>
 </div>
 </div>
 
 <div className="flex gap-3 mb-4">
-<button
-onClick={() => setState(s => ({ ...s, selectedAlbums: new Set(s.albums.map(a => a.collectionId)) }))}
-className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20"
->
-Select All
-</button>
-<button
-onClick={() => setState(s => ({ ...s, selectedAlbums: new Set() }))}
-className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20"
->
-Deselect All
-</button>
+<button onClick={() => { const ids = new Set(state.albums.map(a => a.collectionId)); setState(s => ({ ...s, selectedAlbums: ids })); setRankingTabs(tabs => tabs.map(t => t.id === activeTabId ? { ...t, selectedAlbums: ids } : t)); }} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20">Select All</button>
+<button onClick={() => { setState(s => ({ ...s, selectedAlbums: new Set() })); setRankingTabs(tabs => tabs.map(t => t.id === activeTabId ? { ...t, selectedAlbums: new Set() } : t)); }} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20">Deselect All</button>
 <div className="flex-1" />
 <span className="text-gray-300 py-2">{state.selectedAlbums.size} selected</span>
 </div>
@@ -2946,17 +3223,11 @@ Deselect All
 key={album.collectionId}
 onClick={() => {
 const newSet = new Set(state.selectedAlbums);
-if (newSet.has(album.collectionId)) {
-newSet.delete(album.collectionId);
-} else {
-newSet.add(album.collectionId);
-}
+if (newSet.has(album.collectionId)) { newSet.delete(album.collectionId); } else { newSet.add(album.collectionId); }
 setState(s => ({ ...s, selectedAlbums: newSet }));
+setRankingTabs(tabs => tabs.map(t => t.id === activeTabId ? { ...t, selectedAlbums: newSet } : t));
 }}
-className={`p-4 rounded-xl transition-all border-2 ${state.selectedAlbums.has(album.collectionId)
-                                                   ? 'bg-white/20 border-white/50'
-                                                   : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                                   }`}
+className={`p-4 rounded-xl transition-all border-2 ${state.selectedAlbums.has(album.collectionId) ? 'bg-white/20 border-white/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
 >
 <img src={album.artworkUrl100} alt={album.collectionName} className="w-full aspect-square rounded-lg mb-3" />
 <p className="text-white font-medium text-sm text-center line-clamp-2">{album.collectionName}</p>
@@ -2964,23 +3235,40 @@ className={`p-4 rounded-xl transition-all border-2 ${state.selectedAlbums.has(al
 ))}
 </div>
 
+<div className="mt-6 space-y-3">
 <button
-onClick={proceedWithSelectedAlbums}
-disabled={search.loadingSongs || state.selectedAlbums.size === 0}
-className="w-full mt-6 px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3"
+onClick={() => {
+const t = createNewTab('artist');
+setRankingTabs(prev => [...prev.map(tab => tab.id === activeTabId ? { ...tab, selectedAlbums: state.selectedAlbums } : tab), t]);
+setActiveTabId(t.id);
+setState(s => ({ ...s, stage: 'search' }));
+setSearch(sv => ({ ...sv, artistName: '', suggestions: [], error: '' }));
+}}
+className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl font-semibold flex items-center justify-center gap-3"
 >
-{search.loadingSongs ? (
-<>
-<Loader2 className="w-6 h-6" />
-Loading Songs...
-</>
-) : (
-<>
-Continue with {state.selectedAlbums.size} album{state.selectedAlbums.size !== 1 ? 's' : ''}
-<ChevronRight className="w-6 h-6" />
-</>
-)}
+<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+Add Another Artist
 </button>
+{rankingTabs.length > 1 ? (
+<button
+onClick={() => startRankingFromArtistTabs(state.selectedAlbums)}
+disabled={search.loadingSongs || (state.selectedAlbums.size === 0 && rankingTabs.filter(t => t.id !== activeTabId && t.selectedAlbums?.size > 0).length === 0)}
+className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
+{(() => {
+const otherReady = rankingTabs.filter(t => t.id !== activeTabId && t.selectedAlbums?.size > 0).length;
+const totalReady = otherReady + (state.selectedAlbums.size > 0 ? 1 : 0);
+return search.loadingSongs
+? <><Loader2 className="w-6 h-6" />Loading Songs...</>
+: <><ChevronRight className="w-6 h-6" />Start Ranking All{totalReady > 0 ? ` (${totalReady} artist${totalReady !== 1 ? 's' : ''})` : ''}</>;
+})()}
+</button>
+) : (
+<button onClick={proceedWithSelectedAlbums} disabled={search.loadingSongs || state.selectedAlbums.size === 0} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
+{search.loadingSongs ? <><Loader2 className="w-6 h-6" />Loading Songs...</> : <>Start Ranking {state.selectedAlbums.size} album{state.selectedAlbums.size !== 1 ? 's' : ''}<ChevronRight className="w-6 h-6" /></>}
+</button>
+)}
+</div>
+</div>
 </div>
 )}
 
@@ -3249,7 +3537,7 @@ className="w-16 h-16 rounded-lg"
 
 <div className="flex flex-col gap-3">
 <p className="text-gray-400 text-sm text-center">Export your ranking</p>
-<div className="grid grid-cols-3 gap-3">
+<div className="grid grid-cols-4 gap-3">
 <button
 onClick={exportToPDF}
 className="px-4 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20 flex flex-col items-center justify-center gap-1 transition-all"
@@ -3271,6 +3559,17 @@ className="px-4 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-se
 <Download className="w-5 h-5" />
 <span className="text-sm">PNG</span>
 </button>
+<button
+onClick={copyToClipboard}
+className={`px-4 py-4 text-white rounded-xl font-semibold border flex flex-col items-center justify-center gap-1 transition-all ${copyStatus === 'copied' ? 'bg-green-500/20 border-green-500/40' : copyStatus === 'error' ? 'bg-red-500/20 border-red-500/40' : 'bg-white/10 hover:bg-white/20 border-white/20'}`}
+>
+{copyStatus === 'copied'
+? <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg><span className="text-sm">Copied!</span></>
+: copyStatus === 'error'
+? <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg><span className="text-sm">Failed</span></>
+: <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg><span className="text-sm">Copy</span></>
+}
+</button>
 </div>
 <button
 onClick={() => setShowTierlistExport(true)}
@@ -3289,6 +3588,19 @@ className="w-full px-6 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl f
 <Music className="w-5 h-5" />
 Try Another Artist / Album
 </button>
+{state.mode === 'album' && rankingTabs.length === 0 && (
+<button
+onClick={() => {
+addNewTab('album');
+setState(s => ({ ...s, stage: 'search' }));
+setSearch(sv => ({ ...sv, albumName: '', albumArtist: '', albumYear: '', suggestions: [], error: '' }));
+}}
+className="w-full px-6 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold border border-white/20 flex items-center justify-center gap-2 transition-all"
+>
+<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+Add Another Album
+</button>
+)}
 </div>
 </div>
 </div>
@@ -3476,7 +3788,11 @@ Rank Artist vs Rank Album
 <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
 </div>
 <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
-<p data-help-text="<strong>Rank Artist</strong> — Search for any artist by name. Once selected, all of their albums appear with checkboxes. Pick which albums to include in the ranking — you can be as selective or comprehensive as you like — then hit Start Ranking. Songs from all selected albums are pooled together."><strong>Rank Artist</strong> — Search for any artist by name. Once selected, all of their albums appear with checkboxes. Pick which albums to include in the ranking — you can be as selective or comprehensive as you like — then hit Start Ranking. Songs from all selected albums are pooled together.</p><p data-help-text="<strong>Rank Album</strong> — Search for a specific album by name (with an optional artist field to narrow results). The full track list loads and you rank every song on that album against each other."><strong>Rank Album</strong> — Search for a specific album by name (with an optional artist field to narrow results). The full track list loads and you rank every song on that album against each other.</p><p data-help-text="<strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view excluded songs and re-include them at any time from the results screen."><strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view excluded songs and re-include them at any time from the results screen.</p>
+<p data-help-text="<strong>Rank Artist</strong> — Search for an artist by name. Their albums load with checkboxes — pick which ones to include, then hit Start Ranking. Songs from all selected albums are pooled together for one big ranking."><strong>Rank Artist</strong> — Search for an artist by name. Their albums load with checkboxes — pick which ones to include, then hit Start Ranking. Songs from all selected albums are pooled together for one big ranking.</p>
+<p data-help-text="<strong>Multiple artists</strong> — On the album selection screen, click Add Another Artist to add a second artist in a new tab. Each tab has its own album selection. When you're done picking, Start Ranking All combines every selected album across all artists into a single ranking. Switch between artist tabs at any time — your selections are remembered."><strong>Multiple artists</strong> — On the album selection screen, click Add Another Artist to add a second artist in a new tab. Each tab has its own album selection. When you're done picking, Start Ranking All combines every selected album across all artists into a single ranking. Switch between artist tabs at any time — your selections are remembered.</p>
+<p data-help-text="<strong>Rank Album</strong> — Search for a specific album by name (with an optional artist and year field to narrow results). Once you've picked an album, you'll see its track count and two options: Start Ranking to rank just that album, or Add Another Album to queue it alongside more albums first."><strong>Rank Album</strong> — Search for a specific album by name (with an optional artist and year field to narrow results). Once you've picked an album, you'll see its track count and two options: Start Ranking to rank just that album, or Add Another Album to queue it alongside more albums first.</p>
+<p data-help-text="<strong>Multiple albums</strong> — After picking your first album, click Add Another Album. A tab bar appears — your first album gets its own tab and a new empty tab opens for your next search. Keep adding albums via the + button in the tab bar. When ready, Start Ranking merges all queued albums into one ranking."><strong>Multiple albums</strong> — After picking your first album, click Add Another Album. A tab bar appears — your first album gets its own tab and a new empty tab opens for your next search. Keep adding albums via the + button in the tab bar. When ready, Start Ranking merges all queued albums into one ranking.</p>
+<p data-help-text="<strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view and re-include them at any time from the results screen."><strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view and re-include them at any time from the results screen.</p>
 </div>
 </div>
 <div data-help-section="controls" class="rounded-xl overflow-hidden" style="border:1px solid rgba(255,255,255,0.08);">
@@ -3512,7 +3828,14 @@ Saving & Exporting
 <svg class="help-chevron w-4 h-4 text-white/40 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
 </div>
 <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
-<p data-help-text="<strong>Auto-save</strong> — Your session auto-saves to localStorage every 5 comparisons. If you accidentally close the tab or your browser crashes, you can resume from the auto-save panel which shows your recent sessions."><strong>Auto-save</strong> — Your session auto-saves to localStorage every 5 comparisons. If you accidentally close the tab or your browser crashes, you can resume from the auto-save panel which shows your recent sessions.</p><p data-help-text="<strong>Save Progress JSON</strong> — Click Save Progress to download a JSON snapshot of your entire session — all comparisons made so far, current sort state, and the song list. You can load this back in later to continue exactly where you left off."><strong>Save Progress JSON</strong> — Click Save Progress to download a JSON snapshot of your entire session — all comparisons made so far, current sort state, and the song list. You can load this back in later to continue exactly where you left off.</p><p data-help-text="<strong>Load Save</strong> — Click Load Save and select a previously exported JSON file to resume a saved session."><strong>Load Save</strong> — Click Load Save and select a previously exported JSON file to resume a saved session.</p><p data-help-text="<strong>Export PDF</strong> — Downloads a nicely formatted PDF of your final ranked list, numbered from 1 to last."><strong>Export PDF</strong> — Downloads a nicely formatted PDF of your final ranked list, numbered from 1 to last.</p><p data-help-text="<strong>Export TXT</strong> — Downloads a plain text file of the ranked list — one song per line with its rank number."><strong>Export TXT</strong> — Downloads a plain text file of the ranked list — one song per line with its rank number.</p><p data-help-text="<strong>Export PNG</strong> — Downloads a screenshot of the results page as a PNG image, ready to share."><strong>Export PNG</strong> — Downloads a screenshot of the results page as a PNG image, ready to share.</p><p data-help-text="<strong>Send to Tier List</strong> — After completing a ranking, click Send to Tier List to automatically create a new tier list where songs are placed into tiers (S through F) based on their rank percentile. Opens in a new tab in songs mode without affecting your existing tier lists."><strong>Send to Tier List</strong> — After completing a ranking, click Send to Tier List to automatically create a new tier list where songs are placed into tiers (S through F) based on their rank percentile. Opens in a new tab in songs mode without affecting your existing tier lists.</p>
+<p data-help-text="<strong>Auto-save</strong> — Your session auto-saves to localStorage every 5 comparisons. If you accidentally close the tab or your browser crashes, you can resume from the auto-save panel which shows your recent sessions."><strong>Auto-save</strong> — Your session auto-saves to localStorage every 5 comparisons. If you accidentally close the tab or your browser crashes, you can resume from the auto-save panel which shows your recent sessions.</p>
+<p data-help-text="<strong>Save Progress JSON</strong> — Click Save Progress to download a JSON snapshot of your entire session — all comparisons made so far, current sort state, and the song list. You can load this back in later to continue exactly where you left off."><strong>Save Progress JSON</strong> — Click Save Progress to download a JSON snapshot of your entire session — all comparisons made so far, current sort state, and the song list. You can load this back in later to continue exactly where you left off.</p>
+<p data-help-text="<strong>Load Save</strong> — Click Load Save and select a previously exported JSON file to resume a saved session."><strong>Load Save</strong> — Click Load Save and select a previously exported JSON file to resume a saved session.</p>
+<p data-help-text="<strong>Export PDF</strong> — Downloads a nicely formatted PDF of your final ranked list, numbered from 1 to last."><strong>Export PDF</strong> — Downloads a nicely formatted PDF of your final ranked list, numbered from 1 to last.</p>
+<p data-help-text="<strong>Export TXT</strong> — Downloads a plain text file of the ranked list — one song per line with its rank number."><strong>Export TXT</strong> — Downloads a plain text file of the ranked list — one song per line with its rank number.</p>
+<p data-help-text="<strong>Export PNG</strong> — Downloads a screenshot of the results page as a PNG image, ready to share."><strong>Export PNG</strong> — Downloads a screenshot of the results page as a PNG image, ready to share.</p>
+<p data-help-text="<strong>Copy to Clipboard</strong> — Copies the ranked list as plain text directly to your clipboard, ready to paste anywhere. The button turns green briefly to confirm it worked."><strong>Copy to Clipboard</strong> — Copies the ranked list as plain text directly to your clipboard, ready to paste anywhere. The button turns green briefly to confirm it worked.</p>
+<p data-help-text="<strong>Send to Tier List</strong> — After completing a ranking, click Send to Tier List to automatically create a new tier list where songs are placed into tiers (S through F) based on their rank percentile. Opens in a new tab in songs mode without affecting your existing tier lists."><strong>Send to Tier List</strong> — After completing a ranking, click Send to Tier List to automatically create a new tier list where songs are placed into tiers (S through F) based on their rank percentile. Opens in a new tab in songs mode without affecting your existing tier lists.</p>
 </div>
 </div>
 </div>
