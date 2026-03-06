@@ -1230,7 +1230,7 @@
 
                                                 {stats.gamesPlayed > 0 && (
                                                     <div className="space-y-4">
-                                                        <h3 className="text-lg font-bold text-white text-center">Your Stats</h3>
+                                                        <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40 text-center">Your Stats</h3>
                                                         <div className="grid grid-cols-2 gap-3 text-center">
                                                             <div className="bg-white/10 rounded-lg p-3">
                                                                 <div className="text-2xl font-bold text-white">{stats.gamesPlayed}</div>
@@ -1261,7 +1261,7 @@
                                                         )}
 
                                                         <div>
-                                                            <h4 className="text-sm font-semibold text-white mb-2">Guess Distribution</h4>
+                                                            <h4 className="text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-2">Guess Distribution</h4>
                                                             {(() => {
                                                                 const maxCount = Math.max(...stats.guessDistribution, 1);
                                                                 return stats.guessDistribution.map((count, idx) => (
@@ -1299,7 +1299,7 @@
                                                             onClick={togglePinnedCollapsed}
                                                             className="flex items-center justify-between w-full mb-3 hover:opacity-80 transition-opacity"
                                                         >
-                                                            <h3 className="text-lg font-bold text-white">Saved Games ({pinnedGames.length})</h3>
+                                                            <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">Saved Games ({pinnedGames.length})</h3>
                                                             <ChevronDown className={`w-5 h-5 text-white transition-transform ${pinnedCollapsed ? '' : 'rotate-180'}`} />
                                                         </button>
 
@@ -1330,7 +1330,7 @@
                                                             onClick={toggleRecentCollapsed}
                                                             className="flex items-center justify-between w-full mb-3 hover:opacity-80 transition-opacity"
                                                         >
-                                                            <h3 className="text-lg font-bold text-white">Recent Games</h3>
+                                                            <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">Recent Games</h3>
                                                             <ChevronDown className={`w-5 h-5 text-white transition-transform ${recentCollapsed ? '' : 'rotate-180'}`} />
                                                         </button>
 
@@ -1355,7 +1355,7 @@
                                                 )}
 
                                                 <div className="space-y-4">
-                                                    <label className="block text-white text-lg font-medium">Search for an Artist</label>
+                                                    <label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40">Search for an Artist</label>
                                                     <div className="flex gap-3">
                                                         <input
                                                             type="text"
@@ -1385,7 +1385,7 @@
 
                                                 {searchState.suggestions.length > 0 && (
                                                     <div className="space-y-3 mt-6">
-                                                        <h3 className="text-white font-semibold text-lg">Select an artist ({searchState.suggestions.length} results):</h3>
+                                                        <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">Select an artist ({searchState.suggestions.length} results):</h3>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                             {paginatedSuggestions.map((artist) => (
                                                                 <button
@@ -1534,7 +1534,7 @@
                                         return (
                                             <div className="mb-20">
                                                 <div className="flex items-center justify-between mb-3">
-                                                    <h3 className="text-white font-semibold text-lg">{tabTitle}</h3>
+                                                    <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">{tabTitle}</h3>
                                                     <div className="flex gap-2">
                                                         <button
                                                             onClick={selectAllAlbumsForTab}
@@ -1595,7 +1595,7 @@
 
                                         {/* Currently added artists chips */}
                                         <div className="mb-6">
-                                            <p className="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-3">Already added</p>
+                                            <p className="text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-3">Already added</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {gameState.selectedArtists.map((artist, idx) => (
                                                     <div key={artist.artistId} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
@@ -1643,7 +1643,7 @@
 
                                         {searchState.suggestions.length > 0 && (
                                             <div className="space-y-3 mt-6">
-                                                <h3 className="text-white font-semibold text-lg">Select an artist ({searchState.suggestions.length} results):</h3>
+                                                <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">Select an artist ({searchState.suggestions.length} results):</h3>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                     {paginatedSuggestions.map((artist) => (
                                                         <button
@@ -1828,7 +1828,7 @@
 
                                         {gameState.guesses.length > 0 && (
                                             <div className="mt-8">
-                                                <h3 className="text-white font-semibold text-lg mb-4">Your Guesses:</h3>
+                                                <h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-4">Your Guesses:</h3>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                                 {gameState.guesses.map((guess, idx) => (
                                                     <div key={idx} className="bg-white/10 rounded-xl p-4 border border-white/20">
