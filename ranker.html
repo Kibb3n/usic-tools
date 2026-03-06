@@ -2286,13 +2286,7 @@ reader.readAsText(file);
 };
 
 const exportToPDF = () => {
-setModalConfig({
-title: 'Export to PDF',
-fields: [
-{ name: 'fileName', label: 'File name', placeholder: 'my-ranking', required: true },
-{ name: 'userName', label: 'Your name', placeholder: 'Your Name', required: true }
-],
-onSubmit: (values) => {
+const artistName = getRankingTitle();
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF();
 
@@ -2326,9 +2320,10 @@ doc.rect(i * (210 / steps), 0, 210 / steps + 1, headerH, 'F');
 
 doc.setTextColor(255, 255, 255);
 doc.setFontSize(20);
-doc.text(`${values.userName}'s Song Rankings`, 105, 13, { align: 'center' });
+doc.text(`${artistName} — Song Rankings`, 105, 13, { align: 'center' });
 doc.setFontSize(11);
-doc.text(`${getRankingTitle()}`, 105, 21, { align: 'center' });
+const credits = getAlbumCredits();
+if (credits) doc.text(credits, 105, 21, { align: 'center' });
 doc.setFontSize(8);
 doc.setTextColor(255, 255, 255);
 doc.text('\u03BCsic tools \u00B7 ranker', 105, 28, { align: 'center' });
@@ -2406,10 +2401,7 @@ doc.setTextColor(255, 255, 255);
 doc.text('\u03BCsic tools \u00B7 ranker', 105, 293, { align: 'center' });
 }
 
-doc.save(`${values.fileName}.pdf`);
-}
-});
-setModalOpen(true);
+doc.save(`${artistName.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-ranking.pdf`);
 };
 
 const getAlbumCredits = () => {
