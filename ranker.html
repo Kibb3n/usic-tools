@@ -2432,7 +2432,7 @@ const exportToTXT = () => {
 const artistName = getRankingTitle();
 const credits = getAlbumCredits();
 const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs.has(idx));
-let txt = `μsic tools · ranker\n`;
+let txt = `\u00b5sic tools \u00b7 ranker\n`;
 txt += `${'─'.repeat(40)}\n`;
 txt += `${artistName} — Song Rankings\n`;
 if (credits) txt += `${credits}\n`;
@@ -2556,7 +2556,7 @@ const headerLines = [
 { text: `${artistName} Rankings`, font: `bold ${titleFontSize}px system-ui, sans-serif`, color: headerTextColor },
 credits ? { text: credits, font: `${subFontSize}px system-ui, sans-serif`, color: headerSubColor } : null,
 { text: `${total} songs · ${new Date().toLocaleDateString()}`, font: `${subFontSize}px system-ui, sans-serif`, color: headerSubColor },
-{ text: 'μsic tools · ranker', font: `${tinyFontSize}px system-ui, sans-serif`, color: headerTinyColor },
+{ text: 'usic tools · ranker', font: `${tinyFontSize}px system-ui, sans-serif`, color: headerTinyColor },
 ].filter(Boolean);
 
 // Distribute lines vertically across the header
