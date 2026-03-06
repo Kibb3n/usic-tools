@@ -2438,8 +2438,9 @@ txt += `${artistName} — Song Rankings\n`;
 if (credits) txt += `${credits}\n`;
 txt += `Generated: ${new Date().toLocaleString()}\n`;
 txt += `${'─'.repeat(40)}\n\n`;
+const maxWidth = String(filteredIndices.length).length;
 filteredIndices.forEach((songIdx, rank) => {
-txt += `${String(rank + 1).padStart(3, ' ')}. ${state.songs[songIdx]}\n`;
+txt += `${String(rank + 1).padStart(maxWidth, ' ')}. ${state.songs[songIdx]}\n`;
 });
 txt += `\n${'─'.repeat(40)}\n`;
 const blob = new Blob([txt], { type: 'text/plain' });
@@ -2459,8 +2460,9 @@ const filteredIndices = sorting.sortedIndices.filter(idx => !state.excludedSongs
 let txt = `${artistName} — Song Rankings\n`;
 if (credits) txt += `${credits}\n`;
 txt += `${'─'.repeat(40)}\n\n`;
+const maxWidthC = String(filteredIndices.length).length;
 filteredIndices.forEach((songIdx, rank) => {
-txt += `${String(rank + 1).padStart(3, ' ')}. ${state.songs[songIdx]}\n`;
+txt += `${String(rank + 1).padStart(maxWidthC, ' ')}. ${state.songs[songIdx]}\n`;
 });
 navigator.clipboard.writeText(txt).then(() => {
 setCopyStatus('copied');
