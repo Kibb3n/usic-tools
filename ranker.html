@@ -831,6 +831,7 @@ const [autoSaveStatus, setAutoSaveStatus] = useState('idle');
 const [autoSaveCollapsed, setAutoSaveCollapsed] = useState(false);
 const [rankingTabs, setRankingTabs] = useState([]);
 const [activeTabId, setActiveTabId] = useState(null);
+const [showAlbumSearch, setShowAlbumSearch] = useState(true);
 const fileInputRef = useRef(null);
 const autoSaveTimerRef = useRef(null);
 const autoSaveStatusTimerRef = useRef(null);
@@ -873,6 +874,7 @@ return updated;
 });
 if (type === 'album') setState(s => ({ ...s, pickedAlbum: null }));
 setSearch(s => ({ ...s, artistName: '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, error: '' }));
+setShowAlbumSearch(true);
 };
 
 const removeTab = (tabId) => {
@@ -888,6 +890,12 @@ setState(s => ({ ...s, selectedArtist: newActive.artist, albums: newActive.album
 setActiveTabId(null);
 setState(s => ({ ...s, stage: 'selectMode', pickedAlbum: null }));
 setSearch(sv => ({ ...sv, suggestions: [], error: '', albumName: '', albumArtist: '', albumYear: '', artistName: '' }));
+setShowAlbumSearch(true);
+}
+// If no ready tabs remain, show search so user can add one
+const readyRemaining = remaining.filter(t => t.ready);
+if (readyRemaining.length === 0 && remaining.length > 0) {
+setShowAlbumSearch(true);
 }
 return remaining;
 });
@@ -1494,6 +1502,7 @@ songs: uniqueTracks.map(tr => tr.name), usedAlbums: [{ name: item.collectionName
 ready: true
 } : t));
 setSearch(s => ({ ...s, loadingSongs: false, suggestions: [], albumName: '', albumArtist: '', albumYear: '', error: '' }));
+setShowAlbumSearch(false);
 } else {
 // First album picked — store it in state and stay on search screen so user can add more or start
 setState(s => ({
@@ -1505,6 +1514,7 @@ usedAlbums: [{ name: item.collectionName, artist: item.artistName }],
 pickedAlbum: { item, uniqueTracks }
 }));
 setSearch(s => ({ ...s, loadingSongs: false, suggestions: [], albumName: '', albumArtist: '', albumYear: '', error: '' }));
+setShowAlbumSearch(false);
 }
 } catch (err) {
 setSearch(s => ({ ...s, error: 'Failed to fetch songs.', loadingSongs: false }));
@@ -2941,8 +2951,8 @@ className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
 
 {state.stage === 'search' && (
 <div className="mt-8">
-{/* Tab bar — only show once user has added more than one entry */}
-{rankingTabs.length > 1 && (
+{/* Tab bar — show from 1 tab in album mode, 2+ in artist mode */}
+{(state.mode === 'album' ? rankingTabs.length >= 1 : rankingTabs.length > 1) && (
 <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
 {rankingTabs.map((tab) => {
 const isActive = tab.id === activeTabId;
@@ -2994,6 +3004,7 @@ setRankingTabs([]);
 setActiveTabId(null);
 setState(s => ({ ...s, stage: 'selectMode', pickedAlbum: null }));
 setSearch({ artistName: '', albumName: '', albumArtist: '', albumYear: '', suggestions: [], page: 0, loading: false, loadingSongs: false, error: '' });
+setShowAlbumSearch(true);
 }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
 <ArrowLeft className="w-6 h-6 text-white" />
 </button>
@@ -3023,12 +3034,10 @@ disabled={search.loading}
 </div>
 ) : (
 <div className="space-y-4">
-{(() => { const tab = rankingTabs.find(t => t.id === activeTabId); return tab && tab.ready ? (
-<div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{background:'rgba(134,239,172,0.08)',border:'1px solid rgba(134,239,172,0.25)'}}>
-<span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-<span className="text-green-300 text-sm font-medium">"{tab.label}" added — search another or start ranking below</span>
-</div>
-) : null; })()}
+{/* Queued albums list — shown when we have ready tabs and search is hidden */}
+{/* Search form — only shown when showAlbumSearch is true */}
+{showAlbumSearch ? (
+<>
 <div>
 <label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-3">Album name *</label>
 <input type="text" value={search.albumName} onChange={(e) => setSearch(s => ({ ...s, albumName: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="Abbey Road..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
@@ -3045,6 +3054,8 @@ disabled={search.loading}
 {search.loading ? <Loader2 className="w-6 h-6" /> : <Search className="w-6 h-6" />}
 {search.loading ? 'Searching...' : 'Search'}
 </button>
+</>
+) : null}
 </div>
 )}
 
@@ -3097,17 +3108,45 @@ className="w-full bg-white/10 hover:bg-white/20 rounded-xl p-5 text-left transit
 </div>
 )}
 
-{/* Album mode — single album picked: show confirmation with Add Another + Start Ranking */}
-{state.mode === 'album' && state.pickedAlbum && rankingTabs.length === 0 && (
-<div className="mt-8 pt-6 border-t border-white/10">
-<div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-4" style={{background:'rgba(134,239,172,0.08)',border:'1px solid rgba(134,239,172,0.25)'}}>
-{state.pickedAlbum.item.artworkUrl100 && <img src={state.pickedAlbum.item.artworkUrl100} alt="" className="w-10 h-10 rounded-lg flex-shrink-0" />}
+{/* Album mode — bottom action area */}
+{state.mode === 'album' && (state.pickedAlbum || rankingTabs.filter(t => t.ready).length > 0) && (
+<div className="mt-8 pt-6 border-t border-white/10 space-y-3">
+{/* Queued albums list with delete buttons */}
+{(() => {
+const items = rankingTabs.filter(t => t.ready);
+const picked = state.pickedAlbum;
+if (items.length === 0 && !picked) return null;
+return (
+<div className="space-y-2 mb-1">
+{picked && items.length === 0 && (
+<div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)'}}>
+{picked.item.artworkUrl100 && <img src={picked.item.artworkUrl100} alt="" className="w-9 h-9 rounded-md flex-shrink-0" />}
 <div className="flex-1 min-w-0">
-<p className="text-white font-medium truncate">{state.pickedAlbum.item.collectionName}</p>
-<p className="text-green-300 text-sm">{state.pickedAlbum.uniqueTracks.length} tracks loaded</p>
+<p className="text-white text-sm font-medium truncate">{picked.item.collectionName}</p>
+<p className="text-green-400 text-xs">{picked.uniqueTracks.length} tracks</p>
 </div>
+<button onClick={() => { setState(s => ({ ...s, pickedAlbum: null })); setShowAlbumSearch(true); setSearch(sv => ({ ...sv, albumName: '', albumArtist: '', albumYear: '', suggestions: [], error: '' })); }} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-white/40 hover:text-white/80 flex-shrink-0 transition-colors">
+<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+</button>
 </div>
-<div className="space-y-3">
+)}
+{items.map(tab => (
+<div key={tab.id} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)'}}>
+{tab.artist?.artworkUrl100 && <img src={tab.artist.artworkUrl100} alt="" className="w-9 h-9 rounded-md flex-shrink-0" />}
+<div className="flex-1 min-w-0">
+<p className="text-white text-sm font-medium truncate">{tab.label}</p>
+<p className="text-green-400 text-xs">{tab.songs?.length || 0} tracks</p>
+</div>
+<button onClick={() => removeTab(tab.id)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-white/40 hover:text-white/80 flex-shrink-0 transition-colors">
+<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+</button>
+</div>
+))}
+</div>
+);
+})()}
+{/* Add Another Album — show when search is hidden */}
+{!showAlbumSearch && (
 <button
 onClick={() => addNewTab('album')}
 className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl font-semibold flex items-center justify-center gap-2"
@@ -3115,20 +3154,18 @@ className="w-full px-8 py-4 bg-white/10 hover:bg-white/20 text-white border bord
 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
 Add Another Album
 </button>
+)}
+{/* Start Ranking */}
+{rankingTabs.filter(t => t.ready).length > 0 ? (
+<button onClick={startRankingFromAlbumTabs} disabled={search.loadingSongs} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
+{search.loadingSongs ? <><Loader2 className="w-6 h-6 animate-spin" />Loading...</> : <><ChevronRight className="w-6 h-6" />Start Ranking{rankingTabs.filter(t=>t.ready).length > 1 ? ` (${rankingTabs.filter(t=>t.ready).length} albums)` : ''}</>}
+</button>
+) : state.pickedAlbum ? (
 <button onClick={startSingleAlbumRanking} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold flex items-center justify-center gap-3">
 <ChevronRight className="w-6 h-6" />
 Start Ranking
 </button>
-</div>
-</div>
-)}
-
-{/* Album mode — in tab mode: ready tabs count + Start */}
-{state.mode === 'album' && rankingTabs.length > 0 && rankingTabs.filter(t => t.ready).length > 0 && (
-<div className="mt-8 pt-6 border-t border-white/10 space-y-3">
-<button onClick={startRankingFromAlbumTabs} disabled={search.loadingSongs} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
-{search.loadingSongs ? <><Loader2 className="w-6 h-6 animate-spin" />Loading...</> : <><ChevronRight className="w-6 h-6" />Start Ranking{rankingTabs.filter(t=>t.ready).length > 1 ? ` (${rankingTabs.filter(t=>t.ready).length} albums)` : ''}</>}
-</button>
+) : null}
 </div>
 )}
 
@@ -3787,9 +3824,9 @@ Rank Artist vs Rank Album
 </div>
 <div class="help-section-body px-4 py-3 space-y-2 text-sm text-gray-300">
 <p data-help-text="<strong>Rank Artist</strong> — Search for an artist by name. Their albums load with checkboxes — pick which ones to include, then hit Start Ranking. Songs from all selected albums are pooled together for one big ranking."><strong>Rank Artist</strong> — Search for an artist by name. Their albums load with checkboxes — pick which ones to include, then hit Start Ranking. Songs from all selected albums are pooled together for one big ranking.</p>
-<p data-help-text="<strong>Multiple artists</strong> — On the album selection screen, click Add Another Artist to add a second artist in a new tab. Each tab has its own album selection. When you're done picking, Start Ranking All combines every selected album across all artists into a single ranking. Switch between artist tabs at any time — your selections are remembered."><strong>Multiple artists</strong> — On the album selection screen, click Add Another Artist to add a second artist in a new tab. Each tab has its own album selection. When you're done picking, Start Ranking All combines every selected album across all artists into a single ranking. Switch between artist tabs at any time — your selections are remembered.</p>
-<p data-help-text="<strong>Rank Album</strong> — Search for a specific album by name (with an optional artist and year field to narrow results). Once you've picked an album, you'll see its track count and two options: Start Ranking to rank just that album, or Add Another Album to queue it alongside more albums first."><strong>Rank Album</strong> — Search for a specific album by name (with an optional artist and year field to narrow results). Once you've picked an album, you'll see its track count and two options: Start Ranking to rank just that album, or Add Another Album to queue it alongside more albums first.</p>
-<p data-help-text="<strong>Multiple albums</strong> — After picking your first album, click Add Another Album. A tab bar appears — your first album gets its own tab and a new empty tab opens for your next search. Keep adding albums via the + button in the tab bar. When ready, Start Ranking merges all queued albums into one ranking."><strong>Multiple albums</strong> — After picking your first album, click Add Another Album. A tab bar appears — your first album gets its own tab and a new empty tab opens for your next search. Keep adding albums via the + button in the tab bar. When ready, Start Ranking merges all queued albums into one ranking.</p>
+<p data-help-text="<strong>Multiple artists</strong> — On the album selection screen, click Add Another Artist. A tab bar appears at the top — your first artist gets its own tab and a new empty tab opens for your next search. Each tab has its own album selection; switch between them at any time and your checkboxes are remembered. The + button in the tab bar adds more artists. Click the ✕ on a tab to remove that artist. When you're ready, Start Ranking combines every selected album across all artist tabs into one single ranking."><strong>Multiple artists</strong> — On the album selection screen, click Add Another Artist. A tab bar appears at the top — your first artist gets its own tab and a new empty tab opens for your next search. Each tab has its own album selection; switch between them at any time and your checkboxes are remembered. The + button in the tab bar adds more artists. Click the ✕ on a tab to remove that artist. When you're ready, Start Ranking combines every selected album across all artist tabs into one single ranking.</p>
+<p data-help-text="<strong>Rank Album</strong> — Search for a specific album by name (with optional artist and year fields to narrow results). Once you pick an album, it appears as a confirmed tab with its track count. Hit Start Ranking to rank just that album, or add more first."><strong>Rank Album</strong> — Search for a specific album by name (with optional artist and year fields to narrow results). Once you pick an album, it appears as a confirmed tab with its track count. Hit Start Ranking to rank just that album, or add more first.</p>
+<p data-help-text="<strong>Multiple albums</strong> — After picking your first album, a tab bar appears and the search fields collapse. Your first album appears as a ready tab. Click Add Another Album (or the + in the tab bar) to open a new tab and bring the search back — once you pick a second album it locks in and the search hides again. Each tab shows the album name with a ✕ to remove it. Removing all tabs brings the search back automatically. When ready, Start Ranking merges all queued albums into one combined ranking."><strong>Multiple albums</strong> — After picking your first album, a tab bar appears and the search fields collapse. Your first album appears as a ready tab. Click Add Another Album (or the + in the tab bar) to open a new tab and bring the search back — once you pick a second album it locks in and the search hides again. Each tab shows the album name with a ✕ to remove it. Removing all tabs brings the search back automatically. When ready, Start Ranking merges all queued albums into one combined ranking.</p>
 <p data-help-text="<strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view and re-include them at any time from the results screen."><strong>Exclusions</strong> — Before or during ranking you can exclude any song via right-click → Exclude Song. Excluded songs are removed from all future comparisons and don't appear in the final results. You can view and re-include them at any time from the results screen.</p>
 </div>
 </div>
