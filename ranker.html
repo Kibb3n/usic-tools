@@ -92,6 +92,7 @@ animation: slideOut 0.3s ease-out;
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
+
 // Local storage utilities
 const AUTOSAVE_KEY = 'ranker_autosaves';
 const MAX_AUTOSAVES = 5;
@@ -510,7 +511,7 @@ return (
 <form onSubmit={handleSubmit} className="space-y-4">
 {fields.map(field => (
 <div key={field.name}>
-<label className="block text-white text-sm font-medium mb-2">
+<label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-2">
 {field.label}
 </label>
 <input
@@ -2801,6 +2802,9 @@ Save Progress
 {state.stage === 'selectMode' && (
 <>
 <div className="grid md:grid-cols-2 gap-6 mb-8">
+<div className="md:col-span-2 mb-2">
+<p className="text-[13px] font-semibold uppercase tracking-widest text-white/40">Choose a mode</p>
+</div>
 <button
 onClick={() => {
 const firstTab = createNewTab('artist');
@@ -2845,10 +2849,10 @@ Compare all tracks from a specific album
 onClick={() => setAutoSaveCollapsed(c => !c)}
 className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-colors"
 >
-<h3 className="text-xl font-bold text-white flex items-center gap-2">
-<Clock className="w-5 h-5" />
+<h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40 flex items-center gap-2">
+<Clock className="w-4 h-4" />
 Continue Recent Rankings
-<span className="text-sm font-normal text-gray-400 ml-1">({autoSaves.length})</span>
+<span className="normal-case tracking-normal font-normal text-white/30">({autoSaves.length})</span>
 </h3>
 <div className="flex items-center gap-3">
 <span
@@ -2998,7 +3002,7 @@ Search for {state.mode === 'artist' ? 'an artist' : 'an album'}
 
 {state.mode === 'artist' ? (
 <div>
-<label className="block text-white text-lg font-medium mb-3">Artist name</label>
+<label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-3">Artist name</label>
 <div className="flex gap-4">
 <input
 type="text"
@@ -3024,15 +3028,15 @@ disabled={search.loading}
 </div>
 ) : null; })()}
 <div>
-<label className="block text-white text-lg font-medium mb-3">Album name *</label>
+<label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-3">Album name *</label>
 <input type="text" value={search.albumName} onChange={(e) => setSearch(s => ({ ...s, albumName: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="Abbey Road..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
 </div>
 <div>
-<label className="block text-white text-lg font-medium mb-3">Artist (optional but recommended)</label>
+<label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-3">Artist (optional but recommended)</label>
 <input type="text" value={search.albumArtist} onChange={(e) => setSearch(s => ({ ...s, albumArtist: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="The Beatles..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
 </div>
 <div>
-<label className="block text-white text-lg font-medium mb-3">Year (optional)</label>
+<label className="block text-[13px] font-semibold uppercase tracking-widest text-white/40 mb-3">Year (optional)</label>
 <input type="text" value={search.albumYear} onChange={(e) => setSearch(s => ({ ...s, albumYear: e.target.value }))} onKeyPress={(e) => e.key === 'Enter' && searchArtistOrAlbum()} placeholder="1969..." className="w-full px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50" />
 </div>
 <button onClick={searchArtistOrAlbum} disabled={search.loading} className="w-full px-8 py-4 bg-white text-black hover:bg-gray-100 disabled:bg-gray-600 rounded-xl font-semibold flex items-center justify-center gap-3">
@@ -3050,7 +3054,7 @@ disabled={search.loading}
 
 {search.suggestions.length > 0 && (
 <div className="space-y-4 mt-8">
-<h3 className="text-white font-semibold text-xl">Select {state.mode === 'artist' ? 'an artist' : 'an album'}:</h3>
+<h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">Select {state.mode === 'artist' ? 'an artist' : 'an album'}:</h3>
 <div className="space-y-3">
 {paginatedSuggestions.map((item) => (
 <button
@@ -3290,8 +3294,8 @@ background: `linear-gradient(to right, ${bgColors[0]}, ${bgColors[1]})`
 </div>
 
 <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
-<h2 className="text-3xl font-bold text-white text-center mb-10">
-Which song do you prefer?
+<h2 className="text-[13px] font-semibold uppercase tracking-widest text-white/40 text-center mb-10">
+Pick your favourite
 </h2>
 
 <div className="grid md:grid-cols-2 gap-6 mb-6">
@@ -3414,7 +3418,7 @@ View Current Rankings
 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
 <div className="bg-white/10 backdrop-blur-2xl rounded-3xl p-8 max-w-2xl w-full border border-white/20 shadow-2xl max-h-[80vh] overflow-hidden flex flex-col">
 <div className="flex items-center justify-between mb-6">
-<h3 className="text-2xl font-bold text-white">Current Rankings (In Progress)</h3>
+<h3 className="text-[13px] font-semibold uppercase tracking-widest text-white/40">In Progress</h3>
 <button onClick={() => setShowProgress(false)} className="p-2 hover:bg-white/10 rounded-lg">
 <X className="w-6 h-6 text-white" />
 </button>
@@ -3446,7 +3450,7 @@ Continue Ranking
 {state.stage === 'results' && (
 <div className="space-y-6 mt-8">
 <div className="bg-white/5 backdrop-blur-2xl rounded-3xl p-10 shadow-2xl border border-white/10">
-<h2 className="text-4xl font-bold text-white text-center mb-3">Your Ranking</h2>
+<h2 className="text-[13px] font-semibold uppercase tracking-widest text-white/40 text-center mb-3">Ranking Complete</h2>
 <p className="text-gray-300 text-center mb-8 text-lg">
 {getRankingTitle()} • {activeSongCount} songs
 </p>
@@ -3528,7 +3532,7 @@ className="w-16 h-16 rounded-lg"
 )}
 
 <div className="flex flex-col gap-3">
-<p className="text-gray-400 text-sm text-center">Export your ranking</p>
+<p className="text-[13px] font-semibold uppercase tracking-widest text-white/40 text-center">Export your ranking</p>
 <div className="grid grid-cols-4 gap-3">
 <button
 onClick={exportToPDF}
