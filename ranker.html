@@ -2999,8 +2999,8 @@ className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg"
 
 {state.stage === 'search' && (
 <div className="mt-8">
-{/* Tab bar — show from 1 tab in album mode, 2+ in artist mode */}
-{(state.mode === 'album' ? rankingTabs.length >= 1 : rankingTabs.length > 1) && (
+{/* Tab bar — artist mode only, 2+ tabs */}
+{state.mode === 'artist' && rankingTabs.length > 1 && (
 <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
 {rankingTabs.map((tab) => {
 const isActive = tab.id === activeTabId;
