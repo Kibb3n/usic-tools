@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cuepoint / splitter</title>
+<meta name="description" content="Split an MP3 into individual tracks using timestamps.">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0c0c0c;
+  --l-bg:     #101010;
+  --r-bg:     #0c0c0c;
+  --o-bg:     #0a0a0f;
+  --surface:  #181818;
+  --surface2: #1e1e1e;
+  --border:   rgba(255,255,255,0.06);
+  --border-m: rgba(255,255,255,0.11);
+  --border-hi:rgba(255,255,255,0.2);
+  --text:     #dedede;
+  --sub:      rgba(255,255,255,0.42);
+  --dim:      rgba(255,255,255,0.22);
+  --ghost:    rgba(255,255,255,0.1);
+  --accent:   #6366f1;
+  --accent-g: #818cf8;
+  --accent-dim: rgba(99,102,241,0.15);
+  --danger:   #f87171;
+  --success:  #34d399;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Inter', system-ui, sans-serif;
+  --ra:       8px;
+  --rb:       13px;
+}
+
+html, body {
+  height: 100vh; overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: var(--sans); cursor: pointer; }
+
+/* ─── Shell ─────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr 0px;
+  grid-template-rows: 100vh;
+  height: 100vh;
+  transition: grid-template-columns 0.32s cubic-bezier(0.4,0,0.2,1);
+}
+.app.output-open {
+  grid-template-columns: 320px 1fr 300px;
+}
+
+/* ─── Left panel ────────────────────────────────────────── */
+.left {
+  background: var(--l-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wordmark {
+  padding: 24px 22px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.wordmark-name {
+  font-family: var(--mono);
+  font-size: 13px; font-weight: 500;
+  color: var(--text); letter-spacing: 0.01em;
+}
+
+.wordmark-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wordmark-by {
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--sub);
+  transition: color 0.15s ease;
+}
+
+.wordmark-by:hover {
+  color: var(--accent-g);
+}
+
+.wordmark-tool {
+  font-family: var(--mono);
+  font-size: 12px; color: var(--dim);
+  margin-top: 0; letter-spacing: 0.01em;
+}
+
+.left-body {
+  flex: 1; overflow-y: auto;
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+/* ─── Middle panel ──────────────────────────────────────── */
+.mid {
+  background: var(--r-bg);
+  display: flex; flex-direction: column; overflow: hidden;
+  min-width: 0;
+}
+
+.mid-header {
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; padding: 0 4px;
+}
+
+.mid-body {
+  flex: 1; overflow-y: auto;
+  padding: 20px 22px 28px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+/* ─── Output sidebar ────────────────────────────────────── */
+.out-sidebar {
+  background: var(--o-bg);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  opacity: 0;
+  transition: opacity 0.22s ease 0.08s;
+}
+.app.output-open .out-sidebar {
+  opacity: 1;
+}
+
+/* sidebar header */
+.out-header {
+  flex-shrink: 0;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--border));
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.out-title-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+}
+.out-title {
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 500;
+  color: var(--dim); letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.out-count {
+  font-family: var(--mono);
+  font-size: 11px; color: var(--sub);
+}
+
+/* progress inside sidebar header */
+.out-progress { display: none; flex-direction: column; gap: 6px; }
+.out-progress.visible { display: flex; }
+.prog-track {
+  height: 2px; background: var(--ghost);
+  border-radius: 1px; overflow: hidden;
+}
+.prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-g));
+  transition: width 0.2s ease;
+  width: 0%;
+}
+.prog-label {
+  font-family: var(--mono); font-size: 10px; color: var(--sub);
+}
+
+/* ZIP button */
+.btn-zip {
+  display: none;
+  width: 100%;
+  align-items: center; justify-content: center; gap: 7px;
+  padding: 9px 12px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: var(--ra);
+  color: var(--accent-g);
+  font-size: 12px; font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.btn-zip.show { display: flex; }
+.btn-zip:hover:not(:disabled) {
+  background: rgba(99,102,241,0.25);
+  border-color: rgba(129,140,248,0.5);
+  color: #fff;
+}
+.btn-zip:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-zip svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+/* track list in sidebar */
+.out-body {
+  flex: 1; overflow-y: auto;
+  padding: 12px 14px 20px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+
+.oitem {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  transition: background 0.1s;
+  animation: fadeup 0.18s ease both;
+}
+.oitem:hover { background: rgba(255,255,255,0.04); }
+
+@keyframes fadeup {
+  from { opacity:0; transform:translateY(4px); }
+  to   { opacity:1; transform:none; }
+}
+
+.onum {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--ghost); width: 16px;
+  text-align: right; flex-shrink: 0; user-select: none;
+}
+.oinfo { flex: 1; min-width: 0; }
+.otitle {
+  font-size: 12px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+.ometa {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--sub); margin-top: 1px;
+}
+
+.btn-dl {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--border-m);
+  color: var(--sub);
+  text-decoration: none;
+  transition: color 0.1s, background 0.1s, border-color 0.1s;
+}
+.btn-dl:hover {
+  color: var(--accent-g);
+  background: var(--accent-dim);
+  border-color: rgba(99,102,241,0.35);
+}
+.btn-dl svg { width: 12px; height: 12px; pointer-events: none; }
+
+/* done state badge */
+.out-done {
+  display: none;
+  align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--success);
+}
+.out-done.visible { display: flex; }
+.out-done svg { width: 11px; height: 11px; }
+
+/* ─── Micro label ───────────────────────────────────────── */
+.mlabel {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 8px;
+}
+.mlabel-hint {
+  font-weight: 400; letter-spacing: 0; text-transform: none;
+  color: rgba(255,255,255,0.14); margin-left: 4px;
+}
+
+/* ─── Drop zone ─────────────────────────────────────────── */
+#drop-zone {
+  border: 1px dashed var(--border-m);
+  border-radius: var(--rb);
+  padding: 26px 16px;
+  text-align: center; cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
+}
+#drop-zone:hover, #drop-zone.drag {
+  border-color: var(--accent-g);
+  background: rgba(99,102,241,0.04);
+}
+.dz-icon { width: 30px; height: 30px; margin: 0 auto 10px; color: var(--sub); }
+#drop-label { font-size: 13px; color: var(--sub); }
+#filename-display {
+  display: none; margin-top: 10px;
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  color: var(--text); word-break: break-all;
+}
+#file-meta {
+  display: none; margin-top: 4px;
+  font-family: var(--mono); font-size: 11px; color: var(--sub);
+}
+#file-input { display: none; }
+
+/* ─── Waveform ──────────────────────────────────────────── */
+#waveform-wrap {
+  display: none; height: 52px;
+  border-radius: var(--ra); overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface); cursor: crosshair;
+}
+#waveform-canvas { display: block; width: 100%; height: 100%; }
+
+/* ─── Rule ──────────────────────────────────────────────── */
+.rule { height: 1px; background: var(--border); }
+
+/* ─── Fields ────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 5px; }
+.flabel { font-size: 11px; font-weight: 500; color: var(--sub); letter-spacing: 0.02em; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+.inp {
+  width: 100%;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--ra); color: var(--text);
+  font-family: var(--sans); font-size: 13px; padding: 7px 10px;
+  outline: none; transition: border-color 0.12s;
+}
+.inp:focus        { border-color: var(--border-hi); background: var(--surface2); }
+.inp::placeholder { color: rgba(255,255,255,0.16); }
+.inp.mono         { font-family: var(--mono); font-size: 12px; }
+.inp.error        { border-color: var(--danger); }
+textarea.inp {
+  resize: none; line-height: 1.7; height: 150px;
+  font-family: var(--mono); font-size: 12px;
+}
+
+/* ─── Option toggle row ─────────────────────────────────── */
+.opt-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--ra);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  user-select: none;
+}
+.opt-row:hover { border-color: var(--border-m); background: var(--surface2); }
+.opt-row input[type=checkbox] { display: none; }
+
+.toggle {
+  flex-shrink: 0;
+  width: 30px; height: 17px;
+  border-radius: 9px;
+  background: var(--ghost);
+  border: 1px solid var(--border-m);
+  position: relative;
+  margin-top: 0;
+  transition: background 0.16s, border-color 0.16s;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  left: 2px; top: 2px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--sub);
+  transition: transform 0.16s, background 0.16s;
+}
+.opt-row.checked .toggle {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.opt-row.checked .toggle::after {
+  transform: translateX(13px);
+  background: #fff;
+}
+
+.opt-text { flex: 1; min-width: 0; }
+.opt-label {
+  font-size: 12px; font-weight: 500; color: var(--text);
+  display: block;
+}
+.opt-sub {
+  font-size: 11px; color: var(--sub); margin-top: 1px;
+  display: block;
+}
+
+/* ─── Split button ──────────────────────────────────────── */
+#split-btn {
+  width: 100%; padding: 12px 16px;
+  background: var(--accent); border: none; border-radius: var(--rb);
+  color: #fff; font-size: 14px; font-weight: 600; letter-spacing: -0.01em;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background 0.14s, transform 0.08s, opacity 0.14s;
+}
+#split-btn:hover:not(:disabled)  { background: var(--accent-g); transform: translateY(-1px); }
+#split-btn:active:not(:disabled) { transform: none; }
+#split-btn:disabled               { opacity: 0.22; cursor: not-allowed; }
+#split-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* ─── Tabs ──────────────────────────────────────────────── */
+.tabs { display: flex; }
+.tab {
+  font-size: 13px; font-weight: 500; padding: 12px 18px 14px;
+  color: var(--sub); border: none; background: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.tab:hover  { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+/* ─── Track table ───────────────────────────────────────── */
+.track-head {
+  display: grid; grid-template-columns: 20px 76px 1fr 28px;
+  gap: 8px; padding: 0 1px; margin-bottom: 8px;
+}
+.track-head span {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ghost); font-family: var(--mono);
+}
+
+#tracks-list { display: flex; flex-direction: column; gap: 6px; }
+
+.trow {
+  display: grid; grid-template-columns: 20px 76px 1fr 28px;
+  gap: 8px; align-items: center; animation: fadeup 0.14s ease both;
+}
+
+.tnum {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ghost); text-align: right; user-select: none;
+}
+
+.btn-rm {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; border-radius: 6px;
+  background: transparent; color: var(--ghost);
+  transition: color 0.1s, background 0.1s;
+}
+.btn-rm:hover { color: var(--danger); background: rgba(248,113,113,0.1); }
+.btn-rm svg   { width: 13px; height: 13px; pointer-events: none; }
+
+.btn-add {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; padding: 2px 1px;
+  font-size: 13px; color: var(--sub);
+  border: none; background: none; transition: color 0.12s;
+}
+.btn-add:hover { color: var(--text); }
+.btn-add svg   { width: 13px; height: 13px; }
+
+#ts-error {
+  display: none; margin-top: 7px;
+  font-family: var(--mono); font-size: 11px; color: var(--danger);
+}
+
+/* ─── Parse row ─────────────────────────────────────────── */
+.parse-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.btn-parse {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: var(--surface2); border: 1px solid var(--border-m);
+  border-radius: var(--ra); color: var(--text);
+  font-size: 13px; font-weight: 500;
+  transition: background 0.12s, border-color 0.12s; white-space: nowrap;
+}
+.btn-parse:hover { background: var(--surface); border-color: var(--border-hi); }
+.btn-parse svg   { width: 13px; height: 13px; flex-shrink: 0; }
+#parse-result { font-family: var(--mono); font-size: 11px; color: var(--sub); }
+
+/* ─── Spinner ───────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.65s linear infinite; display: inline-block; }
+
+/* ─── Scrollbars ────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ══ Left panel ══════════════════════════════════════ -->
+  <div class="left">
+    <div class="wordmark">
+      <div class="wordmark-title">
+        <span class="wordmark-name">cuepoint</span>
+        <span class="wordmark-tool">splitter</span>
+      </div>
+      <a class="wordmark-by" href="https://kibben.neocities.org/" target="_blank" rel="noopener">by kibben</a>
+    </div>
+    <div class="left-body">
+
+      <input type="file" id="file-input" accept=".mp3,audio/mpeg,audio/mp3" onchange="handleFileInput(event)">
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()" role="button" tabindex="0">
+        <svg class="dz-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.3">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2
+               1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2
+               1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+        </svg>
+        <p id="drop-label">Drop an MP3, or click to browse</p>
+        <p id="filename-display"></p>
+        <p id="file-meta"></p>
+      </div>
+
+      <div id="waveform-wrap"><canvas id="waveform-canvas"></canvas></div>
+
+      <div class="rule"></div>
+
+      <div>
+        <div class="mlabel">Metadata <span class="mlabel-hint">optional — written to each file</span></div>
+        <div class="grid2">
+          <div class="field">
+            <label class="flabel" for="meta-album">Album</label>
+            <input id="meta-album" type="text" placeholder="OK Computer" class="inp">
+          </div>
+          <div class="field">
+            <label class="flabel" for="meta-artist">Artist</label>
+            <input id="meta-artist" type="text" placeholder="Radiohead" class="inp">
+          </div>
+          <div class="field">
+            <label class="flabel" for="meta-year">Year</label>
+            <input id="meta-year" type="text" placeholder="1997" maxlength="4" class="inp">
+          </div>
+          <div class="field">
+            <label class="flabel" for="meta-genre">Genre</label>
+            <input id="meta-genre" type="text" placeholder="Alternative Rock" class="inp">
+          </div>
+        </div>
+      </div>
+
+      <div class="rule"></div>
+
+      <!-- Pre-first-timestamp option -->
+      <div>
+        <label class="opt-row" id="opt-pre-row">
+          <input type="checkbox" id="opt-pre-check" onchange="togglePreTrack()">
+          <span class="toggle"></span>
+          <span class="opt-text">
+            <span class="opt-label">Include audio before first timestamp</span>
+            <span class="opt-sub">Captures everything before track 1 as its own file</span>
+          </span>
+        </label>
+      </div>
+
+      <button id="split-btn" disabled onclick="splitAudio()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+        Split audio
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ══ Middle panel ════════════════════════════════════ -->
+  <div class="mid">
+    <div class="mid-header">
+      <div class="tabs">
+        <button id="tab-paste"  class="tab active" onclick="switchTab('paste')">Paste tracklist</button>
+        <button id="tab-manual" class="tab"         onclick="switchTab('manual')">Manual</button>
+      </div>
+    </div>
+    <div class="mid-body">
+
+      <div id="panel-paste">
+        <div class="field">
+          <label class="flabel" for="paste-input">YouTube chapters or timestamp list</label>
+          <textarea id="paste-input" class="inp"
+            placeholder="0:00 - Track One&#10;2:32 - Track Two&#10;4:14 - Track Three&#10;&#10;Also works with YouTube chapter format."></textarea>
+        </div>
+        <div class="parse-row">
+          <button class="btn-parse" onclick="parsePaste()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Parse
+          </button>
+          <p id="parse-result"></p>
+        </div>
+      </div>
+
+      <div id="panel-manual" style="display:none">
+        <p class="flabel" style="margin-bottom:8px">Add split points manually below</p>
+      </div>
+
+      <div class="rule"></div>
+
+      <div>
+        <div class="track-head">
+          <span>#</span><span>Start</span><span>Name</span><span></span>
+        </div>
+        <!-- Pre-track row: shown when toggle is on and first TS > 0 -->
+        <div class="trow pre-track-row" id="pre-track-row" style="display:none">
+          <span class="tnum" style="color:var(--accent-g);opacity:0.7">0</span>
+          <span class="inp mono" style="display:flex;align-items:center;font-size:11px;color:var(--sub);pointer-events:none;cursor:default;border-style:dashed;" id="pre-track-ts">0:00</span>
+          <input id="opt-pre-name" type="text" placeholder="Intro" class="inp">
+          <span style="width:28px"></span>
+        </div>
+        <div id="tracks-list"></div>
+        <button id="btn-add-track" class="btn-add" style="display:none" onclick="addTrack('','')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add track
+        </button>
+        <p id="ts-error"></p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ Output sidebar ══════════════════════════════════ -->
+  <div class="out-sidebar" id="out-sidebar">
+
+    <div class="out-header" style="border-bottom: 1px solid var(--border);">
+      <div class="out-title-row">
+        <span class="out-title">Output</span>
+        <span class="out-count" id="out-count"></span>
+      </div>
+
+      <!-- progress -->
+      <div class="out-progress" id="out-progress">
+        <div class="prog-track"><div id="progress-bar" class="prog-fill"></div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span class="prog-label" id="status-msg"></span>
+          <span class="out-done" id="out-done">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            Done
+          </span>
+        </div>
+      </div>
+
+      <!-- zip button -->
+      <button class="btn-zip" id="dl-all-btn" onclick="downloadAll()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Download all as ZIP
+      </button>
+    </div>
+
+    <div class="out-body" id="output-list"></div>
+
+  </div>
+
+</div><!-- /app -->
+
+<script>
+/* ── State ─────────────────────────────────────────────── */
+let audioBuffer = null, fileName = '', audioCtx = null, outputBlobs = [];
+let tracks = [];
+let currentTab = 'paste';
+
+/* ── Helpers ───────────────────────────────────────────── */
+const esc = s => String(s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const yieldFrame = () => new Promise(r => requestAnimationFrame(r));
+const yieldTask  = () => new Promise(r => setTimeout(r, 0));
+
+/* ── Filename metadata detection ───────────────────────── */
+function detectMetaFromFilename(name) {
+  const base = name.replace(/\.(mp3|flac|aac|ogg|wav|m4a)$/i, '').trim();
+  const yearMatch = base.match(/[\(\[]((?:19|20)\d{2})[\)\]]/);
+  const year = yearMatch ? yearMatch[1] : '';
+  const stripped = base.replace(/[\(\[]((?:19|20)\d{2})[\)\]]/g, '').trim();
+  const dashIdx = stripped.search(/\s[-–—]\s/);
+  if (dashIdx !== -1) {
+    const left  = stripped.slice(0, dashIdx).trim();
+    const right = stripped.slice(dashIdx).replace(/^\s[-–—]\s*/, '').trim();
+    return { artist: left, album: right, year };
+  }
+  return { artist: '', album: stripped, year };
+}
+
+/* ── File ──────────────────────────────────────────────── */
+function handleFileInput(e) { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value=''; }
+
+async function loadFile(file) {
+  if (!file.type.includes('audio') && !file.name.endsWith('.mp3')) return;
+  fileName = file.name.replace(/\.mp3$/i, '');
+
+  const meta = detectMetaFromFilename(file.name);
+  const albumField  = document.getElementById('meta-album');
+  const artistField = document.getElementById('meta-artist');
+  const yearField   = document.getElementById('meta-year');
+  if (!albumField.value.trim()  && meta.album)  albumField.value  = meta.album;
+  if (!artistField.value.trim() && meta.artist) artistField.value = meta.artist;
+  if (!yearField.value.trim()   && meta.year)   yearField.value   = meta.year;
+
+  const lbl = document.getElementById('drop-label');
+  const fd  = document.getElementById('filename-display');
+  const fm  = document.getElementById('file-meta');
+  lbl.style.display = 'none';
+  fd.style.display  = 'block'; fd.textContent = file.name;
+  fm.style.display  = 'block'; fm.textContent = 'Decoding…';
+
+  if (audioCtx) { try { await audioCtx.close(); } catch {} audioCtx = null; }
+
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const arrayBuf = await file.arrayBuffer();
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+    const m = Math.floor(audioBuffer.duration / 60);
+    const s = Math.floor(audioBuffer.duration % 60);
+    fm.textContent = `${m}:${String(s).padStart(2,'0')} · ${audioBuffer.numberOfChannels}ch · ${(audioBuffer.sampleRate/1000).toFixed(1)}kHz · ${(file.size/1048576).toFixed(2)} MB`;
+    drawWaveform();
+    document.getElementById('waveform-wrap').style.display = 'block';
+    updateSplitBtn();
+  } catch(err) {
+    fm.textContent = 'Error decoding — is this a valid MP3?';
+    console.error(err);
+  }
+}
+
+/* ── Waveform ──────────────────────────────────────────── */
+function drawWaveform() {
+  if (!audioBuffer) return;
+  const dpr  = Math.min(window.devicePixelRatio || 1, 2);
+  const wrap = document.getElementById('waveform-wrap');
+  const cv   = document.getElementById('waveform-canvas');
+  const W    = wrap.offsetWidth || 280, H = 52;
+  cv.width   = W * dpr; cv.height = H * dpr;
+  const ctx  = cv.getContext('2d');
+  const data = audioBuffer.getChannelData(0);
+  const step = Math.ceil(data.length / W);
+  const mid  = H / 2 * dpr;
+
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  for (let i = 0; i < W; i++) {
+    let mn = 1, mx = -1, base = i * step;
+    for (let j = 0; j < step; j++) { const d = data[base+j]||0; if(d<mn)mn=d; if(d>mx)mx=d; }
+    const y1 = ((1-mx)/2)*H*dpr, y2 = ((1-mn)/2)*H*dpr;
+    ctx.fillRect(i*dpr, y1, dpr, Math.max(dpr, y2-y1));
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W*dpr, mid); ctx.stroke();
+
+  const dur = audioBuffer.duration;
+  ctx.save();
+  tracks.forEach(t => {
+    const s = parseTS(t.ts);
+    if (s === null || s <= 0 || s >= dur) return;
+    const x = (s / dur) * W * dpr;
+    ctx.strokeStyle = 'rgba(129,140,248,0.6)'; ctx.lineWidth = dpr; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H*dpr); ctx.stroke();
+    ctx.fillStyle = 'rgba(129,140,248,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(x - 3.5*dpr, 0); ctx.lineTo(x + 3.5*dpr, 0); ctx.lineTo(x, 6*dpr);
+    ctx.closePath(); ctx.fill();
+  });
+  ctx.restore();
+}
+
+/* ── Timestamp utils ───────────────────────────────────── */
+function parseTS(str) {
+  str = (str||'').trim(); if (!str) return null;
+  const p = str.split(':').map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length===3) return p[0]*3600+p[1]*60+p[2];
+  if (p.length===2) return p[0]*60+p[1];
+  if (p.length===1) return p[0];
+  return null;
+}
+function fmtTS(s) { const m=Math.floor(s/60); return `${m}:${String(Math.floor(s%60)).padStart(2,'0')}`; }
+function fmtDur(s){ const m=Math.floor(s/60),r=s%60; return `${m}:${r<10?'0':''}${r.toFixed(1)}`; }
+
+/* ── Pre-track toggle ──────────────────────────────────── */
+function togglePreTrack() {
+  const check = document.getElementById('opt-pre-check');
+  const row   = document.getElementById('opt-pre-row');
+  row.classList.toggle('checked', check.checked);
+  updateSplitBtn(); // re-evaluates whether pre-track row should actually be visible
+}
+
+/* ── Tabs ──────────────────────────────────────────────── */
+function switchTab(tab) {
+  currentTab = tab;
+  const p = tab === 'paste';
+  document.getElementById('tab-paste').classList.toggle('active', p);
+  document.getElementById('tab-manual').classList.toggle('active', !p);
+  document.getElementById('panel-paste').style.display  = p  ? '' : 'none';
+  document.getElementById('panel-manual').style.display = !p ? '' : 'none';
+  document.getElementById('btn-add-track').style.display = !p ? 'flex' : 'none';
+}
+
+/* ── Parse paste ───────────────────────────────────────── */
+function parsePaste() {
+  const lines = document.getElementById('paste-input').value
+    .split('\n').map(l=>l.trim()).filter(Boolean);
+  const found = [];
+  const pats = [
+    /\[(\d{1,2}:\d{2}(?::\d{2})?)\]\([^)]*\)\s*[-–]\s*(.+)/,
+    /\((\d{1,2}:\d{2}(?::\d{2})?)\)\s*[-–]\s*(.+)/,
+    /^(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—|]\s*(.+)/,
+    /^(.+?)\s*[-–—|]\s*(\d{1,2}:\d{2}(?::\d{2})?)$/,
+    /^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)/,
+  ];
+  lines.forEach(line => {
+    for (const [i,p] of pats.entries()) {
+      const m = line.match(p);
+      if (m) {
+        let ts=m[1],name=m[2];
+        if (i===3){ts=m[2];name=m[1];}
+        name=name.trim();
+        if (parseTS(ts)!==null){found.push({ts,name});break;}
+      }
+    }
+  });
+  const r = document.getElementById('parse-result');
+  if (!found.length) { r.textContent='No timestamps found'; r.style.color='var(--danger)'; return; }
+  found.sort((a,b)=>parseTS(a.ts)-parseTS(b.ts));
+  tracks=found; renderTracks();
+  r.textContent=`${found.length} track${found.length!==1?'s':''} parsed`; r.style.color='var(--sub)';
+  if (audioBuffer) drawWaveform();
+  updateSplitBtn(); switchTab('manual');
+}
+
+/* ── Track list ────────────────────────────────────────── */
+function addTrack(ts='',name='') { tracks.push({ts,name}); renderTracks(); updateSplitBtn(); }
+
+function renderTracks() {
+  const list = document.getElementById('tracks-list');
+  list.innerHTML = '';
+  tracks.forEach((t,i) => {
+    const row = document.createElement('div'); row.className='trow';
+    const num = document.createElement('span'); num.className='tnum'; num.textContent=i+1;
+    const tsIn = document.createElement('input');
+    tsIn.type='text'; tsIn.className='inp mono'; tsIn.value=t.ts; tsIn.placeholder='0:00';
+    tsIn.addEventListener('input',()=>{ tracks[i].ts=tsIn.value; validateWithInputs(); if(audioBuffer)drawWaveform(); updateSplitBtn(); });
+    const nIn = document.createElement('input');
+    nIn.type='text'; nIn.className='inp'; nIn.value=t.name; nIn.placeholder='Track name';
+    nIn.addEventListener('input',()=>{ tracks[i].name=nIn.value; });
+    const rm = document.createElement('button'); rm.className='btn-rm'; rm.setAttribute('aria-label','Remove');
+    rm.innerHTML=`<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>`;
+    rm.onclick=()=>{ tracks.splice(i,1); renderTracks(); if(audioBuffer)drawWaveform(); updateSplitBtn(); };
+    row.append(num,tsIn,nIn,rm); list.appendChild(row);
+  });
+}
+
+function validateWithInputs() {
+  const errEl = document.getElementById('ts-error');
+  const inputs = [...document.querySelectorAll('.trow .inp.mono')];
+  errEl.style.display = 'none';
+  if (!audioBuffer) { inputs.forEach(i=>i.classList.remove('error')); return true; }
+  const dur = audioBuffer.duration; let ok = true;
+  tracks.forEach((t,i) => {
+    const inp=inputs[i]; if(!inp) return;
+    if (!t.ts.trim()) { inp.classList.remove('error'); return; }
+    const s=parseTS(t.ts);
+    if (s===null||s<0||s>=dur) { inp.classList.add('error'); ok=false; }
+    else inp.classList.remove('error');
+  });
+  const ss=[...tracks.map(t=>parseTS(t.ts)).filter(s=>s!==null)].sort((a,b)=>a-b);
+  if (ss.some((v,i)=>i>0&&v===ss[i-1])) { errEl.textContent='Duplicate timestamps'; errEl.style.display='block'; ok=false; }
+  return ok;
+}
+
+function updateSplitBtn() {
+  document.getElementById('split-btn').disabled = !(audioBuffer&&tracks.length>0&&validateWithInputs());
+  const firstSorted = tracks
+    .filter(t => t.ts.trim())
+    .map(t => parseTS(t.ts))
+    .filter(s => s !== null)
+    .sort((a,b) => a-b);
+  const hasGap = firstSorted.length > 0 && firstSorted[0] > 0.5;
+  const isOn   = document.getElementById('opt-pre-check').checked;
+
+  // Dim/enable the toggle option
+  const optRow = document.getElementById('opt-pre-row');
+  optRow.style.opacity = hasGap ? '1' : '0.35';
+  optRow.style.pointerEvents = hasGap ? '' : 'none';
+  const sub = optRow.querySelector('.opt-sub');
+  sub.textContent = hasGap
+    ? `Captures 0:00–${fmtTS(firstSorted[0])} as its own file`
+    : 'First timestamp is already at 0:00 — no gap to capture';
+
+  // Show pre-track row in middle panel only when toggle is on AND there's a real gap
+  const preRow = document.getElementById('pre-track-row');
+  const show   = hasGap && isOn;
+  preRow.style.display = show ? 'grid' : 'none';
+  if (show) {
+    document.getElementById('pre-track-ts').textContent = '0:00';
+  }
+}
+
+/* ── Split ─────────────────────────────────────────────── */
+async function splitAudio() {
+  if (!validateWithInputs()) return;
+  const dur=audioBuffer.duration, sr=audioBuffer.sampleRate;
+  const numCh=Math.min(audioBuffer.numberOfChannels,2);
+
+  const sorted=tracks.filter(t=>t.ts.trim()).map(t=>({s:parseTS(t.ts),name:t.name.trim()||null}))
+    .filter(t=>t.s!==null).sort((a,b)=>a.s-b.s);
+  if (!sorted.length) return;
+
+  const firstTS   = sorted[0].s;
+  const startsAtZero = firstTS <= 0.5;
+  const incluePre = document.getElementById('opt-pre-check').checked;
+  const preLabel  = document.getElementById('opt-pre-name').value.trim() || 'Intro';
+
+  // Build bounds array:
+  // - If first timestamp is at ~0, treat it as the start (no gap to capture)
+  // - If incluePre is on and there's a real gap before the first timestamp, prepend a pre-track
+  // - Otherwise, skip the audio before the first timestamp
+  let bounds;
+  if (startsAtZero) {
+    bounds = [...sorted, {s: dur, name: null}];
+  } else if (incluePre) {
+    bounds = [{s: 0, name: preLabel}, ...sorted, {s: dur, name: null}];
+  } else {
+    bounds = [{s: firstTS, name: null}, ...sorted, {s: dur, name: null}];
+  }
+
+  const segs=[];
+  for (let i=0;i<bounds.length-1;i++) {
+    const d=bounds[i+1].s-bounds[i].s;
+    if (d<0.1) continue;
+    segs.push({start:bounds[i].s,end:bounds[i+1].s,rawName:bounds[i].name,dur:d});
+  }
+
+  const total=segs.length;
+  const [mAlbum,mArtist,mYear,mGenre]=['meta-album','meta-artist','meta-year','meta-genre']
+    .map(id=>document.getElementById(id).value.trim());
+
+  // Open sidebar
+  const app = document.getElementById('app');
+  app.classList.add('output-open');
+
+  const btn       = document.getElementById('split-btn');
+  const bar       = document.getElementById('progress-bar');
+  const msg       = document.getElementById('status-msg');
+  const progress  = document.getElementById('out-progress');
+  const countEl   = document.getElementById('out-count');
+  const doneEl    = document.getElementById('out-done');
+  const zipBtn    = document.getElementById('dl-all-btn');
+  const ol        = document.getElementById('output-list');
+
+  btn.disabled = true;
+  progress.classList.add('visible');
+  doneEl.classList.remove('visible');
+  zipBtn.classList.remove('show');
+  ol.innerHTML = '';
+  outputBlobs = [];
+  countEl.textContent = '';
+  bar.style.width = '0%';
+
+  const ch0 = audioBuffer.getChannelData(0);
+  const ch1 = numCh > 1 ? audioBuffer.getChannelData(1) : null;
+
+  for (let si=0;si<segs.length;si++) {
+    const seg=segs[si], tn=si+1, name=seg.rawName||`Track ${tn}`;
+
+    bar.style.width=`${(si/total)*100}%`;
+    msg.textContent=`${tn} / ${total}`;
+    countEl.textContent = `${tn - 1} of ${total}`;
+    await yieldFrame();
+
+    const ss=Math.floor(seg.start*sr), es=Math.floor(seg.end*sr), len=es-ss;
+    const L = ch0.subarray(ss, es);
+    const R = ch1 ? ch1.subarray(ss, es) : L;
+
+    const mp3=encodeToMp3(L,R,sr,len);
+    const id3=buildID3v2({title:name,artist:mArtist,album:mAlbum,year:mYear,genre:mGenre,track:`${tn}/${total}`});
+    const tagged=new Uint8Array(id3.length+mp3.length);
+    tagged.set(id3,0); tagged.set(mp3,id3.length);
+    const blob=new Blob([tagged],{type:'audio/mpeg'});
+    outputBlobs.push({blob,name,trackNum:tn});
+
+    const safe=name.replace(/[/\\?%*:|"<>]/g,'_');
+    const url=URL.createObjectURL(blob);
+    const item=document.createElement('div'); item.className='oitem';
+    item.style.animationDelay = `${si * 0.04}s`;
+    item.innerHTML=`
+      <span class="onum">${tn}</span>
+      <div class="oinfo">
+        <div class="otitle">${esc(name)}</div>
+        <div class="ometa">${fmtTS(seg.start)}–${fmtTS(seg.end)} · ${(blob.size/1024).toFixed(0)} KB</div>
+      </div>
+      <a class="btn-dl" href="${url}" download="${String(tn).padStart(2,'0')} - ${esc(safe)}.mp3" title="Download">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+      </a>`;
+    ol.appendChild(item);
+    await yieldTask();
+  }
+
+  bar.style.width='100%';
+  msg.textContent = '';
+  countEl.textContent = `${total} track${total!==1?'s':''}`;
+  doneEl.classList.add('visible');
+  btn.disabled = false;
+  if (outputBlobs.length > 1) zipBtn.classList.add('show');
+}
+
+/* ── MP3 encode ────────────────────────────────────────── */
+function encodeToMp3(L, R, sr, len) {
+  const enc = new lamejs.Mp3Encoder(2, sr, 128);
+  const chunks = [];
+  const BLK = 4608;
+  const lBuf = new Int16Array(BLK);
+  const rBuf = new Int16Array(BLK);
+  for (let i = 0; i < len; i += BLK) {
+    const sz = Math.min(BLK, len - i);
+    for (let j = 0; j < sz; j++) {
+      const lf = L[i+j] || 0, rf = R[i+j] || 0;
+      lBuf[j] = (lf < -1 ? -32768 : lf > 1 ? 32767 : lf * 32767) | 0;
+      rBuf[j] = (rf < -1 ? -32768 : rf > 1 ? 32767 : rf * 32767) | 0;
+    }
+    const lSlice = sz < BLK ? lBuf.subarray(0, sz) : lBuf;
+    const rSlice = sz < BLK ? rBuf.subarray(0, sz) : rBuf;
+    const buf = enc.encodeBuffer(lSlice, rSlice);
+    if (buf.length > 0) chunks.push(new Uint8Array(buf));
+  }
+  const fl = enc.flush();
+  if (fl.length > 0) chunks.push(new Uint8Array(fl));
+  const total = chunks.reduce((a,c) => a + c.length, 0);
+  const out = new Uint8Array(total); let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
+/* ── ID3v2.3 ───────────────────────────────────────────── */
+function buildID3v2({title='',artist='',album='',year='',genre='',track=''}) {
+  const enc=new TextEncoder();
+  const frame=(id,txt)=>{
+    if(!txt)return null;
+    const tb=enc.encode(txt),sz=1+tb.length,f=new Uint8Array(10+sz);
+    for(let i=0;i<4;i++)f[i]=id.charCodeAt(i);
+    f[4]=(sz>>24)&0xFF;f[5]=(sz>>16)&0xFF;f[6]=(sz>>8)&0xFF;f[7]=sz&0xFF;
+    f[10]=0;f.set(tb,11);return f;
+  };
+  const frames=[frame('TIT2',title),frame('TPE1',artist),frame('TALB',album),
+    frame('TYER',year),frame('TCON',genre),frame('TRCK',track)].filter(Boolean);
+  const fsz=frames.reduce((a,f)=>a+f.length,0);
+  const h=new Uint8Array(10);
+  h[0]=0x49;h[1]=0x44;h[2]=0x33;h[3]=0x03;
+  h[6]=(fsz>>21)&0x7F;h[7]=(fsz>>14)&0x7F;h[8]=(fsz>>7)&0x7F;h[9]=fsz&0x7F;
+  const tag=new Uint8Array(10+fsz); tag.set(h,0); let off=10;
+  for(const f of frames){tag.set(f,off);off+=f.length;}
+  return tag;
+}
+
+/* ── Download all ──────────────────────────────────────── */
+async function downloadAll() {
+  const btn=document.getElementById('dl-all-btn');
+  const orig = btn.innerHTML;
+  btn.innerHTML=`<svg class="spin" style="width:13px;height:13px" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Zipping…`;
+  btn.disabled=true;
+  const zip=new JSZip();
+  outputBlobs.forEach(({blob,name,trackNum})=>{
+    zip.file(`${String(trackNum).padStart(2,'0')} - ${name.replace(/[/\\?%*:|"<>]/g,'_')}.mp3`,blob);
+  });
+  const zb=await zip.generateAsync({type:'blob',compression:'STORE'});
+  const url=URL.createObjectURL(zb);
+  Object.assign(document.createElement('a'),{href:url,download:`${fileName||'tracks'}.zip`}).click();
+  URL.revokeObjectURL(url);
+  btn.innerHTML = orig;
+  btn.disabled=false;
+}
+
+/* ── Init ──────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded',()=>{
+  const dz=document.getElementById('drop-zone');
+  dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag');});
+  dz.addEventListener('dragleave',e=>{if(!dz.contains(e.relatedTarget))dz.classList.remove('drag');});
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+  dz.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')document.getElementById('file-input').click();});
+  switchTab('paste');
+});
+</script>
+</body>
+</html>
